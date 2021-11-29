@@ -70,6 +70,40 @@ val incr : int t -> unit
 (** [decr r] atomically decrements the value of [r] by [1]. *)
 val decr : int t -> unit
 
+(** [modify f r] computes a new value for [r] by applying [f] to its
+    current value, sets this new value or retries (calling [f] again)
+    if [r] was concurrently changed to a physically different value.
+
+    Example:
+{[
+let global_list = Atomic.make []
+let global_push elem = Atomic.modify (List.cons elem) global_list
+]}
+
+    @since 5.6
+*)
+val modify : ('a -> 'a) -> 'a t -> unit
+
+(** [modify_get f r] computes a pair [(v, new_r)] by calling [f]
+    to the value of [r]. It tries to set this new value in [r]
+    and returns [v], or retries (calling [f] again) if [r] was
+    concurrently changed to a physically different value.
+
+    Example:
+{[
+let global_list = Atomic.make []
+let global_pop () =
+  let pop = function
+  | [] -> raise Not_found
+  | x::xs -> x, xs
+  in
+  Atomic.modify_get pop global_lit
+]}
+
+    @since 5.6
+*)
+val modify_get : ('a -> 'b * 'a) -> 'a t -> 'b
+
 (** Atomic "locations", such as record fields.
 
     @since 5.4 *)
@@ -96,6 +130,7 @@ module Loc : sig
   external fetch_and_add : int t -> int -> int = "%atomic_fetch_add_loc"
   val incr : int t -> unit
   val decr : int t -> unit
+  val modify : ('a -> 'a) -> 'a t -> unit
 end
 
 
@@ -139,6 +174,11 @@ module Array : sig
     int t -> int -> int -> int
   val fetch_and_add :
     int t -> int -> int -> int
+
+  val unsafe_modify :
+    ('a -> 'a) -> 'a t -> int -> unit
+  val modify :
+    ('a -> 'a) -> 'a t -> int -> unit
 end
 
 (** {1:examples Examples}
@@ -241,5 +281,12 @@ end
     - : int option = Some 1
     # pop st
     - : int option = None
+    ]}
+
+    The simple retry-loop pattern of [push] can be expressed
+    with {!Atomic.modify} instead:
+
+    {[
+    let push stack elt = Atomic.modify (fun li -> elt :: li) stack
     ]}
   *)

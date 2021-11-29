@@ -28,6 +28,20 @@ module Loc = struct
     ignore (fetch_and_add t 1)
   let decr t =
     ignore (fetch_and_add t (-1))
+
+  let rec modify f t =
+    let v_old = get t in
+    let v_new = f v_old in
+    if compare_and_set t v_old v_new
+    then ()
+    else modify f t
+
+  let rec modify_get f t =
+    let v_old = get t in
+    let res, v_new = f v_old in
+    if compare_and_set t v_old v_new
+    then res
+    else modify_get f t
 end
 
 type !'a t =
@@ -54,6 +68,11 @@ let incr t =
   Loc.incr [%atomic.loc t.contents]
 let decr t =
   Loc.decr [%atomic.loc t.contents]
+
+let modify f t =
+  Loc.modify f [%atomic.loc t.contents]
+let modify_get f t =
+  Loc.modify_get f [%atomic.loc t.contents]
 
 module Array = struct
   type !'a t =
@@ -106,6 +125,12 @@ module Array = struct
   let[@inline] fetch_and_add t i incr =
     check_array_bound t i;
     unsafe_fetch_and_add t i incr
+
+  let[@inline] unsafe_modify f t i =
+    Loc.modify f (unsafe_index t i)
+  let[@inline] modify f t i =
+    check_array_bound t i;
+    unsafe_modify f t i
 
   let make len v =
     if len < 0 then
