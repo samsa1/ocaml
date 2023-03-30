@@ -1178,7 +1178,13 @@ class c = [ < foo : string; .. > ] p;;
 [%%expect {|
 class ['a] p :
   object ('a) constraint 'a = < .. > method private foo : int end
-class c : object method foo : int end
+Line 2, characters 12-32:
+2 | class c = [ < foo : string; .. > ] p;;
+                ^^^^^^^^^^^^^^^^^^^^
+Error: The type parameter "< foo : string; .. >"
+       does not meet its constraint: it should be
+         "< foo : int; .. > as 'a" = "< foo : int; .. >"
+       The method "foo" has type "string", but the expected method type was "int"
 |}];;
 
 (* Errors for undefined methods *)
