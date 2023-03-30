@@ -98,6 +98,9 @@ let o = object(_ : 'self)
   method m = ()
 end
 [%%expect{|
-Uncaught exception: File "typing/ctype.ml", line 4201, characters 29-35: Assertion failed
-
+Line 4, characters 2-15:
+4 |   method m = ()
+      ^^^^^^^^^^^^^
+Error: This object is expected to have type : "<  >"
+       This type does not have a method "m".
 |}]
