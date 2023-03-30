@@ -994,8 +994,8 @@ Line 4, characters 17-23:
 4 |       method n = self#m
                      ^^^^^^
 Warning 17 [undeclared-virtual-method]: the virtual method "m" is not declared.
-Uncaught exception: File "typing/ctype.ml", line 4302, characters 13-19: Assertion failed
 
+class c : object method m : int method n : int end
 |}];;
 
 class virtual c = object (self : 'c)
@@ -1046,7 +1046,7 @@ class type ['a] ct = object ('a) constraint 'a = < .. > end
 Line 2, characters 10-31:
 2 | class c : [ < a : int; ..> ] ct = object method a = 3 end;;
               ^^^^^^^^^^^^^^^^^^^^^
-Error: This non-virtual class has undeclared virtual methods.
+Error: This non-virtual class type has undeclared virtual methods.
        The following methods were not declared : "a"
 |}];;
 
