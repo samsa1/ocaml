@@ -360,16 +360,10 @@ let make_key_generator () =
 
 let compare x y =
   match x, y with
-  | Local x, Local y ->
-      let c = x.stamp - y.stamp in
-      if c <> 0 then c
-      else compare x.name y.name
+  | Local x, Local y -> compare x.stamp y.stamp
   | Local _, _ -> 1
   | _, Local _ -> (-1)
-  | Scoped x, Scoped y ->
-      let c = x.stamp - y.stamp in
-      if c <> 0 then c
-      else compare x.name y.name
+  | Scoped x, Scoped y -> compare x.stamp y.stamp
   | Scoped _, _ -> 1
   | _, Scoped _ -> (-1)
   | Global x, Global y -> compare x y
