@@ -5471,7 +5471,7 @@ and type_application env funct sargs =
   in
   let warned = ref false in
   (* [args] remember the location of each argument in sources. *)
-  let rec type_args args ty_fun ty_fun0 sargs =
+  let rec type_args (args : (arg_label * ((unit -> argument) * Location.t option) option) list) ty_fun ty_fun0 sargs =
     let type_unknown_args () =
       (* We're not looking at a *known* function type anymore, or there are no
          arguments left. *)

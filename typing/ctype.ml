@@ -2180,9 +2180,8 @@ let enter_functor env scope id1 t1 id2 t2 f =
   in
   let old_id_pairs = Ident.get_id_pairs () in
   let filtered_id_pairs = filter_id_pairs old_id_pairs in
-  (* /!\ this is wrond and shoudl be corrected *)
+  (* /!\ this is wrong and shoudl be corrected *)
   Ident.with_id_pairs ((id1, id2, scope) :: filtered_id_pairs) f
-  
 
 (**** Instantiate a generic type into a poly type ***)
 
@@ -2634,8 +2633,6 @@ let add_gadt_equation uenv source destination =
 
 let eq_package_path env p1 p2 =
   Path.equiv p1 p2 ||
-  let p1 = normalize_package_path env p1 in
-  let p2 = normalize_package_path env p2 in
   Path.equiv (normalize_package_path env p1) (normalize_package_path env p2)
 
 let nondep_type' = ref (fun _ _ _ -> assert false)
