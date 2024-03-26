@@ -690,7 +690,7 @@ let lambda_of_prim prim_name prim loc args arg_exps =
       let arg =
         match arg_exps with
         | None -> arg
-        | Some [arg_exp] -> event_after loc arg_exp arg
+        | Some [Targ_expression arg_exp] -> event_after loc arg_exp arg
         | Some _ -> assert false
       in
       Lprim(Praise kind, [arg], loc)
@@ -699,7 +699,7 @@ let lambda_of_prim prim_name prim loc args arg_exps =
       let raise_arg =
         match arg_exps with
         | None -> Lvar vexn
-        | Some [exn_exp; _] -> event_after loc exn_exp (Lvar vexn)
+        | Some [Targ_expression exn_exp; _] -> event_after loc exn_exp (Lvar vexn)
         | Some _ -> assert false
       in
       Llet(Strict, Pgenval, vexn, exn,
@@ -844,10 +844,10 @@ let transl_primitive_application loc p env ty path exp args arg_exps =
     lookup_primitive_and_mark_used (to_location loc) p env (Some path) in
   let has_constant_constructor =
     match arg_exps with
-    | [_; {exp_desc = Texp_construct(_, {cstr_tag = Cstr_constant _}, _)}]
-    | [{exp_desc = Texp_construct(_, {cstr_tag = Cstr_constant _}, _)}; _]
-    | [_; {exp_desc = Texp_variant(_, None)}]
-    | [{exp_desc = Texp_variant(_, None)}; _] -> true
+    | [_; Targ_expression {exp_desc = Texp_construct(_, {cstr_tag = Cstr_constant _}, _)}]
+    | [Targ_expression {exp_desc = Texp_construct(_, {cstr_tag = Cstr_constant _}, _)}; _]
+    | [_; Targ_expression {exp_desc = Texp_variant(_, None)}]
+    | [Targ_expression {exp_desc = Texp_variant(_, None)}; _] -> true
     | _ -> false
   in
   let prim =

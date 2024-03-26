@@ -195,7 +195,7 @@ and expression_desc =
         Parameters' effects are run left-to-right when an n-ary function is
         saturated with n arguments.
     *)
-  | Texp_apply of expression * (arg_label * expression option) list
+  | Texp_apply of expression * (arg_label * argument option) list
         (** E0 ~l1:E1 ... ~ln:En
 
             The expression can be None if the expression is abstracted over
@@ -208,7 +208,7 @@ and expression_desc =
             The resulting typedtree for the application is:
             Texp_apply (Texp_ident "f/1037",
                         [(Nolabel, None);
-                         (Labelled "y", Some (Texp_constant Const_int 3))
+                         (Labelled "y", Some (Targ_expression (Texp_constant Const_int 3)))
                         ])
          *)
   | Texp_match of expression * computation case list * partial
@@ -322,6 +322,8 @@ and function_param =
 and function_param_kind =
   | Tparam_pat of pattern
   (** [Tparam_pat p] is a non-optional argument with pattern [p]. *)
+  | Tparam_module of pattern * package_type
+  (** [Tparam_module (i, p)] is a module argument for a dependant function. *)
   | Tparam_optional_default of pattern * expression
   (** [Tparam_optional_default (p, e)] is an optional argument [p] with default
       value [e], i.e. [?x:(p = e)]. If the parameter is of type [a option], the
@@ -358,6 +360,10 @@ and binding_op =
     bop_loc : Location.t;
   }
 
+and argument =
+  | Targ_expression of expression
+  | Targ_module of module_expr
+
 (* Value expressions for the class language *)
 
 and class_expr =
@@ -375,7 +381,7 @@ and class_expr_desc =
   | Tcl_fun of
       arg_label * pattern * (Ident.t * expression) list
       * class_expr * partial
-  | Tcl_apply of class_expr * (arg_label * expression option) list
+  | Tcl_apply of class_expr * (arg_label * argument option) list
   | Tcl_let of rec_flag * value_binding list *
                   (Ident.t * expression) list * class_expr
   | Tcl_constraint of
@@ -658,6 +664,7 @@ and core_type_desc =
   | Ttyp_poly of string list * core_type
   | Ttyp_package of package_type
   | Ttyp_open of Path.t * Longident.t loc * core_type
+  | Ttyp_functor of arg_label * Ident.t loc * package_type * core_type
 
 and package_type = {
   pack_path : Path.t;

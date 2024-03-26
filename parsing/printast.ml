@@ -188,6 +188,12 @@ let rec core_type i ppf x =
   | Ptyp_extension (s, arg) ->
       line i ppf "Ptyp_extension \"%s\"\n" s.txt;
       payload i ppf arg
+  | Ptyp_functor (label, name, (li, l), ct2) ->
+      line i ppf "Ptyp_functor\n";
+      arg_label i ppf label;
+      line i ppf "\"%s\" : %a\n" name.txt fmt_longident_loc li;
+      list i package_with ppf l;
+      core_type i ppf ct2
 
 and package_with i ppf (s, t) =
   line i ppf "with type %a\n" fmt_longident_loc s;
@@ -276,7 +282,7 @@ and expression i ppf x =
   | Pexp_apply (e, l) ->
       line i ppf "Pexp_apply\n";
       expression i ppf e;
-      list i label_x_expression ppf l;
+      list i label_x_argument ppf l;
   | Pexp_match (e, l) ->
       line i ppf "Pexp_match\n";
       expression i ppf e;
@@ -397,6 +403,12 @@ and function_param i ppf { pparam_desc = desc; pparam_loc = loc } =
       arg_label (i+1) ppf l;
       option (i+1) expression ppf eo;
       pattern (i+1) ppf p
+  | Pparam_module (label, s, (li, l)) ->
+      line i ppf "Pparam_module %a\n" fmt_location loc;
+      arg_label (i+1) ppf label;
+      line (i+1) ppf "Pexp_ident %a\n" fmt_string_loc s;
+      line (i+1) ppf "%a\n" fmt_longident_loc li;
+      list (i+1) package_with ppf l
   | Pparam_newtype ty ->
       line i ppf "Pparam_newtype \"%s\" %a\n" ty.txt fmt_location loc
 
@@ -614,7 +626,7 @@ and class_expr i ppf x =
   | Pcl_apply (ce, l) ->
       line i ppf "Pcl_apply\n";
       class_expr i ppf ce;
-      list i label_x_expression ppf l;
+      list i label_x_argument ppf l;
   | Pcl_let (rf, l, ce) ->
       line i ppf "Pcl_let %a\n" fmt_rec_flag rf;
       list i value_binding ppf l;
@@ -978,10 +990,16 @@ and longident_x_expression i ppf (li, e) =
   line i ppf "%a\n" fmt_longident_loc li;
   expression (i+1) ppf e;
 
-and label_x_expression i ppf (l,e) =
+and label_x_argument i ppf (l,a) =
   line i ppf "<arg>\n";
   arg_label i ppf l;
-  expression (i+1) ppf e;
+  argument (i+1) ppf a;
+
+and argument i ppf = function
+  | Parg_expression e -> expression i ppf e
+  | Parg_module me ->
+      line i ppf "<module-arg>\n";
+      module_expr (i+1) ppf me
 
 and label_x_bool_x_core_type_list i ppf x =
   match x.prf_desc with

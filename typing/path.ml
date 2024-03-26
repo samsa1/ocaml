@@ -38,6 +38,22 @@ let rec same p1 p2 =
       in same_extra && same p1 p2
   | (_, _) -> false
 
+let rec equiv p1 p2 =
+  p1 == p2
+  || match (p1, p2) with
+        (Pident id1, Pident id2) -> Ident.equiv id1 id2
+      | (Pdot(p1, s1), Pdot(p2, s2)) ->
+        s1 = s2 && equiv p1 p2
+      | (Papply(fun1, arg1), Papply(fun2, arg2)) ->
+        equiv fun1 fun2 && equiv arg1 arg2
+      | (Pextra_ty (p1, t1), Pextra_ty(p2, t2)) ->
+        let same_extra = match t1, t2 with
+          | (Pcstr_ty s1, Pcstr_ty s2) -> s1 = s2
+          | (Pext_ty, Pext_ty) -> true
+          | ((Pcstr_ty _ | Pext_ty), _) -> false
+        in same_extra && equiv p1 p2
+      | (_, _) -> false
+  
 let rec compare p1 p2 =
   if p1 == p2 then 0
   else match (p1, p2) with
@@ -87,6 +103,49 @@ let rec scope = function
     Pident id -> Ident.scope id
   | Pdot(p, _) | Pextra_ty (p, _) -> scope p
   | Papply(p1, p2) -> Int.max (scope p1) (scope p2)
+
+let rec contains id = function
+    Pident id' -> Ident.same id' id
+  | Pdot(p, _) | Pextra_ty(p, _) -> contains id p
+  | Papply(p1, p2) -> contains id p1 || contains id p2
+
+let subst id_subst p =
+  let rec aux = function
+  | Pident id ->
+    Pident(snd (List.find (fun (i, _) -> Ident.same id i) id_subst))
+  | Pdot(p, s) -> Pdot(aux p, s)
+  | Pextra_ty(p, e) -> Pextra_ty(aux p, e)
+  | Papply(p1, p2) ->
+    let p1 = try aux p1 with Not_found -> p1 in
+    let p2 = try aux p2 with Not_found -> p2 in
+    Papply(p1, p2)
+  in
+  try aux p with Not_found -> p
+
+let unsubst id_subst p =
+  let rec aux = function
+  | Pident id ->
+    Pident (fst (List.find (fun (_, i) -> Ident.same id i) id_subst))
+  | Pdot (p, s) -> Pdot (aux p, s)
+  | Pextra_ty (p, e) -> Pextra_ty (aux p, e)
+  | Papply (p1, p2) ->
+    let p1 = try aux p1 with Not_found -> p1 in
+    let p2 = try aux p2 with Not_found -> p2 in
+    Papply (p1, p2)
+  in
+  try aux p with Not_found -> p
+
+let scope_subst id_subst p =
+  let rec aux = function
+  | Pident id ->
+    begin
+    match List.find_opt (fun (i, _) -> Ident.same i id) id_subst with
+    | None -> Ident.scope id
+    | Some (_, id') -> Ident.scope id'
+    end
+  | Pdot (p, _) | Pextra_ty (p, _) -> aux p
+  | Papply(p1, p2) -> Int.max (aux p1) (aux p2)
+  in aux p
 
 let kfalse _ = false
 

@@ -25,6 +25,7 @@ open Parsetree
 open Location
 
 type iterator = {
+  argument: iterator -> argument -> unit;
   attribute: iterator -> attribute -> unit;
   attributes: iterator -> attribute list -> unit;
   binding_op: iterator -> binding_op -> unit;
@@ -139,6 +140,11 @@ module T = struct
         iter_loc sub mod_ident;
         sub.typ sub t
     | Ptyp_extension x -> sub.extension sub x
+    | Ptyp_functor (_lab, s, (lid, l), t2) ->
+      iter_loc sub s;
+      iter_loc sub lid;
+      List.iter (iter_tuple (iter_loc sub) (sub.typ sub)) l;
+      sub.typ sub t2
 
   let iter_type_declaration sub
       {ptype_name; ptype_params; ptype_cstrs;
@@ -360,6 +366,11 @@ module E = struct
     | Pparam_val (_lab, def, p) ->
         iter_opt (sub.expr sub) def;
         sub.pat sub p
+    | Pparam_module (_lab, s, pack_opt) ->
+        iter_loc sub s;
+        iter_tuple (iter_loc sub)
+          (List.iter (iter_tuple (iter_loc sub) (sub.typ sub)))
+          pack_opt
     | Pparam_newtype ty ->
         iter_loc sub ty
 
@@ -394,7 +405,7 @@ module E = struct
         iter_opt (iter_constraint sub) constraint_;
         iter_body sub body
     | Pexp_apply (e, l) ->
-        sub.expr sub e; List.iter (iter_snd (sub.expr sub)) l
+        sub.expr sub e; List.iter (iter_snd (sub.argument sub)) l
     | Pexp_match (e, pel) ->
         sub.expr sub e; sub.cases sub pel
     | Pexp_try (e, pel) -> sub.expr sub e; sub.cases sub pel
@@ -461,6 +472,10 @@ module E = struct
     sub.expr sub pbop_exp;
     sub.location sub pbop_loc
 
+  let iter_argument sub = function
+    | Parg_expression e -> sub.expr sub e
+    | Parg_module me -> sub.module_expr sub me
+
 end
 
 module P = struct
@@ -517,7 +532,7 @@ module CE = struct
         sub.class_expr sub ce
     | Pcl_apply (ce, l) ->
         sub.class_expr sub ce;
-        List.iter (iter_snd (sub.expr sub)) l
+        List.iter (iter_snd (sub.argument sub)) l
     | Pcl_let (_r, vbs, ce) ->
         List.iter (sub.value_binding sub) vbs;
         sub.class_expr sub ce
@@ -603,6 +618,7 @@ let default_iterator =
     pat = P.iter;
     expr = E.iter;
     binding_op = E.iter_binding_op;
+    argument = E.iter_argument;
 
     module_declaration =
       (fun this {pmd_name; pmd_type; pmd_attributes; pmd_loc} ->

@@ -81,6 +81,7 @@ type out_type =
   | Otyp_poly of string list * out_type
   | Otyp_module of out_ident * (string * out_type) list
   | Otyp_attribute of out_type * out_attribute
+  | Otyp_functor of Asttypes.arg_label * out_ident * out_ident * out_type
 
 and out_constructor = {
   ocstr_name: string;

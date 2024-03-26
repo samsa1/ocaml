@@ -119,6 +119,7 @@ let rec add_type bv ty =
     let bv = open_module bv mod_ident.txt in
     add_type bv t
   | Ptyp_extension e -> handle_extension e
+  | Ptyp_functor (_, _, pt, t2) -> add_package_type bv pt; add_type bv t2
 
 and add_package_type bv (lid, l) =
   add bv lid;
@@ -210,7 +211,7 @@ let rec add_expr bv exp =
       add_opt add_constraint bv constraint_;
       add_function_body bv body
   | Pexp_apply(e, el) ->
-      add_expr bv e; List.iter (fun (_,e) -> add_expr bv e) el
+      add_expr bv e; List.iter (fun (_, a) -> add_argument bv a) el
   | Pexp_match(e, pel) -> add_expr bv e; add_cases bv pel
   | Pexp_try(e, pel) -> add_expr bv e; add_cases bv pel
   | Pexp_tuple el -> List.iter (add_expr bv) el
@@ -277,6 +278,9 @@ and add_function_param bv param =
   | Pparam_val (_, opte, pat) ->
       add_opt add_expr bv opte;
       add_pattern bv pat
+  | Pparam_module (_, _, pack_opt) ->
+      add_package_type bv pack_opt;
+      bv
   | Pparam_newtype _ -> bv
 
 and add_function_body bv body =
@@ -322,6 +326,10 @@ and add_bindings recf bv pel =
 and add_binding_op bv bv' pbop =
   add_expr bv pbop.pbop_exp;
   add_pattern bv' pbop.pbop_pat
+
+and add_argument bv = function
+  | Parg_expression e -> add_expr bv e
+  | Parg_module me -> add_module_expr bv me
 
 and add_modtype bv mty =
   match mty.pmty_desc with
@@ -605,7 +613,7 @@ and add_class_expr bv ce =
       add_opt add_expr bv opte;
       let bv = add_pattern bv pat in add_class_expr bv ce
   | Pcl_apply(ce, exprl) ->
-      add_class_expr bv ce; List.iter (fun (_,e) -> add_expr bv e) exprl
+      add_class_expr bv ce; List.iter (fun (_,a) -> add_argument bv a) exprl
   | Pcl_let(rf, pel, ce) ->
       let bv = add_bindings rf bv pel in add_class_expr bv ce
   | Pcl_constraint(ce, ct) ->

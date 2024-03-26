@@ -119,7 +119,7 @@ let is_ref : Types.value_description -> bool = function
 
 (* See the note on abstracted arguments in the documentation for
     Typedtree.Texp_apply *)
-let is_abstracted_arg : arg_label * expression option -> bool = function
+let is_abstracted_arg : arg_label * argument option -> bool = function
   | (_, None) -> true
   | (_, Some _) -> false
 
@@ -628,7 +628,7 @@ let rec expression : Typedtree.expression -> term_judg =
       path pth << Dereference
     | Texp_instvar (self_path, pth, _inst_var) ->
         join [path self_path << Dereference; path pth]
-    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, [_, Some arg])
+    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, [_, Some (Targ_expression arg)])
       when is_ref vd ->
       (*
         G |- e: m[Guard]
@@ -649,7 +649,9 @@ let rec expression : Typedtree.expression -> term_judg =
         let rec split_args ~has_omitted_arg = function
           | [] -> [], []
           | (_, None) :: rest -> split_args ~has_omitted_arg:true rest
-          | (_, Some arg) :: rest ->
+          | (_, Some (Targ_module _)) :: _ -> assert false (* TODO *)
+            (* Most likely the change will be later on (14 lines later = 654 -> 668) *)
+          | (_, Some (Targ_expression arg)) :: rest ->
             let applied, delayed = split_args ~has_omitted_arg rest in
             if has_omitted_arg
             then applied, arg :: delayed
@@ -876,6 +878,7 @@ let rec expression : Typedtree.expression -> term_judg =
           *)
         match param.fp_kind with
         | Tparam_pat pat -> pat
+        | Tparam_module _ -> assert false (* TODO *)
         | Tparam_optional_default (pat, _) -> pat
       in
       (* Optional argument defaults.
@@ -891,6 +894,8 @@ let rec expression : Typedtree.expression -> term_judg =
               G |-{def} ?(p=e) : m
           *)
             expression default
+        | Tparam_module _ ->
+            empty
         | Tparam_pat _ ->
           (*
               ------------------
@@ -1184,10 +1189,12 @@ and class_expr : Typedtree.class_expr -> term_judg =
         let ids = List.map fst args in
         remove_ids ids (class_expr ce << Delay)
     | Tcl_apply (ce, args) ->
-        let arg (_label, eo) = option expression eo in
+        let arg = function
+          | Targ_expression e -> expression e
+          | Targ_module _ -> assert false (* TODO *) in
         join [
           class_expr ce << Dereference;
-          list arg args << Dereference;
+          list (fun (_, ao) -> option arg ao) args << Dereference;
         ]
     | Tcl_let (rec_flag, bindings, _, ce) ->
       value_bindings rec_flag bindings >> class_expr ce

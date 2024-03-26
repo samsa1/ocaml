@@ -26,6 +26,7 @@ type t =
   | Predef of { name: string; stamp: int }
       (* the stamp is here only for fast comparison, but the name of
          predefined identifiers is always unique. *)
+  | Unscoped of { name : string; stamp: int }
 
 (* A stamp of 0 denotes a persistent identifier *)
 
@@ -40,6 +41,10 @@ let create_local s =
   incr currentstamp;
   Local { name = s; stamp = !currentstamp }
 
+let create_unscoped s =
+  incr currentstamp;
+  Unscoped { name = s; stamp = !currentstamp }
+
 let create_predef s =
   incr predefstamp;
   Predef { name = s; stamp = !predefstamp }
@@ -50,11 +55,13 @@ let create_persistent s =
 let name = function
   | Local { name; _ }
   | Scoped { name; _ }
+  | Unscoped { name; _ }
   | Global name
   | Predef { name; _ } -> name
 
 let rename = function
   | Local { name; stamp = _ }
+  | Unscoped { name; stamp = _ }
   | Scoped { name; stamp = _; scope = _ } ->
       incr currentstamp;
       Local { name; stamp = !currentstamp }
@@ -63,6 +70,7 @@ let rename = function
 
 let unique_name = function
   | Local { name; stamp }
+  | Unscoped { name; stamp }
   | Scoped { name; stamp } -> name ^ "_" ^ Int.to_string stamp
   | Global name ->
       (* we're adding a fake stamp, because someone could have named his unit
@@ -76,6 +84,7 @@ let unique_name = function
 
 let unique_toplevel_name = function
   | Local { name; stamp }
+  | Unscoped { name; stamp }
   | Scoped { name; stamp } -> name ^ "/" ^ Int.to_string stamp
   | Global name
   | Predef { name; _ } -> name
@@ -100,6 +109,7 @@ let same i1 i2 =
   match i1, i2 with
   | Local { stamp = s1; _ }, Local { stamp = s2; _ }
   | Scoped { stamp = s1; _ }, Scoped { stamp = s2; _ }
+  | Unscoped { stamp = s1; _ }, Unscoped { stamp = s2; _ }
   | Predef { stamp = s1; _ }, Predef { stamp = s2 } ->
       s1 = s2
   | Global name1, Global name2 ->
@@ -109,8 +119,33 @@ let same i1 i2 =
 
 let stamp = function
   | Local { stamp; _ }
-  | Scoped { stamp; _ } -> stamp
+  | Scoped { stamp; _ }
+  | Unscoped { stamp; _ } -> stamp
   | _ -> 0
+
+let id_pairs = ref []
+
+let get_id_pairs () = !id_pairs
+
+let with_id_pairs pairs f =
+  let old = !id_pairs in
+  id_pairs := pairs;
+  Misc.try_finally f
+    ~always:(fun () -> id_pairs := old)
+  
+let equiv i1 i2 =
+  match i1, i2 with
+  | Local { stamp = s1; _ }, Local { stamp = s2; _ }
+  | Scoped { stamp = s1; _ }, Scoped { stamp = s2; _ }
+  | Predef { stamp = s1; _ }, Predef { stamp = s2 } ->
+      s1 = s2
+  | Unscoped { stamp = s1; _ }, Unscoped { stamp = s2; _ } ->
+    List.exists (fun (i1, i2, _) -> (stamp i1 = s1 && stamp i2 = s2)
+                                    || stamp i2 = s1 && stamp i1 = s2) !id_pairs
+  | Global name1, Global name2 ->
+      name1 = name2
+  | _ ->
+      false
 
 let compare_stamp id1 id2 =
   compare (stamp id1) (stamp id2)
@@ -119,6 +154,12 @@ let scope = function
   | Scoped { scope; _ } -> scope
   | Local _ -> highest_scope
   | Global _ | Predef _ -> lowest_scope
+  | Unscoped {stamp = s1; _ } ->
+    begin try
+      let (_, _, s) = List.find (fun (i1, i2, _) -> stamp i1 = s1 || stamp i2 = s1) !id_pairs in
+      s
+    with Not_found -> assert false (* TODO *)
+    end
 
 let reinit_level = ref (-1)
 
@@ -129,6 +170,7 @@ let reinit () =
 
 let global = function
   | Local _
+  | Unscoped _
   | Scoped _ -> false
   | Global _
   | Predef _ -> true
@@ -147,6 +189,8 @@ let print ~with_scope ppf =
   | Local { name; stamp = n } ->
       fprintf ppf "%s%s" name
         (if !Clflags.unique_ids then sprintf "/%i" n else "")
+  | Unscoped { name; stamp = n } ->
+      fprintf ppf "%s/%i" name n
   | Scoped { name; stamp = n; scope } ->
       fprintf ppf "%s%s%s" name
         (if !Clflags.unique_ids then sprintf "/%i" n else "")
@@ -376,6 +420,12 @@ let compare x y =
   | Global _, _ -> 1
   | _, Global _ -> (-1)
   | Predef { stamp = s1; _ }, Predef { stamp = s2; _ } -> compare s1 s2
+  | Predef _, _ -> 1
+  | _, Predef _ -> (-1)
+  | Unscoped x, Unscoped y ->
+    let c = x.stamp - y.stamp in
+    if c <> 0 then c
+    else compare x.name y.name
 
 let output oc id = output_string oc (unique_name id)
 let hash i = (Char.code (name i).[0]) lxor (stamp i)

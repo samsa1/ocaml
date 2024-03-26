@@ -171,6 +171,14 @@ and rewrite_labelexp_list iflag l =
 and rewrite_exp_list iflag l =
   List.iter (rewrite_exp iflag) l
 
+and rewrite_arg_list iflag l =
+  List.iter (rewrite_arg iflag) l
+
+and rewrite_arg iflag = function
+    Parg_expression e -> rewrite_exp iflag e
+  | Parg_module me ->
+      rewrite_mod iflag me
+
 and rewrite_exp iflag sexp =
   if iflag then insert_profile rw_exp sexp
            else rw_exp false sexp
@@ -212,7 +220,7 @@ and rw_exp iflag sexp =
 
   | Pexp_apply(sfunct, sargs) ->
     rewrite_exp iflag sfunct;
-    rewrite_exp_list iflag (List.map snd sargs)
+    rewrite_arg_list iflag (List.map snd sargs)
 
   | Pexp_tuple sexpl ->
     rewrite_exp_list iflag sexpl
@@ -368,7 +376,7 @@ and rewrite_class_expr iflag cexpr =
       rewrite_class_expr iflag cexpr
   | Pcl_apply (cexpr, exprs) ->
       rewrite_class_expr iflag cexpr;
-      List.iter (rewrite_exp iflag) (List.map snd exprs)
+      rewrite_arg_list iflag (List.map snd exprs)
   | Pcl_let (_, spat_sexp_list, cexpr) ->
       rewrite_patexp_list iflag spat_sexp_list;
       rewrite_class_expr iflag cexpr

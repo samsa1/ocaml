@@ -217,7 +217,7 @@ and transl_exp0 ~in_new_scope ~scopes e =
       let arg_exps =
          List.map (function _, Some x -> x | _ -> assert false) argl
       in
-      let args = transl_list ~scopes arg_exps in
+      let args = transl_arg_list ~scopes arg_exps in
       let prim_exp = if extra_args = [] then Some e else None in
       let lam =
         Translprim.transl_primitive_application
@@ -564,6 +564,11 @@ and transl_exp0 ~in_new_scope ~scopes e =
                !transl_module ~scopes Tcoerce_none None od.open_expr, body)
       end
 
+and transl_arg ~scopes = function
+    Targ_expression e -> transl_exp ~scopes e
+  | Targ_module modl ->
+    !transl_module ~scopes Tcoerce_none None modl
+
 and pure_module m =
   match m.mod_desc with
     Tmod_ident _ -> Alias
@@ -573,6 +578,9 @@ and pure_module m =
 and transl_list ~scopes expr_list =
   List.map (transl_exp ~scopes) expr_list
 
+and transl_arg_list ~scopes expr_list =
+  List.map (transl_arg ~scopes) expr_list
+  
 and transl_list_with_shape ~scopes expr_list =
   let transl_with_shape e =
     let shape = Typeopt.value_kind e.exp_env e.exp_type in
@@ -708,7 +716,7 @@ and transl_apply ~scopes
         lapply lam (List.rev_map fst args)
   in
   (build_apply lam [] (List.map (fun (l, x) ->
-                                   Option.map (transl_exp ~scopes) x,
+                                   Option.map (transl_arg ~scopes) x,
                                    Btype.is_optional l)
                                 sargs)
      : Lambda.lambda)
@@ -824,6 +832,14 @@ and transl_curried_function ~scopes loc return repr params body =
               fp.fp_partial
           in
           body, (param, kind) :: params
+      | Tparam_module (pat, _) ->
+        let kind = Pgenval in
+        let body =
+          Matching.for_function ~scopes param_loc None (Lvar param)
+            [ pat, body ]
+            fp.fp_partial
+        in
+        body, (param, kind ) :: params
       | Tparam_optional_default (pat, default_arg) ->
           let default_arg =
             event_before ~scopes default_arg (transl_exp ~scopes default_arg)

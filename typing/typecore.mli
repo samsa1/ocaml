@@ -233,6 +233,15 @@ type error =
   | Missing_type_constraint
   | Wrong_expected_kind of wrong_kind_sort * wrong_kind_context * type_expr
   | Expr_not_a_record_type of type_expr
+  | Apply_non_functor of {
+      funct : Typedtree.expression;
+      func_ty : type_expr;
+      res_ty : type_expr;
+      previous_arg_loc : Location.t;
+      extra_arg_loc : Location.t;
+    }
+  | Cannot_infer_functor_signature of type_expr
+  | Cannot_infer_functor_path
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

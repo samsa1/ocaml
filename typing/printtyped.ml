@@ -218,6 +218,12 @@ let rec core_type i ppf x =
   | Ttyp_open (path, _mod_ident, t) ->
       line i ppf "Ttyp_open %a\n" fmt_path path;
       core_type i ppf t
+  | Ttyp_functor (lab, id, { pack_path = s; pack_fields = l}, ct) ->
+      line i ppf "Ttyp_functor\n";
+      arg_label i ppf lab;
+      line i ppf "module \"%a\" : %a" fmt_ident id.txt fmt_path s;
+      list i package_with ppf l;
+      core_type i ppf ct
 
 and package_with i ppf (s, t) =
   line i ppf "with type %a\n" fmt_longident s;
@@ -350,7 +356,7 @@ and expression i ppf x =
   | Texp_apply (e, l) ->
       line i ppf "Texp_apply\n";
       expression i ppf e;
-      list i label_x_expression ppf l;
+      list i label_x_argument ppf l;
   | Texp_match (e, l, partial) ->
       line i ppf "Texp_match%a\n"
         fmt_partiality partial;
@@ -480,6 +486,10 @@ and function_param i ppf x =
   | Tparam_pat pat ->
       line i ppf "Param_pat%a\n"
         fmt_partiality x.fp_partial;
+      pattern (i+1) ppf pat
+  | Tparam_module (pat, { pack_path = p; _ }) ->
+      line i ppf "Param_module of sig %a\n"
+        fmt_path p;
       pattern (i+1) ppf pat
   | Tparam_optional_default (pat, expr) ->
       line i ppf "Param_optional_default%a\n"
@@ -645,7 +655,7 @@ and class_expr i ppf x =
   | Tcl_apply (ce, l) ->
       line i ppf "Tcl_apply\n";
       class_expr i ppf ce;
-      list i label_x_expression ppf l;
+      list i label_x_argument ppf l;
   | Tcl_let (rf, l1, l2, ce) ->
       line i ppf "Tcl_let %a\n" fmt_rec_flag rf;
       list i (value_binding rf) ppf l1;
@@ -975,10 +985,17 @@ and record_field i ppf = function
   | _, Kept _ ->
       line i ppf "<kept>"
 
-and label_x_expression i ppf (l, e) =
+and label_x_argument i ppf (l, ao) =
   line i ppf "<arg>\n";
   arg_label (i+1) ppf l;
-  (match e with None -> () | Some e -> expression (i+1) ppf e)
+  (match ao with None -> () | Some a -> argument (i+1) ppf a)
+
+and argument i ppf = function
+  | Targ_expression e ->
+    expression i ppf e
+  | Targ_module me ->
+    line i ppf "<module>\n";
+    module_expr (i+1) ppf me
 
 and ident_x_expression_def i ppf (l, e) =
   line i ppf "<def> \"%a\"\n" fmt_ident l;

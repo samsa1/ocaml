@@ -319,6 +319,11 @@ let set_env uenv env =
   | Expression _ -> invalid_arg "Ctype.set_env"
   | Pattern {penv} -> Pattern_env.set_env penv env
 
+let add_mty uenv id mty =
+  match uenv with
+  | Expression exp -> Expression {exp with env = Env.add_module id Mp_present mty exp.env}
+  | Pattern _ -> assert false (* TODO *)
+
 let in_pattern_mode = function
   | Expression _ -> false
   | Pattern _ -> true
@@ -576,6 +581,7 @@ let free_vars ?env mark ty =
           let acc = fold_row (fv ~kind:Type_variable) acc row in
           if static_row row then acc
           else fv ~kind:Row_variable acc (row_more row)
+      (* | Tfunctor _ -> assert false *)
       | _    ->
           fold_type_expr (fv ~kind) acc ty
   in fv ~kind:Type_variable [] ty
@@ -752,6 +758,9 @@ let rec generalize_spine ty =
       set_level ty generic_level;
       memo := Mnil;
       List.iter generalize_spine tyl
+  | Tfunctor (_, _, _, ty') ->
+      set_level ty generic_level;
+      generalize_spine ty'
   | _ -> ()
 
 let forward_try_expand_safe = (* Forward declaration *)
@@ -796,6 +805,15 @@ let rec check_scope_escape mark env level ty =
         if Path.same p p' then raise_escape_exn (Module_type p);
         check_scope_escape mark env level
           (newty2 ~level:orig_level (Tpackage (p', fl)))
+    | Tfunctor (lbl, id, p, t) when level < Path.scope p ->
+        let p' = normalize_package_path env p in
+        if Path.same p p' then raise_escape_exn (Module_type p);
+        check_scope_escape mark env level
+          (newty2 ~level:orig_level (Tfunctor (lbl, id, p', t)))
+    | Tfunctor (_, id, p, t) ->
+        let env = Env.add_module id Mp_present (Mty_ident p) env in
+        Ident.with_id_pairs ((id, id, level) :: Ident.get_id_pairs ()) (fun () ->
+          check_scope_escape mark env level t)
     | _ ->
         iter_type_expr (check_scope_escape mark env level) ty
     end;
@@ -878,6 +896,16 @@ let rec update_level env level expand ty =
         end;
         set_level ty level;
         iter_type_expr (update_level env level expand) ty
+    | Tfunctor(lbl, id, p, t) when level < Path.scope p ->
+        let p' = normalize_package_path env p in
+        if Path.same p p' then raise_escape_exn (Module p);
+        set_type_desc ty (Tfunctor (lbl, id, p', t));
+        update_level env level expand ty
+    | Tfunctor(_, id, p, t) ->
+        set_level ty level;
+        let env = Env.add_module id Mp_present (Mty_ident p) env in
+        Ident.with_id_pairs ((id, id, level) :: Ident.get_id_pairs ())
+            (fun () -> update_level env level expand t)
     | Tfield(lab, _, ty1, _)
       when lab = dummy_method && level < get_scope ty1 ->
         raise_escape_exn Self
@@ -1726,7 +1754,7 @@ let rec extract_concrete_typedecl env ty =
       end
   | Tpoly(ty, _) -> extract_concrete_typedecl env ty
   | Tarrow _ | Ttuple _ | Tobject _ | Tfield _ | Tnil
-  | Tvariant _ | Tpackage _ -> Has_no_typedecl
+  | Tvariant _ | Tpackage _ | Tfunctor _ -> Has_no_typedecl
   | Tvar _ | Tunivar _ -> May_have_typedecl
   | Tlink _ | Tsubst _ -> assert false
 
@@ -2054,6 +2082,7 @@ let univars_escape env univar_pairs vl ty =
           else occur t
       | Tunivar _ -> if TypeSet.mem t family then raise_escape_exn (Univ t)
       | Tconstr (_, [], _) -> ()
+      | Tfunctor _ -> assert false (* TODO : probably just recursive *)
       | Tconstr (p, tl, _) ->
           begin try
             let td = Env.find_type p env in
@@ -2100,6 +2129,47 @@ let enter_poly_for tr_exn env t1 tl1 t2 tl2 f =
   try
     enter_poly env t1 tl1 t2 tl2 f
   with Escape e -> raise_for tr_exn (Escape e)
+
+
+let identifier_escape _env id ty =
+  with_type_mark begin fun mark ->
+  let rec occur t =
+    if try_mark_node mark t then begin
+      match get_desc t with
+        Tconstr (p, _, _) | Tfunctor (_, _, p, _)
+          when Path.contains id p ->
+            raise_escape_exn (Module (Pident id))
+      | Tconstr (_p, tl, _abbrev) ->
+            begin try
+              (* let td = Env.find_type p env in *)
+              List.iter occur tl
+            with Not_found -> List.iter occur tl
+            end
+      | Tfunctor (_, id', _, _) when Ident.same id id' -> ()
+      | _ -> iter_type_expr occur t
+    end
+  in
+  occur ty
+  end
+
+let enter_functor env scope id1 t1 id2 t2 f =
+  let rec filter_id_pairs = function
+    | [] -> []
+    | (i1, i2, s) :: tl ->
+      if Ident.same id1 i1 || Ident.same id1 i2
+        || Ident.same id2 i1 || Ident.same id2 i2
+      then begin
+        identifier_escape env i1 t1;
+        identifier_escape env i2 t1;
+        identifier_escape env i1 t2;
+        identifier_escape env i2 t2;
+        filter_id_pairs tl
+      end else
+        (i1, i2, s) :: filter_id_pairs tl
+  in
+  let old_id_pairs = Ident.get_id_pairs () in
+  let filtered_id_pairs = filter_id_pairs old_id_pairs in
+  Ident.with_id_pairs ((id1, id2, scope) :: filtered_id_pairs) f
 
 (**** Instantiate a generic type into a poly type ***)
 
@@ -2313,7 +2383,7 @@ let rec mcomp type_pairs env t1 t2 =
   | (Tvar _, _)
   | (_, Tvar _)  ->
       ()
-  | (Tconstr (p1, [], _), Tconstr (p2, [], _)) when Path.same p1 p2 ->
+  | (Tconstr (p1, [], _), Tconstr (p2, [], _)) when Path.equiv p1 p2 ->
       ()
   | _ ->
       let t1' = expand_head_opt env t1 in
@@ -2345,6 +2415,10 @@ let rec mcomp type_pairs env t1 t2 =
                 raise Incompatible
             with Not_found -> ()
             end
+        | (Tfunctor (l1, _, p1, _), Tfunctor (l2, _, p2, _))
+          when Path.equiv p1 p2 
+              && (l1 = l2 || not (is_optional l1 || is_optional l2)) ->
+            ()
         (*
         | (Tpackage (p1, n1, tl1), Tpackage (p2, n2, tl2)) when n1 = n2 ->
             mcomp_list type_pairs env tl1 tl2
@@ -2547,8 +2621,8 @@ let add_gadt_equation uenv source destination =
   end
 
 let eq_package_path env p1 p2 =
-  Path.same p1 p2 ||
-  Path.same (normalize_package_path env p1) (normalize_package_path env p2)
+  Path.equiv p1 p2 ||
+  Path.equiv (normalize_package_path env p1) (normalize_package_path env p2)
 
 let nondep_type' = ref (fun _ _ _ -> assert false)
 let package_subtype = ref (fun _ _ _ _ _ -> assert false)
@@ -2709,7 +2783,7 @@ let rec unify uenv t1 t2 =
         update_scope_for Unify (get_scope t1) t2;
         link_type t1 t2
     | (Tconstr (p1, [], a1), Tconstr (p2, [], a2))
-          when Path.same p1 p2
+          when Path.equiv p1 p2
             (* This optimization assumes that t1 does not expand to t2
                (and conversely), so we fall back to the general case
                when any of the types has a cached expansion. *)
@@ -2734,7 +2808,7 @@ and unify2_rec uenv t10 t1 t20 t2 =
   if unify_eq uenv t1 t2 then () else
   try match (get_desc t1, get_desc t2) with
   | (Tconstr (p1, tl1, a1), Tconstr (p2, tl2, a2)) ->
-      if Path.same p1 p2 && tl1 = [] && tl2 = []
+      if Path.equiv p1 p2 && tl1 = [] && tl2 = []
       && not (has_cached_expansion p1 !a1 || has_cached_expansion p2 !a2)
       then begin
         update_level_for Unify (get_env uenv) (get_level t1) t2;
@@ -2818,9 +2892,18 @@ and unify3 uenv t1 t1' t2 t2' =
           | false, false -> link_commu ~inside:c1 c2
           | true, true -> ()
           end
+      | (Tfunctor (l1, id1, p1, t1), Tfunctor (l2, id2, p2, t2))
+        when eq_package_path (get_env uenv) p1 p2 &&
+          (l1 = l2 || (!Clflags.classic || in_pattern_mode uenv) &&
+          not (is_optional l1 || is_optional l2)) ->
+            let env = get_env uenv in
+            let uenv = add_mty uenv id1 (Mty_ident p1) in
+            let uenv = add_mty uenv id2 (Mty_ident p2) in
+            enter_functor env !current_level id1 t1' id2 t2'
+                (fun () -> unify uenv t1 t2)
       | (Ttuple tl1, Ttuple tl2) ->
           unify_list uenv tl1 tl2
-      | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _)) when Path.same p1 p2 ->
+      | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _)) when Path.equiv p1 p2 ->
           if not (can_generate_equations uenv) then
             unify_list uenv tl1 tl2
           else if can_assume_injective uenv then
@@ -3295,7 +3378,7 @@ let unify_pairs env ty1 ty2 pairs =
     unify (Expression {env; in_subst = false}) ty1 ty2)
 
 let unify env ty1 ty2 =
-  unify_pairs env ty1 ty2 []
+  Ident.with_id_pairs [] (fun () -> unify_pairs env ty1 ty2 [])
 
 (* Lower the level of a type to the current level *)
 let enforce_current_level env ty = unify_var env (newvar ()) ty
@@ -3354,6 +3437,23 @@ let filter_arrow env t l =
       else raise (Filter_arrow_failed
                     (Label_mismatch
                        { got = l; expected = l'; expected_type = t }))
+  | _ ->
+      raise (Filter_arrow_failed Not_a_function)
+
+let filter_functor env t l =
+  let t =
+    try expand_head_trace env t
+    with Unify_trace _trace ->
+      assert false (* TODO *)
+  in
+  match get_desc t with
+  | Tfunctor (l', id, p, ct) ->
+    if l = l'
+    then Some (id, p, ct)
+    else raise (Filter_arrow_failed
+                  (Label_mismatch
+                    { got = l; expected = l'; expected_type = t }))
+  | Tvar _ -> None
   | _ ->
       raise (Filter_arrow_failed Not_a_function)
 
@@ -3759,7 +3859,7 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
         update_scope_for Moregen (get_scope t1) t2;
         occur_for Moregen (Expression {env; in_subst = false}) t1 t2;
         link_type t1 t2
-    | (Tconstr (p1, [], _), Tconstr (p2, [], _)) when Path.same p1 p2 ->
+    | (Tconstr (p1, [], _), Tconstr (p2, [], _)) when Path.equiv p1 p2 ->
         ()
     | _ ->
         let t1' = expand_head env t1 in
@@ -3777,10 +3877,17 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
             || !Clflags.classic && not (is_optional l1 || is_optional l2) ->
               moregen inst_nongen type_pairs env t1 t2;
               moregen inst_nongen type_pairs env u1 u2
+          | (Tfunctor (l1, id1, p1, t1), Tfunctor (l2, id2, p2, t2))
+            when eq_package_path env p1 p2 && (l1 = l2
+            || !Clflags.classic && not (is_optional l1 || is_optional l2)) ->
+              let env = Env.add_module id1 Mp_present (Mty_ident p1) env in
+              let env = Env.add_module id2 Mp_present (Mty_ident p2) env in
+              enter_functor env !current_level id1 t1' id2 t2'
+                  (fun () -> moregen inst_nongen type_pairs env t1 t2)
           | (Ttuple tl1, Ttuple tl2) ->
               moregen_list inst_nongen type_pairs env tl1 tl2
           | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
-                when Path.same p1 p2 ->
+                when Path.equiv p1 p2 ->
               moregen_list inst_nongen type_pairs env tl1 tl2
           | (Tpackage (p1, fl1), Tpackage (p2, fl2)) ->
               begin match
@@ -4113,7 +4220,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
     match (get_desc t1, get_desc t2) with
       (Tvar _, Tvar _) when rename ->
         eqtype_subst type_pairs subst t1 t2
-    | (Tconstr (p1, [], _), Tconstr (p2, [], _)) when Path.same p1 p2 ->
+    | (Tconstr (p1, [], _), Tconstr (p2, [], _)) when Path.equiv p1 p2 ->
         ()
     | _ ->
         let t1' = expand_head_rigid env t1 in
@@ -4129,10 +4236,17 @@ let rec eqtype rename type_pairs subst env t1 t2 =
             || !Clflags.classic && not (is_optional l1 || is_optional l2) ->
               eqtype rename type_pairs subst env t1 t2;
               eqtype rename type_pairs subst env u1 u2;
+          | (Tfunctor (l1, id1, p1, t1), Tfunctor (l2, id2, p2, t2))
+            when eq_package_path env p1 p2 && (l1 = l2
+            || !Clflags.classic && not (is_optional l1 || is_optional l2)) ->
+              let env = Env.add_module id1 Mp_present (Mty_ident p1) env in
+              let env = Env.add_module id2 Mp_present (Mty_ident p2) env in
+              enter_functor env !current_level id1 t1' id2 t2'
+                  (fun () -> eqtype rename type_pairs subst env t1 t2)
           | (Ttuple tl1, Ttuple tl2) ->
               eqtype_list rename type_pairs subst env tl1 tl2
           | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
-                when Path.same p1 p2 ->
+                when Path.equiv p1 p2 ->
               eqtype_list rename type_pairs subst env tl1 tl2
           | (Tpackage (p1, fl1), Tpackage (p2, fl2)) ->
               begin match
@@ -4671,6 +4785,7 @@ let rec build_subtype env (visited : transient_expr list)
       if c > Unchanged
       then (newty (Tarrow(l, t1', t2', commu_ok)), c)
       else (t, Unchanged)
+  | Tfunctor (_l, _id, _p, _t) -> assert false (* TODO *)
   | Ttuple tlist ->
       let tt = Transient_expr.repr t in
       if memq_warn tt visited then (t, Unchanged) else
@@ -4870,9 +4985,13 @@ let rec subtype_rec env trace t1 t2 cstrs =
           (Subtype.Diff {got = u1; expected = u2} :: trace)
           u1 u2
           cstrs
+    | (Tfunctor(l1, _id1, p1, _t1), Tfunctor(l2, _id2, p2, _t2))
+      when Path.equiv p1 p2 && (l1 = l2
+      || !Clflags.classic && not (is_optional l1 || is_optional l2)) ->
+        assert false (* TODO *)
     | (Ttuple tl1, Ttuple tl2) ->
         subtype_list env trace tl1 tl2 cstrs
-    | (Tconstr(p1, [], _), Tconstr(p2, [], _)) when Path.same p1 p2 ->
+    | (Tconstr(p1, [], _), Tconstr(p2, [], _)) when Path.equiv p1 p2 ->
         cstrs
     | (Tconstr(p1, _tl1, _abbrev1), _)
       when generic_abbrev env p1 && safe_abbrev env t1 ->
@@ -4880,7 +4999,7 @@ let rec subtype_rec env trace t1 t2 cstrs =
     | (_, Tconstr(p2, _tl2, _abbrev2))
       when generic_abbrev env p2 && safe_abbrev env t2 ->
         subtype_rec env trace t1 (expand_abbrev env t2) cstrs
-    | (Tconstr(p1, tl1, _), Tconstr(p2, tl2, _)) when Path.same p1 p2 ->
+    | (Tconstr(p1, tl1, _), Tconstr(p2, tl2, _)) when Path.equiv p1 p2 ->
         begin try
           let decl = Env.find_type p1 env in
           List.fold_left2
@@ -5022,7 +5141,7 @@ and subtype_row env trace row1 row2 cstrs =
   let r1 = if row2_closed then filter_row_fields false r1 else r1 in
   let r2 = if row1_closed then filter_row_fields false r2 else r2 in
   match get_desc more1, get_desc more2 with
-    Tconstr(p1,_,_), Tconstr(p2,_,_) when Path.same p1 p2 ->
+    Tconstr(p1,_,_), Tconstr(p2,_,_) when Path.equiv p1 p2 ->
       subtype_rec
         env
         (Subtype.Diff {got = more1; expected = more2} :: trace)
@@ -5586,7 +5705,7 @@ let same_constr env t1 t2 =
   let t1 = expand_head env t1 in
   let t2 = expand_head env t2 in
   match get_desc t1, get_desc t2 with
-  | Tconstr (p1, _, _), Tconstr (p2, _, _) -> Path.same p1 p2
+  | Tconstr (p1, _, _), Tconstr (p2, _, _) -> Path.equiv p1 p2
   | _ -> false
 
 let () =

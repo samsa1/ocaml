@@ -21,6 +21,7 @@ open Typedtree
 
 type mapper =
   {
+    argument: mapper -> argument -> argument;
     attribute : mapper -> attribute -> attribute;
     attributes : mapper -> attributes -> attributes;
     binding_op: mapper -> binding_op -> binding_op;
@@ -307,6 +308,8 @@ let function_param sub fp =
   let fp_kind =
     match fp.fp_kind with
     | Tparam_pat pat -> Tparam_pat (sub.pat sub pat)
+    | Tparam_module (id, pack) ->
+      Tparam_module (id, sub.package_type sub pack)
     | Tparam_optional_default (pat, expr) ->
       let pat = sub.pat sub pat in
       let expr = sub.expr sub expr in
@@ -360,7 +363,7 @@ let expr sub x =
     | Texp_apply (exp, list) ->
         Texp_apply (
           sub.expr sub exp,
-          List.map (tuple2 id (Option.map (sub.expr sub))) list
+          List.map (tuple2 id (Option.map (sub.argument sub))) list
         )
     | Texp_match (exp, cases, p) ->
         Texp_match (
@@ -506,6 +509,12 @@ let binding_op sub x =
   let bop_loc = sub.location sub x.bop_loc in
   let bop_op_name = map_loc sub x.bop_op_name in
   { x with bop_loc; bop_op_name; bop_exp = sub.expr sub x.bop_exp }
+
+let argument sub = function
+  | Targ_module me ->
+      Targ_module (sub.module_expr sub me)
+  | Targ_expression e ->
+      Targ_expression (sub.expr sub e)
 
 let signature sub x =
   let sig_final_env = sub.env sub x.sig_final_env in
@@ -685,7 +694,7 @@ let class_expr sub x =
     | Tcl_apply (cl, args) ->
         Tcl_apply (
           sub.class_expr sub cl,
-          List.map (tuple2 id (Option.map (sub.expr sub))) args
+          List.map (tuple2 id (Option.map (sub.argument sub))) args
         )
     | Tcl_let (rec_flag, value_bindings, ivars, cl) ->
         let (rec_flag, value_bindings) =
@@ -782,6 +791,8 @@ let typ sub x =
         Ttyp_package (sub.package_type sub pack)
     | Ttyp_open (path, mod_ident, t) ->
         Ttyp_open (path, map_loc sub mod_ident, sub.typ sub t)
+    | Ttyp_functor (label, id, pack, t) ->
+        Ttyp_functor (label, map_loc sub id, sub.package_type sub pack, sub.typ sub t)
   in
   let ctyp_attributes = sub.attributes sub x.ctyp_attributes in
   {x with ctyp_loc; ctyp_desc; ctyp_env; ctyp_attributes}
@@ -862,6 +873,7 @@ let env _sub x = x
 
 let default =
   {
+    argument;
     attribute;
     attributes;
     binding_op;

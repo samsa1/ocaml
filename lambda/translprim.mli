@@ -39,7 +39,7 @@ val transl_primitive :
 val transl_primitive_application :
   Lambda.scoped_location -> Primitive.description -> Env.t ->
   Types.type_expr -> Path.t -> Typedtree.expression option ->
-  Lambda.lambda list -> Typedtree.expression list -> Lambda.lambda
+  Lambda.lambda list -> Typedtree.argument list -> Lambda.lambda
 
 (* Errors *)
 

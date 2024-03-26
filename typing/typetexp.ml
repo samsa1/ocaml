@@ -691,6 +691,39 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
       ctyp (Ttyp_open (path, mod_ident, cty)) cty.ctyp_type
   | Ptyp_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
+  | Ptyp_functor (lbl, name, (p, l), st) ->
+    let () = assert (lbl = Nolabel) in
+    let () = assert (l = []) in
+    let loc = styp.ptyp_loc in
+    let mty = Ast_helper.Mty.mk ~loc (Pmty_ident p) in
+    let mty = TyVarEnv.with_local_scope (fun () -> !transl_modtype env mty) in
+    let mty = mty.mty_type in
+    let path = !transl_modtype_longident loc env p.txt in
+    let scoped_ident, cty =
+      with_local_level begin fun () ->
+        let scoped_ident =
+          Ident.create_scoped ~scope:(Ctype.get_current_level()) name.txt
+        in
+        let env = Env.add_module scoped_ident Mp_present mty env in
+        scoped_ident, transl_type env ~policy ~row_context st
+      end in
+      (* Ident.create_unscoped name.txt in *)
+    let ident = Ident.create_unscoped name.txt in 
+    let ctyp_type =
+      Subst.type_expr
+        (Subst.add_module scoped_ident (Path.Pident ident) Subst.identity)
+        cty.ctyp_type
+    in
+    (* could be newty or Btype.newgenty *)
+    let ty = Btype.newgenty (Tfunctor (lbl, ident, path, ctyp_type)) in
+    (* could also use [Location.mkloc scoped_ident name.loc] i*)
+    (* TODO : need to choose what to use instead of sloc *)
+    ctyp (Ttyp_functor (lbl, {txt = ident; loc = name.loc}, {
+                pack_path = path;
+                pack_type = mty;
+                pack_fields = [];
+                pack_txt = p
+                }, cty)) ty
 
 and transl_fields env ~policy ~row_context o fields =
   let hfields = Hashtbl.create 17 in

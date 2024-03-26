@@ -173,6 +173,8 @@ and core_type_desc =
   | Ptyp_package of package_type  (** [(module S)]. *)
   | Ptyp_open of Longident.t loc * core_type (** [M.(T)] *)
   | Ptyp_extension of extension  (** [[%id]]. *)
+  | Ptyp_functor of arg_label * string loc * package_type * core_type
+        (** [{M : S} -> ...] *)
 
 and package_type = Longident.t loc * (Longident.t loc * core_type) list
 (** As {!package_type} typed values:
@@ -317,7 +319,7 @@ and expression_desc =
       A function must have parameters. [Pexp_function (params, _, body)] must
       have non-empty [params] or a [Pfunction_cases _] body.
   *)
-  | Pexp_apply of expression * (arg_label * expression) list
+  | Pexp_apply of expression * (arg_label * argument) list
       (** [Pexp_apply(E0, [(l1, E1) ; ... ; (ln, En)])]
             represents [E0 ~l1:E1 ... ~ln:En]
 
@@ -456,6 +458,10 @@ and function_param_desc =
       Note: If [E0] is provided, only
       {{!Asttypes.arg_label.Optional}[Optional]} is allowed.
   *)
+  | Pparam_module of arg_label * string loc * package_type
+  (**
+    [Pparam_module (M, S)] represents the parameter [{M : S}].
+  *)
   | Pparam_newtype of string loc
   (** [Pparam_newtype x] represents the parameter [(type x)].
       [x] carries the location of the identifier, whereas the [pparam_loc]
@@ -496,6 +502,10 @@ and type_constraint =
   | Pconstraint of core_type
   | Pcoerce of core_type option * core_type
 (** See the comment on {{!expression_desc.Pexp_function}[Pexp_function]}. *)
+
+and argument =
+  | Parg_expression of expression
+  | Parg_module of module_expr
 
 (** {2 Value descriptions} *)
 
@@ -768,7 +778,7 @@ and class_expr_desc =
                      when [lbl]  is {{!Asttypes.arg_label.Optional}[Optional l]}
                       and [exp0] is [Some E0].
         *)
-  | Pcl_apply of class_expr * (arg_label * expression) list
+  | Pcl_apply of class_expr * (arg_label * argument) list
       (** [Pcl_apply(CE, [(l1,E1) ; ... ; (ln,En)])]
             represents [CE ~l1:E1 ... ~ln:En].
             [li] can be empty (non labeled argument) or start with [?]

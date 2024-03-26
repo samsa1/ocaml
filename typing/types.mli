@@ -132,6 +132,11 @@ type type_desc =
   | Tpackage of Path.t * (Longident.t * type_expr) list
   (** Type of a first-class module (a.k.a package). *)
 
+  | Tfunctor of arg_label * Ident.t * Path.t * type_expr
+  (** [Tfunctor (NoLabel, M, S, e)] ==> [{M : S} -> e]
+      Currently we assume that no other labels are possible.
+  *)
+
 and fixed_explanation =
   | Univar of type_expr (** The row type was bound to an univar *)
   | Fixed_private (** The row type is private *)

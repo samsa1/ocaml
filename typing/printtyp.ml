@@ -553,6 +553,9 @@ and raw_type_desc ppf = function
               fprintf ppf "Some(@,%a,@,%a)" path p raw_type_list tl)
   | Tpackage (p, fl) ->
     fprintf ppf "@[<hov1>Tpackage(@,%a,@,%a)@]" path p raw_lid_type_list fl
+  | Tfunctor (lbl, name, p, ty) ->
+      fprintf ppf "@[<hov1>Tfunctor(\"%s\",@,%s,@,%a,@,%a)@]"
+        (string_of_label lbl) (Ident.name name) path p raw_type ty
 and raw_row_fixed ppf = function
 | None -> fprintf ppf "None"
 | Some Types.Fixed_private -> fprintf ppf "Some Fixed_private"
@@ -1263,6 +1266,13 @@ let rec tree_of_typexp mode ty =
               tree_of_typexp mode ty
             )) fl in
         Otyp_module (tree_of_path (Some Module_type) p, fl)
+    | Tfunctor (l, id, p, ty) ->
+      let lab =
+        if !print_labels || is_optional l then l else Nolabel
+      in
+      let ty = tree_of_typexp mode ty in
+      Otyp_functor (lab, Oide_ident { printed_name = Ident.name id }, tree_of_path (Some Module_type) p, ty)
+
   in
   if List.memq px !delayed then delayed := List.filter ((!=) px) !delayed;
   alias_nongen_row mode px ty;
@@ -2417,6 +2427,11 @@ let explain_escape pre = function
   | Errortrace.Module_type p -> Some(
       dprintf
         "%t@,@[The module type@;<1 2>%a@ would escape its scope@]"
+        pre (Style.as_inline_code path) p
+    )
+  | Errortrace.Module p -> Some(
+      dprintf
+        "%t@,@[The module@;<1 2>%a@ would escape its scope@]"
         pre (Style.as_inline_code path) p
     )
   | Errortrace.Equation Errortrace.{ty = _; expanded = t} ->

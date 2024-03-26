@@ -23,6 +23,7 @@ open Ast_helper
 module T = Typedtree
 
 type mapper = {
+  argument: mapper -> T.argument -> argument;
   attribute: mapper -> T.attribute -> attribute;
   attributes: mapper -> T.attribute list -> attribute list;
   binding_op: mapper -> T.binding_op -> T.pattern -> binding_op;
@@ -424,6 +425,7 @@ let expression sub exp =
                let pat, default_arg =
                  match fp.fp_kind with
                  | Tparam_pat pat -> pat, None
+                 | Tparam_module _ -> assert false (* TODO *)
                  | Tparam_optional_default (pat, expr) -> pat, Some expr
                in
                let pat = sub.pat sub pat in
@@ -448,7 +450,7 @@ let expression sub exp =
           List.fold_right (fun (label, expo) list ->
               match expo with
                 None -> list
-              | Some exp -> (label, sub.expr sub exp) :: list
+              | Some exp -> (label, sub.argument sub exp) :: list
           ) list [])
     | Texp_match (exp, cases, _) ->
       Pexp_match (sub.expr sub exp, List.map (sub.case sub) cases)
@@ -546,6 +548,12 @@ let binding_op sub bop pat =
   let pbop_exp = sub.expr sub bop.bop_exp in
   let pbop_loc = bop.bop_loc in
   {pbop_op; pbop_pat; pbop_exp; pbop_loc}
+
+let argument sub = function
+  | Targ_expression e ->
+      Parg_expression (sub.expr sub e)
+  | Targ_module me ->
+      Parg_module (sub.module_expr sub me)
 
 let package_type sub pack =
   (map_loc sub pack.pack_txt,
@@ -721,7 +729,7 @@ let class_expr sub cexpr =
           List.fold_right (fun (label, expo) list ->
               match expo with
                 None -> list
-              | Some exp -> (label, sub.expr sub exp) :: list
+              | Some exp -> (label, sub.argument sub exp) :: list
           ) args [])
 
     | Tcl_let (rec_flat, bindings, _ivars, cl) ->
@@ -801,6 +809,9 @@ let core_type sub ct =
         Ptyp_poly (list, sub.typ sub ct)
     | Ttyp_package pack -> Ptyp_package (sub.package_type sub pack)
     | Ttyp_open (_path, mod_ident, t) -> Ptyp_open (mod_ident, sub.typ sub t)
+    | Ttyp_functor (label, name, pack, ct) ->
+        let name = Location.mkloc (Ident.name name.txt) name.loc in
+        Ptyp_functor (label, name, sub.package_type sub pack, sub.typ sub ct)
   in
   Typ.mk ~loc ~attrs desc
 
@@ -884,6 +895,7 @@ let location _sub l = l
 
 let default_mapper =
   {
+    argument = argument;
     attribute = attribute;
     attributes = attributes;
     binding_op = binding_op;

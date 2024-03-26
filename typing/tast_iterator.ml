@@ -18,6 +18,7 @@ open Typedtree
 
 type iterator =
   {
+    argument: iterator -> argument -> unit;
     attribute: iterator -> attribute -> unit;
     attributes: iterator -> attributes -> unit;
     binding_op: iterator -> binding_op -> unit;
@@ -275,6 +276,8 @@ let function_param sub fp =
   sub.location sub fp.fp_loc;
   match fp.fp_kind with
   | Tparam_pat pat -> sub.pat sub pat
+  | Tparam_module (_, pack) ->
+      sub.package_type sub pack
   | Tparam_optional_default (pat, default_arg) ->
       sub.pat sub pat;
       sub.expr sub default_arg
@@ -308,7 +311,7 @@ let expr sub {exp_loc; exp_extra; exp_desc; exp_env; exp_attributes; _} =
       function_body sub body
   | Texp_apply (exp, list) ->
       sub.expr sub exp;
-      List.iter (fun (_, o) -> Option.iter (sub.expr sub) o) list
+      List.iter (fun (_, o) -> Option.iter (sub.argument sub) o) list
   | Texp_match (exp, cases, _) ->
       sub.expr sub exp;
       List.iter (sub.case sub) cases
@@ -387,6 +390,11 @@ let binding_op sub {bop_loc; bop_op_name; bop_exp; _} =
   sub.location sub bop_loc;
   iter_loc sub bop_op_name;
   sub.expr sub bop_exp
+
+let argument sub = function
+  | Targ_module me -> sub.module_expr sub me
+  | Targ_expression e ->
+      sub.expr sub e
 
 let signature sub {sig_items; sig_final_env; _} =
   sub.env sub sig_final_env;
@@ -520,7 +528,7 @@ let class_expr sub {cl_loc; cl_desc; cl_env; cl_attributes; _} =
       sub.class_expr sub cl
   | Tcl_apply (cl, args) ->
       sub.class_expr sub cl;
-      List.iter (fun (_, e) -> Option.iter (sub.expr sub) e) args
+      List.iter (fun (_, o) -> Option.iter (sub.argument sub) o) args
   | Tcl_let (rec_flag, value_bindings, ivars, cl) ->
       sub.value_bindings sub (rec_flag, value_bindings);
       List.iter (fun (_, e) -> sub.expr sub e) ivars;
@@ -589,6 +597,9 @@ let typ sub {ctyp_loc; ctyp_desc; ctyp_env; ctyp_attributes; _} =
   | Ttyp_open (_, mod_ident, t) ->
       iter_loc sub mod_ident;
       sub.typ sub t
+  | Ttyp_functor (_, _, pack, ct) ->
+      sub.package_type sub pack;
+      sub.typ sub ct
 
 let class_structure sub {cstr_self; cstr_fields; _} =
   sub.pat sub cstr_self;
@@ -645,6 +656,7 @@ let item_declaration _sub _ = ()
 
 let default_iterator =
   {
+    argument;
     attribute;
     attributes;
     binding_op;

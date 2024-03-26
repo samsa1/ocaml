@@ -570,6 +570,10 @@ type first_pass_accummulater =
     local_vals : VarSet.t;
     vars : Ident.t Vars.t; }
 
+let arg_loc = function
+    Parg_expression e -> e.pexp_loc
+  | Parg_module me -> me.pmod_loc
+
 let rec class_field_first_pass self_loc cl_num sign self_scope acc cf =
   let { rev_fields; val_env; par_env; concrete_meths; concrete_vals;
         local_meths; local_vals; vars } = acc
@@ -1236,22 +1240,23 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
             let use_arg sarg l' =
               Some (
                 if not optional || Btype.is_optional l' then
-                  type_argument val_env sarg ty ty0
+                  Targ_expression (type_argument val_env sarg ty ty0)
                 else
                   let ty' = extract_option_type val_env ty
                   and ty0' = extract_option_type val_env ty0 in
                   let arg = type_argument val_env sarg ty' ty0' in
-                  option_some val_env arg
+                  Targ_expression (option_some val_env arg)
               )
             in
             let eliminate_optional_arg () =
-              Some (option_none val_env ty0 Location.none)
+              Some (Targ_expression (option_none val_env ty0 Location.none))
             in
             let remaining_sargs, arg =
               if ignore_labels then begin
                 match sargs with
                 | [] -> assert false
-                | (l', sarg) :: remaining_sargs ->
+                | (_, Parg_module _) :: _ -> assert false (* TODO *)
+                | (l', Parg_expression sarg) :: remaining_sargs ->
                     if name = Btype.label_name l' ||
                        (not optional && l' = Nolabel)
                     then
@@ -1266,7 +1271,8 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
                       raise(Error(sarg.pexp_loc, val_env, Apply_wrong_label l'))
               end else
                 match Btype.extract_label name sargs with
-                | Some (l', sarg, _, remaining_sargs) ->
+                | Some (_, Parg_module _, _, _) -> assert false (* TODO *)
+                | Some (l', Parg_expression sarg, _, remaining_sargs) ->
                     if not optional && Btype.is_optional l' then
                       Location.prerr_warning sarg.pexp_loc
                         (Warnings.Nonoptional_label
@@ -1285,7 +1291,7 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
             match sargs with
               (l, sarg0)::_ ->
                 if omitted <> [] then
-                  raise(Error(sarg0.pexp_loc, val_env, Apply_wrong_label l))
+                  raise(Error(arg_loc sarg0, val_env, Apply_wrong_label l))
                 else
                   raise(Error(cl.cl_loc, val_env, Cannot_apply cl.cl_type))
             | [] ->

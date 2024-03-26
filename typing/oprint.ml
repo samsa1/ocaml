@@ -303,6 +303,17 @@ and print_out_type_1 ppf =
       pp_print_space ppf ();
       print_out_type_1 ppf ty2;
       pp_close_box ppf ()
+  | Otyp_functor (lab, id, p, ty) ->
+      pp_open_box ppf 0;
+      print_arg_label ppf lab;
+      pp_print_string ppf "{";
+      print_ident ppf id;
+      pp_print_string ppf " : ";
+      print_ident ppf p;
+      pp_print_string ppf "} ->";
+      pp_print_space  ppf ();
+      print_out_type_1 ppf ty;
+      pp_close_box ppf ()
   | ty -> print_out_type_2 ppf ty
 and print_out_type_2 ppf =
   function
@@ -341,7 +352,7 @@ and print_simple_out_type ppf =
          else if tags = None then "> " else "? ")
         print_fields row_fields
         print_present tags
-  | Otyp_alias _ | Otyp_poly _ | Otyp_arrow _ | Otyp_tuple _ as ty ->
+  | Otyp_alias _ | Otyp_poly _ | Otyp_arrow _ | Otyp_functor _ | Otyp_tuple _ as ty ->
       pp_open_box ppf 1;
       pp_print_char ppf '(';
       print_out_type ppf ty;

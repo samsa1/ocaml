@@ -727,7 +727,8 @@ module Analyser =
               (fun acc -> fun (_, exp_opt) ->
                 match exp_opt with
                   None -> acc
-                | Some e -> acc @ [e])
+                | Some (Targ_module _) -> assert false (* TODO *)
+                | Some (Targ_expression e) -> acc @ [e])
               []
               exp_opt_optional_list
           in
