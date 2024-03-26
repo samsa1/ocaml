@@ -628,7 +628,8 @@ let rec expression : Typedtree.expression -> term_judg =
       path pth << Dereference
     | Texp_instvar (self_path, pth, _inst_var) ->
         join [path self_path << Dereference; path pth]
-    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, [_, Some (Targ_expression arg)])
+    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)},
+                  [_, Some (Targ_expression arg)])
       when is_ref vd ->
       (*
         G |- e: m[Guard]

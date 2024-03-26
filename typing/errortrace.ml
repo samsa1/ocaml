@@ -60,7 +60,8 @@ type 'a escape =
 let map_escape f esc =
   {esc with kind = match esc.kind with
      | Equation eq -> Equation (f eq)
-     | (Constructor _ | Univ _ | Self | Module_type _ | Module _ | Constraint) as c -> c}
+     | (Constructor _ | Univ _ | Self | Module_type _
+        | Module _ | Constraint) as c -> c}
 
 let explain trace f =
   let rec explain = function

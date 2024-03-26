@@ -415,7 +415,7 @@ and package_type ctxt f (lid, cstrs) =
       |[] -> longident_loc f lid
       |_ ->
         pp f "%a@ with@ %a" longident_loc lid (list aux  ~sep:"@ and@ ")  cstrs)
-  
+
 (********************pattern********************)
 (* be cautious when use [pattern], [pattern1] is preferred *)
 and pattern ctxt f x =
@@ -636,7 +636,8 @@ and sugar_expr ctxt f e =
 and function_param ctxt f param =
   match param.pparam_desc with
   | Pparam_val (a, b, c) -> label_exp ctxt f (a, b, c)
-  | Pparam_module (Nolabel, l, mty) -> pp f "@[{%s : %a}@]" l.txt (package_type ctxt) mty
+  | Pparam_module (Nolabel, l, mty) ->
+      pp f "@[{%s : %a}@]" l.txt (package_type ctxt) mty
   | Pparam_module _ -> assert false (* TODO *)
   | Pparam_newtype ty -> pp f "(type %s)@;" ty.txt
 

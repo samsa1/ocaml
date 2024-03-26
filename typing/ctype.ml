@@ -321,7 +321,8 @@ let set_env uenv env =
 
 let add_mty uenv id mty =
   match uenv with
-  | Expression exp -> Expression {exp with env = Env.add_module id Mp_present mty exp.env}
+  | Expression exp ->
+      Expression {exp with env = Env.add_module id Mp_present mty exp.env}
   | Pattern _ -> assert false (* TODO *)
 
 let in_pattern_mode = function
@@ -812,8 +813,8 @@ let rec check_scope_escape mark env level ty =
           (newty2 ~level:orig_level (Tfunctor (lbl, id, p', t)))
     | Tfunctor (_, id, p, t) ->
         let env = Env.add_module id Mp_present (Mty_ident p) env in
-        Ident.with_id_pairs ((id, id, level) :: Ident.get_id_pairs ()) (fun () ->
-          check_scope_escape mark env level t)
+        Ident.with_id_pairs ((id, id, level) :: Ident.get_id_pairs ())
+              (fun () -> check_scope_escape mark env level t)
     | _ ->
         iter_type_expr (check_scope_escape mark env level) ty
     end;
@@ -2416,7 +2417,7 @@ let rec mcomp type_pairs env t1 t2 =
             with Not_found -> ()
             end
         | (Tfunctor (l1, _, p1, _), Tfunctor (l2, _, p2, _))
-          when Path.equiv p1 p2 
+          when Path.equiv p1 p2
               && (l1 = l2 || not (is_optional l1 || is_optional l2)) ->
             ()
         (*

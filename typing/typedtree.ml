@@ -173,7 +173,7 @@ and function_param =
 
 and function_param_kind =
   | Tparam_pat of pattern
-  | Tparam_module of pattern * package_type 
+  | Tparam_module of pattern * package_type
   | Tparam_optional_default of pattern * expression
 
 and function_body =

@@ -274,7 +274,8 @@ val unify_var: Env.t -> type_expr -> type_expr -> unit
 val filter_arrow: Env.t -> type_expr -> arg_label -> type_expr * type_expr
         (* A special case of unification with [l:'a -> 'b].  Raises
            [Filter_arrow_failed] instead of [Unify]. *)
-val filter_functor: Env.t -> type_expr -> arg_label -> (Ident.t * Path.t * type_expr) option
+val filter_functor:
+        Env.t -> type_expr -> arg_label -> (Ident.t * Path.t * type_expr) option
         (* A special case of unification with [{M:P} -> 'a]  Raises
            [Filter_arrow_failed] instead of [Unify]. *)
 val filter_method: Env.t -> string -> type_expr -> type_expr

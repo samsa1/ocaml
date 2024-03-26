@@ -53,7 +53,7 @@ let rec equiv p1 p2 =
           | ((Pcstr_ty _ | Pext_ty), _) -> false
         in same_extra && equiv p1 p2
       | (_, _) -> false
-  
+
 let rec compare p1 p2 =
   if p1 == p2 then 0
   else match (p1, p2) with

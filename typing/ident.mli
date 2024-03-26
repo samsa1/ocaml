@@ -72,7 +72,9 @@ val highest_scope: int
 
 val get_id_pairs: unit -> (t * t * int) list
 val with_id_pairs: (t * t * int) list -> (unit -> 'a) -> 'a
-        (** Set an equivalence between identifiers and give them a related scope *)
+        (** Set an equivalence between identifiers and give to the related
+            identifer a scope. We expect all identifiers to have been created
+            with [create_unscoped] to obtain the expected semantic. *)
 
 val reinit: unit -> unit
 

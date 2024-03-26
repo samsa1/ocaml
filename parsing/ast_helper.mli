@@ -197,7 +197,7 @@ module Exp:
 
     val case: pattern -> ?guard:expression -> expression -> case
     val binding_op: str -> pattern -> expression -> loc -> binding_op
-    
+
     val arg_expr: expression -> argument
     val arg_mod: module_expr -> argument
   end

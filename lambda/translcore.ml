@@ -580,7 +580,7 @@ and transl_list ~scopes expr_list =
 
 and transl_arg_list ~scopes expr_list =
   List.map (transl_arg ~scopes) expr_list
-  
+
 and transl_list_with_shape ~scopes expr_list =
   let transl_with_shape e =
     let shape = Typeopt.value_kind e.exp_env e.exp_type in

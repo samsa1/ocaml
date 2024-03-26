@@ -164,7 +164,8 @@ let mkuminus ~sloc ~oploc name arg =
     Pexp_constant({pconst_desc = Pconst_float (f, m); pconst_loc=_}), [] ->
       Pexp_constant(mkconst ~loc:sloc (Pconst_float(neg_string f, m)))
   | _ ->
-      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, Exp.arg_expr arg])
+      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name),
+                 [Nolabel, Exp.arg_expr arg])
 
 let mkuplus ~sloc ~oploc name arg =
   let desc = arg.pexp_desc in
@@ -177,7 +178,8 @@ let mkuplus ~sloc ~oploc name arg =
     [] ->
       Pexp_constant(mkconst ~loc:sloc desc)
   | _ ->
-      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, Exp.arg_expr arg])
+      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name),
+                [Nolabel, Exp.arg_expr arg])
 
 let mk_attr ~loc name payload =
   Builtin_attributes.(register_attr Parser name);
@@ -347,7 +349,10 @@ let builtin_arraylike_index loc paren_kind index = match paren_kind with
        match bigarray_untuplify index with
      | [x] -> One, [Nolabel, Exp.arg_expr x]
      | [x;y] -> Two, [Nolabel, Exp.arg_expr x; Nolabel, Exp.arg_expr y]
-     | [x;y;z] -> Three, [Nolabel, Exp.arg_expr x; Nolabel, Exp.arg_expr y; Nolabel, Exp.arg_expr z]
+     | [x;y;z] -> Three,
+        [Nolabel, Exp.arg_expr x;
+         Nolabel, Exp.arg_expr y;
+         Nolabel, Exp.arg_expr z]
      | coords -> Many, [Nolabel, Exp.arg_expr (ghexp ~loc (Pexp_array coords))]
 
 let builtin_indexing_operators : (unit, expression) array_family  =
@@ -2676,7 +2681,8 @@ labeled_simple_expr:
       { let loc = $loc(label) in
         (Labelled label, Exp.arg_expr (mkexpvar ~loc label)) }
   | TILDE LPAREN label = LIDENT ty = type_constraint RPAREN
-      { (Labelled label, Exp.arg_expr (mkexp_constraint ~loc:($startpos($2), $endpos)
+      { (Labelled label,
+         Exp.arg_expr (mkexp_constraint ~loc:($startpos($2), $endpos)
                            (mkexpvar ~loc:$loc(label) label) ty)) }
   | QUESTION label = LIDENT
       { let loc = $loc(label) in
@@ -2837,12 +2843,9 @@ fun_param_as_list:
   | LBRACE s = mkrhs(UIDENT) COLON mt = module_type RBRACE
       {
         let (lid, cstrs, _attrs) = package_type_of_module_type mt in
-        [ { pparam_loc = make_loc $sloc; pparam_desc = Pparam_module (Nolabel, s, (lid, cstrs)) } ]
+        [ { pparam_loc = make_loc $sloc;
+            pparam_desc = Pparam_module (Nolabel, s, (lid, cstrs)) } ]
       }
-  // | LBRACE s = mkrhs(UIDENT) RBRACE
-  //     {
-  //       [ { pparam_loc = make_loc $sloc; pparam_desc = Pparam_module (s, None) } ]
-  //     }
 ;
 fun_params:
   | nonempty_concat(fun_param_as_list) { $1 }

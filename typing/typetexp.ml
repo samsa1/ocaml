@@ -708,7 +708,7 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
         scoped_ident, transl_type env ~policy ~row_context st
       end in
       (* Ident.create_unscoped name.txt in *)
-    let ident = Ident.create_unscoped name.txt in 
+    let ident = Ident.create_unscoped name.txt in
     let ctyp_type =
       Subst.type_expr
         (Subst.add_module scoped_ident (Path.Pident ident) Subst.identity)

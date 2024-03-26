@@ -1271,7 +1271,8 @@ let rec tree_of_typexp mode ty =
         if !print_labels || is_optional l then l else Nolabel
       in
       let ty = tree_of_typexp mode ty in
-      Otyp_functor (lab, Oide_ident { printed_name = Ident.name id }, tree_of_path (Some Module_type) p, ty)
+      Otyp_functor (lab, Oide_ident { printed_name = Ident.name id },
+                    tree_of_path (Some Module_type) p, ty)
 
   in
   if List.memq px !delayed then delayed := List.filter ((!=) px) !delayed;

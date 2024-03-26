@@ -132,7 +132,7 @@ let with_id_pairs pairs f =
   id_pairs := pairs;
   Misc.try_finally f
     ~always:(fun () -> id_pairs := old)
-  
+
 let equiv i1 i2 =
   match i1, i2 with
   | Local { stamp = s1; _ }, Local { stamp = s2; _ }
@@ -156,8 +156,9 @@ let scope = function
   | Global _ | Predef _ -> lowest_scope
   | Unscoped {stamp = s1; _ } ->
     begin try
-      let (_, _, s) = List.find (fun (i1, i2, _) -> stamp i1 = s1 || stamp i2 = s1) !id_pairs in
-      s
+      let (_, _, s) =
+        List.find (fun (i1, i2, _) -> stamp i1 = s1 || stamp i2 = s1) !id_pairs
+      in s
     with Not_found -> assert false (* TODO *)
     end
 

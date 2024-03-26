@@ -126,9 +126,10 @@ module Typ = struct
         | Ptyp_extension (s, arg) ->
             Ptyp_extension (s, arg)
         | Ptyp_functor (label, name, (longident, lst), codomain) ->
-            Ptyp_functor (label, name,
-                          (longident, List.map (fun (n, typ) -> (n, loop typ)) lst),
-                          loop codomain)
+            Ptyp_functor
+              (label, name,
+               (longident, List.map (fun (n, typ) -> (n, loop typ)) lst),
+               loop codomain)
       in
       {t with ptyp_desc = desc}
     and loop_row_field field =
@@ -240,7 +241,7 @@ module Exp = struct
       pbop_exp = exp;
       pbop_loc = loc;
     }
-  
+
   let arg_expr expr = Parg_expression expr
   let arg_mod mexpr = Parg_module mexpr
 end

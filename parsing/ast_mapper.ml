@@ -170,8 +170,8 @@ module T = struct
     | Ptyp_extension x -> extension ~loc ~attrs (sub.extension sub x)
     | Ptyp_functor (lab, s, (lid, l), t) ->
         functor_ ~loc ~attrs lab (map_loc sub s)
-            (map_loc sub lid, List.map (map_tuple (map_loc sub) (sub.typ sub)) l)
-            (sub.typ sub t)
+          (map_loc sub lid, List.map (map_tuple (map_loc sub) (sub.typ sub)) l)
+          (sub.typ sub t)
 
   let map_type_declaration sub
       {ptype_name; ptype_params; ptype_cstrs;
@@ -419,7 +419,9 @@ module E = struct
           Pparam_module
             (lab,
              map_loc sub s,
-             map_tuple (map_loc sub) (List.map (map_tuple (map_loc sub) (sub.typ sub))) pack_opt)
+             map_tuple (map_loc sub)
+                (List.map (map_tuple (map_loc sub) (sub.typ sub)))
+                pack_opt)
       | Pparam_newtype ty ->
           Pparam_newtype (map_loc sub ty)
     in
@@ -456,7 +458,8 @@ module E = struct
         (map_opt (map_constraint sub) c)
         (map_function_body sub b)
     | Pexp_apply (e, l) ->
-        apply ~loc ~attrs (sub.expr sub e) (List.map (map_snd (sub.argument sub)) l)
+        apply ~loc ~attrs (sub.expr sub e)
+            (List.map (map_snd (sub.argument sub)) l)
     | Pexp_match (e, pel) ->
         match_ ~loc ~attrs (sub.expr sub e) (sub.cases sub pel)
     | Pexp_try (e, pel) -> try_ ~loc ~attrs (sub.expr sub e) (sub.cases sub pel)

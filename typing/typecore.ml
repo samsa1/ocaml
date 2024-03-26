@@ -2550,7 +2550,8 @@ let rec is_nonexpansive exp =
       List.for_all (fun vb -> is_nonexpansive vb.vb_expr) pat_exp_list &&
       is_nonexpansive body
   | Texp_apply(e, (_,None)::el) ->
-      is_nonexpansive e && List.for_all is_nonexpansive_arg_opt (List.map snd el)
+      is_nonexpansive e
+        && List.for_all is_nonexpansive_arg_opt (List.map snd el)
   | Texp_match(e, cases, _) ->
      (* Not sure this is necessary, if [e] is nonexpansive then we shouldn't
          care if there are exception patterns. But the previous version enforced
@@ -3519,16 +3520,18 @@ and type_expect_
       let funct, sargs =
         let funct = type_sfunct sfunct in
         match funct.exp_desc, sargs with
-        (* TODO : check here that we really need to do it only with expressions *)
+        (*TODO : check here that we really need to do it only with expressions*)
         | Texp_ident (_, _,
                       {val_kind = Val_prim {prim_name="%revapply"}; val_type}),
-          [Nolabel, Parg_expression sarg; Nolabel, Parg_expression actual_sfunct]
+          [Nolabel, Parg_expression sarg;
+           Nolabel, Parg_expression actual_sfunct]
           when is_inferred actual_sfunct
             && check_apply_prim_type Revapply val_type ->
             type_sfunct actual_sfunct, [Nolabel, Parg_expression sarg]
         | Texp_ident (_, _,
                       {val_kind = Val_prim {prim_name="%apply"}; val_type}),
-          [Nolabel, Parg_expression actual_sfunct; Nolabel, Parg_expression sarg]
+          [Nolabel, Parg_expression actual_sfunct;
+           Nolabel, Parg_expression sarg]
           when check_apply_prim_type Apply val_type ->
             type_sfunct actual_sfunct, [Nolabel, Parg_expression sarg]
         | _ ->
@@ -4650,12 +4653,14 @@ and type_function
       with_explanation ty_fun.explanation (fun () ->
         unify_exp_types loc env exp_type (instance ty_expected));
       exp_type, params, body, newtype :: newtypes, contains_gadt
-  | { pparam_desc = Pparam_module (arg_label, name, (p, l)); pparam_loc} :: rest ->
+  | { pparam_desc = Pparam_module (arg_label, name, (p, l)); pparam_loc}
+    :: rest ->
       let path = !Typetexp.transl_modtype_longident p.loc env p.txt in
       let () = assert (l = []) in
       let expected_id_res =
-        match split_function_mty env ty_expected ~arg_label ~first ~in_function with
-          None -> None
+        match split_function_mty env ty_expected
+                ~arg_label ~first ~in_function with
+        | None -> None
         | Some (id, path', ety) ->
           let () = assert (l = []) in
           begin try
@@ -4667,24 +4672,29 @@ and type_function
           end;
           Some (id, ety)
       in
-      let (res_ty, params, body, newtypes, contains_gadt), scoped_ident =
+      let (res_ty, params, body, newtypes, contains_gadt), s_ident =
         with_local_level begin fun () ->
-          let scoped_ident =
+          let s_ident =
             Ident.create_scoped ~scope:(Ctype.get_current_level()) name.txt
           in
-          let new_env = Env.add_module scoped_ident Mp_present (Mty_ident path) env in
+          let new_env = Env.add_module s_ident
+                              Mp_present (Mty_ident path) env in
           let expected_res = match expected_id_res with
             | Some (id, ety) ->
-              Subst.type_expr (Subst.add_module id (Pident scoped_ident) Subst.identity) ety
+              let subst = Subst.add_module id (Pident s_ident) Subst.identity in
+              Subst.type_expr subst ety
             | None -> newvar ()
           in
-          type_function new_env rest body_constraint body expected_res ~first:false ~in_function,
-            scoped_ident
+          type_function new_env rest body_constraint body
+              expected_res ~first:false ~in_function,
+          s_ident
       end
       in
       let ident = Ident.create_unscoped name.txt in
-      let res_ty = Subst.type_expr (Subst.add_module scoped_ident (Path.Pident ident) Subst.identity) res_ty in
-      let exp_type = Btype.newgenty (Tfunctor (arg_label, ident, path, res_ty)) in
+      let subst = Subst.add_module s_ident (Path.Pident ident) Subst.identity in
+      let res_ty = Subst.type_expr subst res_ty in
+      let exp_type =
+          Btype.newgenty (Tfunctor (arg_label, ident, path, res_ty)) in
       let _ = unify env ty_expected exp_type in
       let pck_ty = {
         pack_path = path;
@@ -4693,7 +4703,7 @@ and type_function
         pack_txt = p;
       } in
       let pv_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
-      let pat_desc = Tpat_var (scoped_ident, name, pv_uid) in
+      let pat_desc = Tpat_var (s_ident, name, pv_uid) in
       let pattern = {
         pat_desc;
         pat_loc = pparam_loc;
@@ -5339,7 +5349,7 @@ and type_application env funct sargs =
       |> List.find_map
           (function (_, Some (_, loc)) -> loc | _ -> None)
       |> Option.value ~default:funct.exp_loc
-  in  
+  in
   let type_unknown_arg (ty_fun, typed_args) = function
     | (lbl, Parg_module me) ->
       let (id, p, ty_res) =
@@ -5444,7 +5454,7 @@ and type_application env funct sargs =
   in
   let warned = ref false in
   (* [args] remember the location of each argument in sources. *)
-  let rec type_args (args : (arg_label * ((unit -> argument) * Location.t option) option) list) ty_fun ty_fun0 sargs =
+  let rec type_args args ty_fun ty_fun0 sargs =
     let type_unknown_args () =
       (* We're not looking at a *known* function type anymore, or there are no
          arguments left. *)
@@ -5496,7 +5506,8 @@ and type_application env funct sargs =
             (Warnings.Non_principal_labels "eliminated optional argument");
           eliminated_optional_arguments :=
             (l,ty,lv) :: !eliminated_optional_arguments;
-          (fun () -> Targ_expression (option_none env (instance ty) Location.none))
+          (fun () ->
+              Targ_expression (option_none env (instance ty) Location.none))
         in
         let remaining_sargs, arg =
           if ignore_labels then begin
@@ -5571,11 +5582,13 @@ and type_application env funct sargs =
                       Path.Papply(extract_path p1, extract_path p2)
                   | Tmod_constraint (p, _, _, _) ->
                       extract_path p
-                  | _ -> raise (Error(me.pmod_loc, env, Cannot_infer_functor_path))
+                  | _ ->
+                      raise (Error(me.pmod_loc, env, Cannot_infer_functor_path))
                 in
-                let subst = Subst.add_module id (extract_path m) Subst.identity in
+                let path = extract_path m in
+                let subst = Subst.add_module id path Subst.identity in
                 let ty_res = Subst.type_expr subst ty_res in
-                let subst0 = Subst.add_module id0 (extract_path m) Subst.identity in
+                let subst0 = Subst.add_module id0 path Subst.identity in
                 let ty_res0 = Subst.type_expr subst0 ty_res0 in
                 let arg () = Targ_module m in
                 (remaining_sargs, ty_res, ty_res0, Some (arg, Some me.pmod_loc))
