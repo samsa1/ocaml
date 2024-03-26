@@ -240,7 +240,7 @@ type error =
       previous_arg_loc : Location.t;
       extra_arg_loc : Location.t;
     }
-  | Cannot_infer_functor_signature of type_expr
+  | Cannot_infer_functor_signature
   | Cannot_infer_functor_path
 
 exception Error of Location.t * Env.t * error

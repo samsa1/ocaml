@@ -205,7 +205,7 @@ type error =
       previous_arg_loc : Location.t;
       extra_arg_loc : Location.t;
     }
-  | Cannot_infer_functor_signature of type_expr
+  | Cannot_infer_functor_signature
   | Cannot_infer_functor_path
 
 exception Error of Location.t * Env.t * error
@@ -4693,7 +4693,7 @@ and type_function
         pack_txt = p;
       } in
       let pv_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
-      let pat_desc = Tpat_var (ident, name, pv_uid) in
+      let pat_desc = Tpat_var (scoped_ident, name, pv_uid) in
       let pattern = {
         pat_desc;
         pat_loc = pparam_loc;
@@ -5350,7 +5350,7 @@ and type_application env funct sargs =
             (id, p, t)
         | Tfunctor _ -> assert false (* TODO *)
         | Tvar _ ->
-            raise (Error(me.pmod_loc, env, Cannot_infer_functor_signature ty_fun))
+            raise (Error(me.pmod_loc, env, Cannot_infer_functor_signature))
         | _ ->
           let ty_res =
             result_type (!omitted_parameters @ !eliminated_optional_arguments)
@@ -7147,10 +7147,9 @@ let report_error ~loc env = function
   | Cannot_infer_functor_path ->
       Location.errorf ~loc
         "Cannot infer path of module for functor."
-  | Cannot_infer_functor_signature ty ->
+  | Cannot_infer_functor_signature ->
       Location.errorf ~loc
-        "Cannot infer signature of functor. (%a)"
-          (Style.as_inline_code Printtyp.type_expr) ty
+        "Cannot infer signature of functor."
 
 let report_error ~loc env err =
   Printtyp.wrap_printing_env ~error:true env
