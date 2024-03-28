@@ -2633,6 +2633,8 @@ let add_gadt_equation uenv source destination =
 
 let eq_package_path env p1 p2 =
   Path.equiv p1 p2 ||
+  let p1 = normalize_package_path env p1 in
+  let p2 = normalize_package_path env p2 in
   Path.equiv (normalize_package_path env p1) (normalize_package_path env p2)
 
 let nondep_type' = ref (fun _ _ _ -> assert false)
