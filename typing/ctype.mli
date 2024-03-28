@@ -275,7 +275,8 @@ val filter_arrow: Env.t -> type_expr -> arg_label -> type_expr * type_expr
         (* A special case of unification with [l:'a -> 'b].  Raises
            [Filter_arrow_failed] instead of [Unify]. *)
 val filter_functor:
-        Env.t -> type_expr -> arg_label -> (Ident.t * Path.t * type_expr) option
+        Env.t -> type_expr -> arg_label ->
+        (Ident.t * (Path.t * (Longident.t * type_expr) list) * type_expr) option
         (* A special case of unification with [{M:P} -> 'a]  Raises
            [Filter_arrow_failed] instead of [Unify]. *)
 val filter_method: Env.t -> string -> type_expr -> type_expr
@@ -346,6 +347,7 @@ val equal: Env.t -> bool -> type_expr list -> type_expr list -> unit
         (* [equal env [x1...xn] tau [y1...yn] sigma]
            checks whether the parameterized types
            [/\x1.../\xn.tau] and [/\y1.../\yn.sigma] are equivalent. *)
+val eq_package_path : Env.t -> Path.t -> Path.t -> bool
 val is_equal : Env.t -> bool -> type_expr list -> type_expr list -> bool
 val equal_private :
         Env.t -> type_expr list -> type_expr ->
@@ -467,11 +469,21 @@ val wrap_trace_gadt_instances: Env.t -> ('a -> 'b) -> 'a -> 'b
 
 val immediacy : Env.t -> type_expr -> Type_immediacy.t
 
+(* For better error messages *)
+type package_or_modular_arg =
+    | FCM (* First Class Module *)
+    | ModuleArg  (* Modular Argument : modular explicit *)
+
 (* Stubs *)
 val package_subtype :
-    (Env.t -> Path.t -> (Longident.t * type_expr) list ->
+    (Env.t -> package_or_modular_arg ->
+      Path.t -> (Longident.t * type_expr) list ->
       Path.t -> (Longident.t * type_expr) list ->
      (unit,Errortrace.first_class_module) Result.t) ref
+
+val modtype_of_package :
+     (Env.t -> Location.t -> Path.t -> (Longident.t * type_expr) list ->
+     module_type) ref
 
 (* Raises [Incompatible] *)
 val mcomp : Env.t -> type_expr -> type_expr -> unit

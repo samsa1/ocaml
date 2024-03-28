@@ -266,6 +266,7 @@ val type_open_decl:
 val type_object:
   (Env.t -> Location.t -> Parsetree.class_structure ->
    Typedtree.class_structure * string list) ref
+(* Forward declaration, to be filled in by Typemod.type_package *)
 val type_package:
   (Env.t -> Parsetree.module_expr -> Path.t -> (Longident.t * type_expr) list ->
   Typedtree.module_expr * (Longident.t * type_expr) list) ref

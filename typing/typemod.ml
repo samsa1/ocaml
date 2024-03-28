@@ -2098,7 +2098,7 @@ let modtype_of_package env loc p fl =
   in
   Subst.modtype Keep Subst.identity mty
 
-let package_subtype env p1 fl1 p2 fl2 =
+let package_subtype env pack p1 fl1 p2 fl2 =
   let mkmty p fl =
     let fl =
       List.filter (fun (_n,t) -> Ctype.free_variables t = []) fl in
@@ -2113,14 +2113,16 @@ let package_subtype env p1 fl1 p2 fl2 =
     | Tcoerce_none -> Ok ()
     | c ->
         let msg =
-          Includemod_errorprinter.coercion_in_package_subtype env mty1 c
+          Includemod_errorprinter.coercion_in_package_subtype env pack mty1 c
         in
         Result.Error (Errortrace.Package_coercion msg)
     | exception Includemod.Error e ->
         let msg = Includemod_errorprinter.err_msgs e in
         Result.Error (Errortrace.Package_inclusion msg)
 
-let () = Ctype.package_subtype := package_subtype
+let () =
+    Ctype.package_subtype := package_subtype;
+    Ctype.modtype_of_package := modtype_of_package;;
 
 let wrap_constraint_package env mark arg mty explicit =
   let mark = if mark then Includemod.Mark_both else Includemod.Mark_neither in

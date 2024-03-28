@@ -15,6 +15,7 @@
 
 val err_msgs: Includemod.explanation -> Format.formatter -> unit
 val coercion_in_package_subtype:
-  Env.t -> Types.module_type -> Typedtree.module_coercion -> Format.formatter ->
+  Env.t -> Ctype.package_or_modular_arg ->
+  Types.module_type -> Typedtree.module_coercion -> Format.formatter ->
   unit
 val register: unit -> unit

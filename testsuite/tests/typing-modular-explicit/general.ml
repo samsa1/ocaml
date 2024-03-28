@@ -31,6 +31,11 @@ let merge {T : Typ} x y = (id {T} x, id {T} y)
 val merge : {T : Typ} -> T.t -> T.t -> T.t * T.t = <fun>
 |}]
 
+let test_lambda a = (fun {T : Typ} (x : T.t) -> x) {Int} a
+
+[%%expect{|
+val test_lambda : Int.t -> Int.t = <fun>
+|}]
 
 
 let alpha_equiv (f : {A : Add} -> A.t -> A.t) : {T : Add} -> T.t -> T.t = f
@@ -72,6 +77,11 @@ let s_list = map {List} string_of_int [3; 1; 4]
 val s_list : string List.t = List.(::) ("3", ["1"; "4"])
 |}]
 
+let s_list : string list = s_list
+
+[%%expect{|
+val s_list : string list = ["3"; "1"; "4"]
+|}]
 
 module MapCombin (M1 : Map) (M2 : Map) = struct
   type 'a t = 'a M1.t M2.t
@@ -104,6 +114,12 @@ Error: Cannot infer path of module for functor.
 |}]
 
 
+
+(** Various tests on the coercion between functor types. **)
+(* Here the sames rules as with first-class modules applies :
+   coercion is allowed only if the runtime representation is the same.
+*)
+
 module type AddSub = sig
   type t
   val add : t -> t -> t
@@ -123,7 +139,32 @@ module type SubAdd =
   sig type t val sub : t -> t -> t val add : t -> t -> t end
 |}]
 
+module type Typ' = sig
+  type t
+end
 
+let id3 : {T : Typ'} -> T.t -> T.t = id
+
+[%%expect{|
+module type Typ' = sig type t end
+val id3 : {T : Typ'} -> T.t -> T.t = <fun>
+|}]
+
+
+let id4 = (id :> {T : Typ} -> T.t -> T.t)
+
+[%%expect{|
+val id4 : {T : Typ} -> T.t -> T.t = <fun>
+|}]
+
+let id5 = (id :> {T : Typ'} -> T.t -> T.t)
+
+[%%expect{|
+val id5 : {T : Typ'} -> T.t -> T.t = <fun>
+|}]
+
+
+(* Fails because this would require computation at runtime *)
 let try_coerce (f : {A : Add} -> A.t -> A.t) : {T : Typ} -> T.t -> T.t = f
 
 [%%expect{|
@@ -132,6 +173,7 @@ Line 1, characters 73-74:
                                                                              ^
 Error: This expression has type "{A : Add} -> A.t -> A.t"
        but an expression was expected of type "{T : Typ} -> T.t -> T.t"
+       The two module argument types differ by their runtime size.
 |}]
 
 
@@ -144,6 +186,10 @@ Line 1, characters 51-86:
                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Type "{A : AddSub} -> A.t -> A.t" is not a subtype of
          "{T : SubAdd} -> T.t -> T.t"
+       The two module argument types do not share
+       the same positions for runtime components.
+       For example, the value "add" occurs at the expected position of
+       the value "sub".
 |}]
 
 
@@ -156,6 +202,56 @@ Line 1, characters 48-78:
                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Type "{A : Add} -> A.t -> A.t" is not a subtype of
          "{T : Typ} -> T.t -> T.t"
+       The two module argument types differ by their runtime size.
+|}]
+
+module type Add2 = sig
+  type a
+  type t
+  val add : t -> t -> t
+end
+
+module type Add3 = sig
+  type t
+  type a
+  val add : t -> t -> t
+end
+
+module type Add4 = sig
+  type t
+  val add : t -> t -> t
+  type a
+end
+
+[%%expect{|
+module type Add2 = sig type a type t val add : t -> t -> t end
+module type Add3 = sig type t type a val add : t -> t -> t end
+module type Add4 = sig type t val add : t -> t -> t type a end
+|}]
+
+let try_coerce4 (f : {A : Add2} -> A.t -> A.t) : {A : Add} -> A.t -> A.t = f
+
+[%%expect{|
+Line 1, characters 75-76:
+1 | let try_coerce4 (f : {A : Add2} -> A.t -> A.t) : {A : Add} -> A.t -> A.t = f
+                                                                               ^
+Error: This expression has type "{A : Add2} -> A.t -> A.t"
+       but an expression was expected of type "{A : Add} -> A.t -> A.t"
+       Modules do not match: Add is not included in Add2
+       The type "a" is required but not provided
+|}]
+
+let coerce5 (f : {A : Add2} -> A.t -> A.t) = (f :> {A : Add} -> A.t -> A.t)
+
+let try_coerce6 (f : {A : Add2} -> A.t -> A.t) : {A : Add3} -> A.t -> A.t = f
+let try_coerce7 (f : {A : Add2} -> A.t -> A.t) : {A : Add4} -> A.t -> A.t = f
+
+[%%expect{|
+val coerce5 : ({A : Add2} -> A.t -> A.t) -> {A : Add} -> A.t -> A.t = <fun>
+val try_coerce6 : ({A : Add2} -> A.t -> A.t) -> {A : Add3} -> A.t -> A.t =
+  <fun>
+val try_coerce7 : ({A : Add2} -> A.t -> A.t) -> {A : Add4} -> A.t -> A.t =
+  <fun>
 |}]
 
 
@@ -259,4 +355,89 @@ Line 1, characters 36-37:
                                         ^
 Error: This expression has type "'a" but an expression was expected of type "A.t"
        The type constructor "A.t" would escape its scope
+|}]
+
+
+(* Testing the `S with type t = _` cases *)
+
+module type Coerce = sig
+  type a
+  type b
+  val coerce : a -> b
+end
+
+let coerce {C : Coerce} x = C.coerce x
+
+module IntofBool = struct
+  type a = bool
+  type b = int
+  let coerce b = if b then 1 else 0
+end
+
+module BoolofInt = struct
+  type a = int
+  type b = bool
+  let coerce i = i <> 0
+end
+
+module IntofString = struct
+  type a = string
+  type b = int
+  let coerce = int_of_string
+end
+
+module IntofFloat = struct
+  type a = float
+  type b = int
+  let coerce = int_of_string_opt
+end
+
+[%%expect {|
+module type Coerce = sig type a type b val coerce : a -> b end
+val coerce : {C : Coerce} -> C.a -> C.b = <fun>
+module IntofBool :
+  sig type a = bool type b = int val coerce : bool -> int end
+module BoolofInt :
+  sig type a = int type b = bool val coerce : int -> bool end
+module IntofString :
+  sig type a = string type b = int val coerce : string -> int end
+module IntofFloat :
+  sig type a = float type b = int val coerce : string -> int option end
+|}]
+
+let incr_general
+  {Cfrom : Coerce with type b = int}
+  {Cto : Coerce with type a = int and type b = Cfrom.a}
+  x =
+  coerce {Cto} (1 + coerce {Cfrom} x)
+
+[%%expect {|
+val incr_general :
+  {Cfrom : Coerce with type b = int} ->
+  {Cto : Coerce with type a = int and type b = Cfrom.a} -> Cfrom.a -> Cto.b =
+  <fun>
+|}]
+
+module type CoerceToInt = sig
+  type a
+  type b = int
+  val coerce : a -> int
+end
+
+module type CoerceFromInt = sig
+  type a = int
+  type b
+  val coerce : int -> b
+end
+
+let incr_general' :
+  {C1 : CoerceToInt} -> {C2 : CoerceFromInt with type b = C1.a} -> C1.a -> C1.a =
+  incr_general
+
+[%%expect{|
+module type CoerceToInt = sig type a type b = int val coerce : a -> int end
+module type CoerceFromInt = sig type a = int type b val coerce : int -> b end
+val incr_general' :
+  {C1 : CoerceToInt} ->
+  {C2 : CoerceFromInt with type b = C1.a} -> C1.a -> C1.a = <fun>
 |}]

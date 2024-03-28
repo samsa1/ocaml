@@ -493,9 +493,9 @@ let rec raw_type ppf ty =
   let ty = safe_repr [] ty in
   if List.memq ty !visited then fprintf ppf "{id=%d}" ty.id else begin
     visited := ty :: !visited;
-    fprintf ppf "@[<1>{id=%d;level=%d;scope=%d;marks=%x;desc=@,%a}@]"
+    fprintf ppf "@[<1>{id=%d;level=%d;desc=@,%a}@]"
       ty.id ty.level
-      (Transient_expr.get_scope ty) (Transient_expr.get_marks ty)
+      (* (Transient_expr.get_scope ty) (Transient_expr.get_marks ty) *)
       raw_type_desc ty.desc
   end
 and raw_type_list tl = raw_list raw_type tl
@@ -553,9 +553,10 @@ and raw_type_desc ppf = function
               fprintf ppf "Some(@,%a,@,%a)" path p raw_type_list tl)
   | Tpackage (p, fl) ->
     fprintf ppf "@[<hov1>Tpackage(@,%a,@,%a)@]" path p raw_lid_type_list fl
-  | Tfunctor (lbl, name, p, ty) ->
-      fprintf ppf "@[<hov1>Tfunctor(\"%s\",@,%s,@,%a,@,%a)@]"
-        (string_of_label lbl) (Ident.name name) path p raw_type ty
+  | Tfunctor (lbl, name, (p, fl), ty) ->
+      fprintf ppf "@[<hov1>Tfunctor(\"%s\",@,%s,@,(%a,@,%a),@,%a)@]"
+        (string_of_label lbl) (Ident.name name) path p
+        raw_lid_type_list fl raw_type ty
 and raw_row_fixed ppf = function
 | None -> fprintf ppf "None"
 | Some Types.Fixed_private -> fprintf ppf "Some Fixed_private"
@@ -1259,20 +1260,16 @@ let rec tree_of_typexp mode ty =
     | Tunivar _ ->
         Otyp_var (false, Names.name_of_type Names.new_name tty)
     | Tpackage (p, fl) ->
-        let fl =
-          List.map
-            (fun (li, ty) -> (
-              String.concat "." (Longident.flatten li),
-              tree_of_typexp mode ty
-            )) fl in
+        let fl = tree_of_pack_fields mode fl in
         Otyp_module (tree_of_path (Some Module_type) p, fl)
-    | Tfunctor (l, id, p, ty) ->
+    | Tfunctor (l, id, (p, fl), ty) ->
       let lab =
         if !print_labels || is_optional l then l else Nolabel
       in
+      let fl = tree_of_pack_fields mode fl in
       let ty = tree_of_typexp mode ty in
       Otyp_functor (lab, Oide_ident { printed_name = Ident.name id },
-                    tree_of_path (Some Module_type) p, ty)
+                    (tree_of_path (Some Module_type) p, fl), ty)
 
   in
   if List.memq px !delayed then delayed := List.filter ((!=) px) !delayed;
@@ -1285,6 +1282,13 @@ let rec tree_of_typexp mode ty =
     let alias = Names.name_of_type (Names.new_var_name ~non_gen ty) px in
     Otyp_alias {non_gen;  aliased = pr_typ (); alias } end
   else pr_typ ()
+
+and tree_of_pack_fields mode fl =
+  List.map
+      (fun (li, ty) -> (
+        String.concat "." (Longident.flatten li),
+        tree_of_typexp mode ty
+      )) fl
 
 and tree_of_row_field mode (l, f) =
   match row_field_repr f with
@@ -2156,7 +2160,7 @@ type 'variety trace_format =
 
 let incompatibility_phrase (type variety) : variety trace_format -> string =
   function
-  | Unification -> "is not compatible with type"
+  | Unification -> "is not compatible with type1"
   | Equality    -> "is not equal to type"
   | Moregen     -> "is not compatible with type"
 

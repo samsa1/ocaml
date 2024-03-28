@@ -196,36 +196,39 @@ module Runtime_coercion = struct
       Format.fprintf ppf
         "Illegal permutation of runtime components in a module type."
 
-  let in_package_subtype ctx_printer env mty c ppf =
+  let in_package_subtype ctx_printer env name mty c ppf =
     match first_change c with
     | None ->
         (* The coercion looks like the identity but was not simplified to
            [Tcoerce_none], this only happens when the two first-class module
            types differ by runtime size *)
         Format.fprintf ppf
-          "The two first-class module types differ by their runtime size."
+          "The two %s types differ by their runtime size." name
     | Some (path, c) ->
   try
     let ctx, mt = find env path mty in
     match c with
     | Primitive_coercion prim_name ->
         Format.fprintf ppf
-          "@[The two first-class module types differ by a coercion of@ \
+          "@[The two %s types differ by a coercion of@ \
            the primitive %a@ to a value%a.@]"
+          name
           Style.inline_code prim_name
           ctx_printer ctx
     | Alias_coercion path ->
         Format.fprintf ppf
-          "@[The two first-class module types differ by a coercion of@ \
+          "@[The two %s types differ by a coercion of@ \
            a module alias %a@ to a module%a.@]"
+          name
           (Style.as_inline_code Printtyp.path) path
           ctx_printer ctx
     | Transposition (k,l) ->
         Format.fprintf ppf
-          "@[@[The two first-class module types do not share@ \
+          "@[@[The two %s types do not share@ \
            the same positions for runtime components.@]@ \
            @[For example,%a@ the %a@ occurs at the expected position of@ \
            the %a.@]@]"
+          name
           ctx_printer ctx pp_item (item mt k) pp_item (item mt l)
   with Not_found ->
     Format.fprintf ppf
@@ -1012,8 +1015,12 @@ let report_apply_error ~loc env (app_name, mty_f, args) =
           intro
           actual expected
 
-let coercion_in_package_subtype env mty c ppf =
-    Runtime_coercion.in_package_subtype Context.alt_pp env mty c ppf
+let coercion_in_package_subtype env pack mty c ppf =
+    let name = match pack with
+      | Ctype.FCM -> "first-class module"
+      | Ctype.ModuleArg -> "module argument"
+    in
+    Runtime_coercion.in_package_subtype Context.alt_pp env name mty c ppf
 
 let register () =
   Location.register_error_of_exn

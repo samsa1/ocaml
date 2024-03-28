@@ -4653,20 +4653,33 @@ and type_function
       with_explanation ty_fun.explanation (fun () ->
         unify_exp_types loc env exp_type (instance ty_expected));
       exp_type, params, body, newtype :: newtypes, contains_gadt
-  | { pparam_desc = Pparam_module (arg_label, name, (p, l)); pparam_loc}
+  | { pparam_desc = Pparam_module (arg_label, name, (p, fl)); pparam_loc}
     :: rest ->
-      let path = !Typetexp.transl_modtype_longident p.loc env p.txt in
-      let () = assert (l = []) in
+      let pack = {
+        ptyp_desc = Ptyp_package(p, fl);
+        ptyp_loc = pparam_loc;
+        ptyp_loc_stack = []; (* TODO : improve *)
+        ptyp_attributes = [];
+      } in
+      let pack = Typetexp.transl_simple_type env ~closed:false pack in
+      let path = match pack.ctyp_desc with
+        | Ttyp_package pack -> pack.pack_path
+        | _ -> assert false
+      in
+      let fl = match get_desc pack.ctyp_type with
+          Tpackage (_, fl) -> fl
+        | _ -> assert false
+      in
+      let mty = !Ctype.modtype_of_package env p.loc path fl in
       let expected_id_res =
         match split_function_mty env ty_expected
                 ~arg_label ~first ~in_function with
         | None -> None
-        | Some (id, path', ety) ->
-          let () = assert (l = []) in
+        | Some (id, (path', fl'), ety) ->
           begin try
             unify env
-              (newty (Tfunctor (arg_label, id, path, newvar())))
-              (newty (Tfunctor (arg_label, id, path', newvar())))
+              (newty (Tfunctor (arg_label, id, (path, fl), newvar())))
+              (newty (Tfunctor (arg_label, id, (path', fl'), newvar())))
           with Unify trace ->
               raise (Error(loc, env, Expr_type_clash(trace, None, None)))
           end;
@@ -4678,7 +4691,7 @@ and type_function
             Ident.create_scoped ~scope:(Ctype.get_current_level()) name.txt
           in
           let new_env = Env.add_module s_ident
-                              Mp_present (Mty_ident path) env in
+                              Mp_present mty env in
           let expected_res = match expected_id_res with
             | Some (id, ety) ->
               let subst = Subst.add_module id (Pident s_ident) Subst.identity in
@@ -4694,8 +4707,13 @@ and type_function
       let subst = Subst.add_module s_ident (Path.Pident ident) Subst.identity in
       let res_ty = Subst.type_expr subst res_ty in
       let exp_type =
-          Btype.newgenty (Tfunctor (arg_label, ident, path, res_ty)) in
-      let _ = unify env ty_expected exp_type in
+          Btype.newgenty (Tfunctor (arg_label, ident, (path, fl), res_ty)) in
+      let _ =
+        try
+          unify env ty_expected exp_type
+        with Unify trace ->
+          raise (Error(loc, env, Expr_type_clash(trace, None, None)))
+      in
       let pck_ty = {
         pack_path = path;
         pack_fields = [];
@@ -5352,12 +5370,12 @@ and type_application env funct sargs =
   in
   let type_unknown_arg (ty_fun, typed_args) = function
     | (lbl, Parg_module me) ->
-      let (id, p, ty_res) =
+      let (id, (p, fl), ty_res) =
         let ty_fun = expand_head env ty_fun in
         match get_desc ty_fun with
-        | Tfunctor (l, id, p, t) when l = lbl
+        | Tfunctor (l, id, pl, t) when l = lbl
           || !Clflags.classic && lbl = Nolabel && not (is_optional l) ->
-            (id, p, t)
+            (id, pl, t)
         | Tfunctor _ -> assert false (* TODO *)
         | Tvar _ ->
             raise (Error(me.pmod_loc, env, Cannot_infer_functor_signature))
@@ -5374,8 +5392,7 @@ and type_application env funct sargs =
             previous_arg_loc;
             extra_arg_loc = me.pmod_loc; }))
       in
-      let (m, fl) = !type_package env me p [] in
-      let () = assert (fl = []) in
+      let (m, _fl') = !type_package env me p fl in
       let rec extract_path m =
         match m.mod_desc with
         | Tmod_ident (p, _) -> p
@@ -5562,7 +5579,7 @@ and type_application env funct sargs =
                 end
         in
         type_args ((l,arg)::args) ty_fun ty_fun0 remaining_sargs
-    | Tfunctor (l, id, p, ty_res), Tfunctor (_, id0, _, ty_res0) ->
+    | Tfunctor (l, id, (p, fl), ty_res), Tfunctor (_, id0, _, ty_res0) ->
         let () = assert (l = Nolabel) in
         let remaining_sargs, ty_fun, ty_fun0, arg =
           match sargs with
@@ -5573,8 +5590,7 @@ and type_application env funct sargs =
                   | Parg_expression _ -> assert false (* TODO : raise error *)
                   | Parg_module me -> me
                 end in
-                let (m, fl) = !type_package env me p [] in
-                let () = assert (fl = []) in
+                let (m, _fl') = !type_package env me p fl in
                 let rec extract_path m =
                   match m.mod_desc with
                   | Tmod_ident (p, _) -> p
