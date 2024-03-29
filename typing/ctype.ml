@@ -2181,11 +2181,7 @@ let enter_functor env scope id1 t1 id2 t2 f =
   let old_id_pairs = Ident.get_id_pairs () in
   let filtered_id_pairs = filter_id_pairs old_id_pairs in
   (* /!\ this is wrond and shoudl be corrected *)
-  let snap = Btype.snapshot () in
-  Misc.try_finally
-    ~always:(fun () -> backtrack snap)
-    (fun () ->
-      Ident.with_id_pairs ((id1, id2, scope) :: filtered_id_pairs) f)
+  Ident.with_id_pairs ((id1, id2, scope) :: filtered_id_pairs) f
   
 
 (**** Instantiate a generic type into a poly type ***)
