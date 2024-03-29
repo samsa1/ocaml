@@ -2137,7 +2137,6 @@ let enter_poly_for tr_exn env t1 tl1 t2 tl2 f =
     enter_poly env t1 tl1 t2 tl2 f
   with Escape e -> raise_for tr_exn (Escape e)
 
-
 let identifier_escape _env id ty =
   with_type_mark begin fun mark ->
   let rec occur t =

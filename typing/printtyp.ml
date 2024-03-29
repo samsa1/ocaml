@@ -2160,7 +2160,7 @@ type 'variety trace_format =
 
 let incompatibility_phrase (type variety) : variety trace_format -> string =
   function
-  | Unification -> "is not compatible with type1"
+  | Unification -> "is not compatible with type"
   | Equality    -> "is not equal to type"
   | Moregen     -> "is not compatible with type"
 
