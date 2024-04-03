@@ -40,19 +40,19 @@ let f (x : {M : T} -> (M.t * ({N : T} -> 'a) as 'a)) =
   (x : ({O : T} -> O.t * 'b) as 'b)
 
 [%%expect{|
-val f :
-  ({M : T} -> (M.t * ({N : T} -> 'a) as 'a)) -> ({O : T} -> O.t * 'b as 'b) =
-  <fun>
-|}]
-
-let f (x : {M : T} -> (M.t * ({N : T} -> (M.t * 'a) as 'a))) =
-  (x : ({O : T} -> O.t * 'b) as 'b)
-
-[%%expect{|
 Line 2, characters 3-4:
 2 |   (x : ({O : T} -> O.t * 'b) as 'b)
        ^
-Error: This expression has type "{M : T} -> M.t * ({N : T} -> M.t * 'a as 'a)"
+Error: This expression has type "{M : T} -> (M.t * ({N : T} -> 'a) as 'a)"
        but an expression was expected of type "{O : T} -> O.t * 'b as 'b"
-       Type "M.t" is not compatible with type "O.t"
+       The type constructor "O.t" would escape its scope
+|}]
+
+let f (x : {M : T} -> (M.t * ({N : T} -> (N.t * 'a) as 'a))) =
+  (x : ({O : T} -> O.t * 'b) as 'b)
+
+[%%expect{|
+val f :
+  ({M : T} -> M.t * ({N : T} -> N.t * 'a as 'a)) ->
+  ({O : T} -> O.t * 'b as 'b) = <fun>
 |}]

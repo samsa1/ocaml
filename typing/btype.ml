@@ -101,6 +101,7 @@ let print_raw =
 (**** Type level management ****)
 
 let generic_level = Ident.highest_scope
+let highest_level = generic_level - 1
 let lowest_level = Ident.lowest_scope
 
 (**** Some type creators ****)

@@ -17,6 +17,8 @@
 
 type t
 
+exception No_scope of t
+
 include Identifiable.S with type t := t
 (* Notes:
    - [equal] compares identifiers by name
@@ -70,8 +72,8 @@ val scope: t -> int
 val lowest_scope : int
 val highest_scope: int
 
-val get_id_pairs: unit -> (t * t * int) list
-val with_id_pairs: (t * t * int) list -> (unit -> 'a) -> 'a
+val get_id_pairs: unit -> (t * t * int option) list
+val with_id_pairs: (t * t * int option) list -> (unit -> 'a) -> 'a
         (** Set an equivalence between identifiers and give to the related
             identifer a scope. We expect all identifiers to have been created
             with [create_unscoped] to obtain the expected semantic. *)

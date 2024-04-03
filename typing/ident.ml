@@ -28,6 +28,8 @@ type t =
          predefined identifiers is always unique. *)
   | Unscoped of { name : string; stamp: int }
 
+exception No_scope of t
+
 (* A stamp of 0 denotes a persistent identifier *)
 
 let currentstamp = s_ref 0
@@ -154,12 +156,14 @@ let scope = function
   | Scoped { scope; _ } -> scope
   | Local _ -> highest_scope
   | Global _ | Predef _ -> lowest_scope
-  | Unscoped {stamp = s1; _ } ->
+  | Unscoped {stamp = s1; _ } as i ->
     begin try
-      let (_, _, s) =
+      match
         List.find (fun (i1, i2, _) -> stamp i1 = s1 || stamp i2 = s1) !id_pairs
-      in s
-    with Not_found -> assert false (* TODO *)
+      with
+      | (_, _, Some s) -> s
+      | (_, _, None) -> highest_scope - 1
+    with Not_found -> raise (No_scope i)
     end
 
 let reinit_level = ref (-1)

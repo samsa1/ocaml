@@ -59,6 +59,8 @@ end
 
 val generic_level: int
         (* level of polymorphic variables; = Ident.highest_scope *)
+val highest_level: int
+        (* highest level that is not polymorphic; = generic_level - 1 *)
 val lowest_level: int
         (* lowest level for type nodes; = Ident.lowest_scope *)
 

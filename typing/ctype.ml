@@ -255,7 +255,7 @@ let new_scoped_ty scope desc = newty3 ~level:!current_level ~scope desc
 let newvar ?name ()         = newty2 ~level:!current_level (Tvar name)
 let newvar2 ?name level     = newty2 ~level:level (Tvar name)
 let new_global_var ?name () = newty2 ~level:!global_level (Tvar name)
-let newstub ~scope          = newty3 ~level:!current_level ~scope (Tvar None)
+let newstub ~level ~scope     = newty3 ~level ~scope (Tvar None)
 
 let newobj fields      = newty (Tobject (fields, ref None))
 
@@ -357,11 +357,6 @@ type unification_environment =
 let get_env = function
   | Expression {env} -> env
   | Pattern {penv} -> penv.env
-
-let set_env uenv env =
-  match uenv with
-  | Expression _ -> invalid_arg "Ctype.set_env"
-  | Pattern {penv} -> Pattern_env.set_env penv env
 
 let enter_type uenv ~scope lbl decl =
   match uenv with
@@ -873,7 +868,7 @@ let rec check_scope_escape mark env level ty =
         List.iter (fun (_, t) -> check_scope_escape mark env level t) fl;
         let mty = !modtype_of_package env Location.none p fl in
         let env = Env.add_module id Mp_present mty env in
-        Ident.with_id_pairs ((id, id, level) :: Ident.get_id_pairs ())
+        Ident.with_id_pairs ((id, id, Some level) :: Ident.get_id_pairs ())
               (fun () -> check_scope_escape mark env level t)
     | _ ->
         iter_type_expr (check_scope_escape mark env level) ty
@@ -911,8 +906,8 @@ let update_scope_for tr_exn scope ty =
 let rec update_level env in_functor level expand ty =
   let ty_level = get_level ty in
   let restore () =
-    if in_functor && not (is_Tvar ty) && (ty_level = generic_level - 1 || ty_level = generic_level)
-    then set_level ty (generic_level - 1)
+    if in_functor && not (is_Tvar ty) && (ty_level = highest_level || ty_level = generic_level)
+    then set_level ty highest_level
   in
   if ty_level > level then begin
     if level < get_scope ty then raise_scope_escape_exn ty;
@@ -972,7 +967,8 @@ let rec update_level env in_functor level expand ty =
           end
     | Tfunctor (lbl, id, (p, fl), t) when level < Path.scope p ->
         let p' = normalize_package_path env p in
-        if Path.same p p' then raise_escape_exn (Module p);
+        if Path.same p p' then 
+          (let () = assert false in raise_escape_exn (Module p));
         set_type_desc ty (Tfunctor (lbl, id, (p', fl), t));
         update_level env in_functor level expand ty
     | Tfunctor (_, id, (p, fl), t) ->
@@ -983,7 +979,7 @@ let rec update_level env in_functor level expand ty =
         Misc.try_finally
           ~always:restore
           begin fun () ->
-            Ident.with_id_pairs ((id, id, level) :: Ident.get_id_pairs ())
+            Ident.with_id_pairs ((id, id, Some level) :: Ident.get_id_pairs ())
                 (fun () -> update_level env true level expand t)
           end
     | Tfield(lab, _, ty1, _)
@@ -1225,8 +1221,9 @@ let abbreviations = ref (ref Mnil)
 
 (* partial: we may not wish to copy the non generic types
    before we call type_pat *)
-let rec copy ?partial ?keep_names copy_scope ty =
-  let copy = copy ?partial ?keep_names copy_scope in
+let rec copy ?(in_functor=false) ?partial ?keep_names copy_scope ty =
+  let copy_raw = copy in
+  let copy = copy ~in_functor ?partial ?keep_names copy_scope in
   match get_desc ty with
     Tsubst (ty, _) -> ty
   | desc ->
@@ -1244,7 +1241,12 @@ let rec copy ?partial ?keep_names copy_scope ty =
           else generic_level
     in
     if forget <> generic_level then newty2 ~level:forget (Tvar None) else
-    let t = newstub ~scope:(get_scope ty) in
+    let level' =
+      if in_functor && not (is_Tvar ty)
+      then highest_level
+      else !current_level
+    in
+    let t = newstub ~level:level' ~scope:(get_scope ty) in
     For_copy.redirect_desc copy_scope ty (Tsubst (t, None));
     let desc' =
       match desc with
@@ -1329,6 +1331,10 @@ let rec copy ?partial ?keep_names copy_scope ty =
           end
       | Tobject (ty1, _) when partial <> None ->
           Tobject (copy ty1, ref None)
+      | Tfunctor (lbl, id, (p, fl), ty) ->
+          let fl = List.map (fun (li, ty) -> (li, copy ty)) fl in
+          let ty = copy_raw ~in_functor:true ?partial ?keep_names copy_scope ty in
+          Tfunctor(lbl, id, (p, fl), ty)
       | _ -> copy_type_desc ?keep_names copy desc
     in
     Transient_expr.set_stub_desc t desc';
@@ -1540,13 +1546,13 @@ let copy_sep ~copy_scope ~fixed ~(visited : type_expr TypeHash.t) sch =
     let univars = free ty in
     if is_Tvar ty || may_share && TypeSet.is_empty univars then
       if get_level ty <> generic_level then ty else
-      let t = newstub ~scope:(get_scope ty) in
+      let t = newstub ~level:!current_level  ~scope:(get_scope ty) in
       add_delayed_copy t ty;
       t
     else try
       TypeHash.find visited ty
     with Not_found -> begin
-      let t = newstub ~scope:(get_scope ty) in
+      let t = newstub ~level:!current_level ~scope:(get_scope ty) in
       TypeHash.add visited ty t;
       let desc' =
         match get_desc ty with
@@ -2088,7 +2094,7 @@ let unify_univar_for tr_exn t1 t2 univar_pairs =
 (* Test the occurrence of free univars in a type *)
 (* That's way too expensive. Must do some kind of caching *)
 (* If [inj_only=true], only check injective positions *)
-let occur_univar ?(inj_only=false) env ty =
+let occur_univar_or_unscoped ?(inj_only=false) ?(check_unscoped=true) env ty =
   let visited = ref TypeMap.empty in
   with_type_mark begin fun mark ->
   let rec occur_rec env bound ty =
@@ -2112,8 +2118,17 @@ let occur_univar ?(inj_only=false) env ty =
       | Tpoly (ty, tyl) ->
           let bound = List.fold_right TypeSet.add tyl bound in
           occur_rec env bound  ty
-      (* | Tconstr (p, _, _) when Path.scope p = generic_level ->
-        raise_escape_exn (Module_type p) *)
+      | Tconstr (p, _tl, _abbrev)
+        when check_unscoped && generic_level = Path.scope p ->
+          (* begin try
+            let ty' = !forward_try_expand_safe env ty in
+            link_type ty ty';
+            ignore (try_unmark_node mark ty);
+            occur_rec env bound ty
+          with Cannot_expand ->
+            raise_escape_exn (Constructor p)
+          end *)
+        raise_escape_exn (Constructor p)
       | Tconstr (_, [], _) -> ()
       | Tconstr (p, tl, _) ->
           begin try
@@ -2133,28 +2148,41 @@ let occur_univar ?(inj_only=false) env ty =
           with Not_found ->
             if not inj_only then List.iter (occur_rec env bound) tl
           end
-      (* | Tfunctor (_, _, (p, _), _) | Tpackage (p, _)
-        when Path.scope p = generic_level ->
+      | Tpackage (p, _fl)
+        when check_unscoped && generic_level = Path.scope p ->
+          (* let p' = normalize_package_path env p in
+          if Path.same p p' then raise_escape_exn (Module_type p);
+          set_type_desc ty (Tpackage (p', fl));
+          occur_rec env bound ty *)
+          raise_escape_exn (Module_type p)
+    
+      | Tfunctor (_lbl, _id, (p, _fl), _ty)
+        when check_unscoped && Path.scope p = generic_level ->
+          (* let p' = normalize_package_path env p in
+          if Path.same p p' then raise_escape_exn (Module_type p);
+          set_type_desc ty (Tfunctor (lbl, id, (p', fl), ty));
+          occur_rec env bound ty *)
           raise_escape_exn (Module_type p)
       | Tfunctor (_, id, (p, fl), ty) ->
           List.iter (fun (_, t) -> occur_rec env bound t) fl;
           let mty = !modtype_of_package env Location.none p fl in
           let env = Env.add_module id Mp_present mty env in
-          Ident.with_id_pairs ((id, id, !current_level) :: Ident.get_id_pairs ())
-            (fun () -> occur_rec env bound ty) *)
+          Ident.with_id_pairs
+              ((id, id, Some !current_level) :: Ident.get_id_pairs ())
+              (fun () -> occur_rec env bound ty)
       | _ -> iter_type_expr (occur_rec env bound) ty
   in
   occur_rec env TypeSet.empty ty
   end
 
 let has_free_univars env ty =
-  try occur_univar ~inj_only:false env ty; false with Escape _ -> true
+  try occur_univar_or_unscoped ~inj_only:false env ~check_unscoped:false ty; false with Escape _ -> true
 let has_injective_univars env ty =
-  try occur_univar ~inj_only:true env ty; false with Escape _ -> true
+  try occur_univar_or_unscoped ~inj_only:true env ~check_unscoped:false ty; false with Escape _ -> true
 
 let occur_univar_for tr_exn env ty =
   try
-    occur_univar env ty
+    occur_univar_or_unscoped env ~check_unscoped:false ty
   with Escape e -> raise_for tr_exn (Escape e)
 
 (* Grouping univars by families according to their binders *)
@@ -2189,7 +2217,7 @@ let univars_escape env univar_pairs vl ty =
           begin try
             let td = Env.find_type p env in
             List.iter2
-              (* see occur_univar *)
+              (* see occur_univar_or_unscoped *)
               (fun t v -> if not Variance.(eq v null) then occur t)
               tl td.type_variance
           with Not_found ->
@@ -2274,8 +2302,7 @@ let enter_functor env id1 t1 id2 t2 f =
   in
   let old_id_pairs = Ident.get_id_pairs () in
   let filtered_id_pairs = filter_id_pairs old_id_pairs in
-  (* /!\ this is wrong and shoudl be corrected *)
-  Ident.with_id_pairs ((id1, id2, scope) :: filtered_id_pairs) f
+  Ident.with_id_pairs ((id1, id2, None) :: filtered_id_pairs) f
 
 (**** Instantiate a generic type into a poly type ***)
 
@@ -2703,7 +2730,7 @@ let add_gadt_equation uenv source destination =
     (Path.name source) !Btype.print_raw destination; *)
   let env = get_env uenv in
   if has_free_univars env destination then
-    occur_univar ~inj_only:true env destination
+    occur_univar_or_unscoped ~inj_only:true env ~check_unscoped:false destination
   else if local_non_recursive_abbrev uenv source destination then begin
     let destination = duplicate_type destination in
     let expansion_scope =
@@ -2843,7 +2870,7 @@ let unify3_var uenv t1' t2 t2' =
       reify uenv t1';
       reify uenv t2';
       if can_generate_equations uenv then begin
-        occur_univar ~inj_only:true (get_env uenv) t2';
+        occur_univar_or_unscoped ~inj_only:true ~check_unscoped:false (get_env uenv) t2';
         record_equation uenv t1' t2';
       end
 
@@ -2901,7 +2928,7 @@ let rec unify uenv in_functor t1 t2 =
                  || has_cached_expansion p2 !a2) ->
         update_level_for Unify (get_env uenv) (get_level t1) t2;
         update_scope_for Unify (get_scope t1) t2;
-        link_type t1 t2
+        if Path.same p1 p2 then link_type t1 t2
     | (Tconstr _, Tconstr _) when Env.has_local_constraints (get_env uenv) ->
         unify2_rec uenv in_functor t1 t1 t2 t2
     | _ ->
@@ -2923,7 +2950,7 @@ and unify2_rec uenv in_functor t10 t1 t20 t2 =
       then begin
         update_level_for Unify (get_env uenv) (get_level t1) t2;
         update_scope_for Unify (get_scope t1) t2;
-        link_type t1 t2
+        if Path.same p1 p2 then link_type t1 t2
       end else
         let env = get_env uenv in
         if find_expansion_scope env p1 > find_expansion_scope env p2
@@ -3026,7 +3053,7 @@ and unify3 uenv in_functor t1 t1' t2 t2' =
             let mty2 = !modtype_of_package env Location.none p2 fl2 in
             with_mty uenv id1 mty1 (fun uenv ->
               with_mty uenv id2 mty2 (fun uenv ->
-                enter_functor env id1 t1' id2 t2'
+                enter_functor env id1 (newty d1) id2 t2'
                     (fun () -> unify uenv true ty1 ty2)))
       | (Ttuple tl1, Ttuple tl2) ->
           unify_list uenv in_functor tl1 tl2
