@@ -2176,9 +2176,9 @@ let occur_univar_or_unscoped ?(inj_only=false) ?(check_unscoped=true) env ty =
   end
 
 let has_free_univars env ty =
-  try occur_univar_or_unscoped ~inj_only:false env ~check_unscoped:false ty; false with Escape _ -> true
+  try occur_univar_or_unscoped ~inj_only:false env ty; false with Escape _ -> true
 let has_injective_univars env ty =
-  try occur_univar_or_unscoped ~inj_only:true env ~check_unscoped:false ty; false with Escape _ -> true
+  try occur_univar_or_unscoped ~inj_only:true env ty; false with Escape _ -> true
 
 let occur_univar_for tr_exn env ty =
   try
@@ -2730,7 +2730,7 @@ let add_gadt_equation uenv source destination =
     (Path.name source) !Btype.print_raw destination; *)
   let env = get_env uenv in
   if has_free_univars env destination then
-    occur_univar_or_unscoped ~inj_only:true env ~check_unscoped:false destination
+    occur_univar_or_unscoped ~inj_only:true env destination
   else if local_non_recursive_abbrev uenv source destination then begin
     let destination = duplicate_type destination in
     let expansion_scope =
