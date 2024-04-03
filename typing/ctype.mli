@@ -177,8 +177,10 @@ val new_local_type:
         type_origin -> type_declaration
 
 module Pattern_env : sig
+  type envop
   type t = private
     { mutable env : Env.t;
+      mutable op_list : envop list;
       equations_scope : int;
       (* scope for local type declarations *)
       allow_recursive_equations : bool;
@@ -186,6 +188,7 @@ module Pattern_env : sig
     }
   val make: Env.t -> equations_scope:int -> allow_recursive_equations:bool -> t
   val copy: ?equations_scope:int -> t -> t
+  val enter_type: scope:int -> label -> type_declaration -> t -> Ident.t
   val set_env: t -> Env.t -> unit
 end
 
