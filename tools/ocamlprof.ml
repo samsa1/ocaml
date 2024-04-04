@@ -376,7 +376,7 @@ and rewrite_class_expr iflag cexpr =
       rewrite_class_expr iflag cexpr
   | Pcl_apply (cexpr, exprs) ->
       rewrite_class_expr iflag cexpr;
-      rewrite_arg_list iflag (List.map snd exprs)
+      List.iter (rewrite_exp iflag) (List.map snd exprs)
   | Pcl_let (_, spat_sexp_list, cexpr) ->
       rewrite_patexp_list iflag spat_sexp_list;
       rewrite_class_expr iflag cexpr

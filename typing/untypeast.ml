@@ -729,7 +729,7 @@ let class_expr sub cexpr =
           List.fold_right (fun (label, expo) list ->
               match expo with
                 None -> list
-              | Some exp -> (label, sub.argument sub exp) :: list
+              | Some exp -> (label, sub.expr sub exp) :: list
           ) args [])
 
     | Tcl_let (rec_flat, bindings, _ivars, cl) ->

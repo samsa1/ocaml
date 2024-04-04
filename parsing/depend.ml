@@ -613,7 +613,7 @@ and add_class_expr bv ce =
       add_opt add_expr bv opte;
       let bv = add_pattern bv pat in add_class_expr bv ce
   | Pcl_apply(ce, exprl) ->
-      add_class_expr bv ce; List.iter (fun (_,a) -> add_argument bv a) exprl
+      add_class_expr bv ce; List.iter (fun (_,a) -> add_expr bv a) exprl
   | Pcl_let(rf, pel, ce) ->
       let bv = add_bindings rf bv pel in add_class_expr bv ce
   | Pcl_constraint(ce, ct) ->

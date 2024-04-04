@@ -532,7 +532,7 @@ module CE = struct
         sub.class_expr sub ce
     | Pcl_apply (ce, l) ->
         sub.class_expr sub ce;
-        List.iter (iter_snd (sub.argument sub)) l
+        List.iter (iter_snd (sub.expr sub)) l
     | Pcl_let (_r, vbs, ce) ->
         List.iter (sub.value_binding sub) vbs;
         sub.class_expr sub ce

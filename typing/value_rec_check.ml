@@ -650,9 +650,7 @@ let rec expression : Typedtree.expression -> term_judg =
         let rec split_args ~has_omitted_arg = function
           | [] -> [], []
           | (_, None) :: rest -> split_args ~has_omitted_arg:true rest
-          | (_, Some (Targ_module _)) :: _ -> assert false (* TODO *)
-            (* Most likely the change will be later on (14 lines later = 654 -> 668) *)
-          | (_, Some (Targ_expression arg)) :: rest ->
+          | (_, Some arg) :: rest ->
             let applied, delayed = split_args ~has_omitted_arg rest in
             if has_omitted_arg
             then applied, arg :: delayed
@@ -665,8 +663,8 @@ let rec expression : Typedtree.expression -> term_judg =
           | _ :: _ -> Dereference
         in
         join [expression e << function_mode;
-              list expression applied << Dereference;
-              list expression delayed << Guard]
+              list argument applied << Dereference;
+              list argument delayed << Guard]
     | Texp_tuple exprs ->
       list expression exprs << Guard
     | Texp_array exprs ->
@@ -879,7 +877,7 @@ let rec expression : Typedtree.expression -> term_judg =
           *)
         match param.fp_kind with
         | Tparam_pat pat -> pat
-        | Tparam_module _ -> assert false (* TODO *)
+        | Tparam_module (pat, _) -> pat
         | Tparam_optional_default (pat, _) -> pat
       in
       (* Optional argument defaults.
@@ -943,6 +941,9 @@ let rec expression : Typedtree.expression -> term_judg =
     | Texp_open (od, e) ->
       open_declaration od >> expression e
 
+and argument = function
+    Targ_expression e -> expression e
+  | Targ_module m -> modexp m
 (* Function bodies.
 
     G |-{body} b : m
@@ -1190,12 +1191,9 @@ and class_expr : Typedtree.class_expr -> term_judg =
         let ids = List.map fst args in
         remove_ids ids (class_expr ce << Delay)
     | Tcl_apply (ce, args) ->
-        let arg = function
-          | Targ_expression e -> expression e
-          | Targ_module _ -> assert false (* TODO *) in
         join [
           class_expr ce << Dereference;
-          list (fun (_, ao) -> option arg ao) args << Dereference;
+          list (fun (_, ao) -> option expression ao) args << Dereference;
         ]
     | Tcl_let (rec_flag, bindings, _, ce) ->
       value_bindings rec_flag bindings >> class_expr ce

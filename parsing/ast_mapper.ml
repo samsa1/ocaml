@@ -592,7 +592,7 @@ module CE = struct
           (sub.class_expr sub ce)
     | Pcl_apply (ce, l) ->
         apply ~loc ~attrs (sub.class_expr sub ce)
-          (List.map (map_snd (sub.argument sub)) l)
+          (List.map (map_snd (sub.expr sub)) l)
     | Pcl_let (r, vbs, ce) ->
         let_ ~loc ~attrs r (List.map (sub.value_binding sub) vbs)
           (sub.class_expr sub ce)

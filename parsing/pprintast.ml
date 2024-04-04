@@ -1111,7 +1111,7 @@ and class_expr ctxt f x =
     | Pcl_apply (ce, l) ->
         pp f "((%a)@ %a)" (* Cf: #7200 *)
           (class_expr ctxt) ce
-          (list (argument ctxt)) l
+          (list (label_x_expression_param ctxt)) l
     | Pcl_constr (li, l) ->
         pp f "%a%a"
           (fun f l-> if l <>[] then

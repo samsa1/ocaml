@@ -528,7 +528,7 @@ let class_expr sub {cl_loc; cl_desc; cl_env; cl_attributes; _} =
       sub.class_expr sub cl
   | Tcl_apply (cl, args) ->
       sub.class_expr sub cl;
-      List.iter (fun (_, o) -> Option.iter (sub.argument sub) o) args
+      List.iter (fun (_, o) -> Option.iter (sub.expr sub) o) args
   | Tcl_let (rec_flag, value_bindings, ivars, cl) ->
       sub.value_bindings sub (rec_flag, value_bindings);
       List.iter (fun (_, e) -> sub.expr sub e) ivars;

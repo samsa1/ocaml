@@ -357,6 +357,17 @@ Error: This expression has type "'a" but an expression was expected of type "A.t
        The type constructor "A.t" would escape its scope
 |}]
 
+let f (x : {T : Typ} -> _) : {T : Typ} -> T.t = x
+
+[%%expect{|
+Line 1, characters 48-49:
+1 | let f (x : {T : Typ} -> _) : {T : Typ} -> T.t = x
+                                                    ^
+Error: This expression has type "{T : Typ} -> 'a"
+       but an expression was expected of type "{T : Typ} -> T.t"
+       The type constructor "T.t" would escape its scope
+|}]
+
 
 (* Testing the `S with type t = _` cases *)
 
@@ -440,4 +451,70 @@ module type CoerceFromInt = sig type a = int type b val coerce : int -> b end
 val incr_general' :
   {C1 : CoerceToInt} ->
   {C2 : CoerceFromInt with type b = C1.a} -> C1.a -> C1.a = <fun>
+|}]
+
+(* Recursive and mutually recursive definitions *)
+
+let rec f : {T : Typ} -> int -> T.t -> T.t -> T.t =
+  fun {T : Typ} n (x : T.t) (y : T.t) ->
+    if n = 0
+    then x
+    else f {T} (n - 1) y x
+
+[%%expect{|
+val f : {T : Typ} -> int -> T.t -> T.t -> T.t = <fun>
+|}]
+
+let rec f {T : Typ} n (x : T.t) (y : T.t) =
+  if n = 0
+  then x
+  else f {T} (n - 1) y x
+
+[%%expect{|
+Line 4, characters 10-11:
+4 |   else f {T} (n - 1) y x
+              ^
+Error: Cannot infer signature of functor.
+|}]
+
+let rec f {T : Typ} n (x : T.t) (y : T.t) =
+  if n = 0
+  then x
+  else g {T} x y
+and g {T : Typ} n (x : T.t) (y : T.t) =
+  if n = 0
+  then y
+  else f {T} x y
+
+[%%expect{|
+Line 4, characters 10-11:
+4 |   else g {T} x y
+              ^
+Error: Cannot infer signature of functor.
+|}]
+
+let rec m = map {List} (fun x -> x) [3]
+
+let rec m = map {List} (fun x -> x) [3]
+and g = 3 :: m
+
+[%%expect{|
+val m : int List.t = List.(::) (3, [])
+val m : int List.t = List.(::) (3, [])
+val g : int list = [3; 3]
+|}]
+
+let rec f {T : Typ} x =
+  g x
+and g x = f {Int} x
+
+[%%expect{|
+val f : {T : Typ} -> 'a -> 'b = <fun>
+val g : 'a -> 'b = <fun>
+|}]
+
+let rec m = (fun {T : Typ} (x : T.t) -> x) {Int} 3
+
+[%%expect{|
+val m : Int.t = 3
 |}]

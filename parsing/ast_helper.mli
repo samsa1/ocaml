@@ -428,7 +428,7 @@ module Cl:
     val fun_: ?loc:loc -> ?attrs:attrs -> arg_label -> expression option ->
       pattern -> class_expr -> class_expr
     val apply: ?loc:loc -> ?attrs:attrs -> class_expr ->
-      (arg_label * argument) list -> class_expr
+      (arg_label * expression) list -> class_expr
     val let_: ?loc:loc -> ?attrs:attrs -> rec_flag -> value_binding list ->
       class_expr -> class_expr
     val constraint_: ?loc:loc -> ?attrs:attrs -> class_expr -> class_type ->

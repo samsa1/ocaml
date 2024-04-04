@@ -2035,7 +2035,7 @@ class_expr:
   | class_expr attribute
       { Cl.attr $1 $2 }
   | mkclass(
-      class_simple_expr nonempty_llist(labeled_argument)
+      class_simple_expr nonempty_llist(labeled_simple_expr)
         { Pcl_apply($1, $2) }
     | extension
         { Pcl_extension $1 }
@@ -2667,28 +2667,28 @@ simple_expr:
       { unclosed "(" $loc($3) ")" $loc($8) }
 ;
 labeled_argument:
-    labeled_simple_expr
-      { $1 }
+    le = labeled_simple_expr
+      { let (l, e) = le in  (l, Exp.arg_expr e) }
   | LBRACE me = module_expr_without_parens RBRACE
       { Nolabel, Parg_module me }
 ;
 labeled_simple_expr:
     simple_expr %prec below_HASH
-      { (Nolabel, Exp.arg_expr $1) }
+      { (Nolabel, $1) }
   | LABEL simple_expr %prec below_HASH
-      { (Labelled $1, Exp.arg_expr $2) }
+      { (Labelled $1, $2) }
   | TILDE label = LIDENT
       { let loc = $loc(label) in
-        (Labelled label, Exp.arg_expr (mkexpvar ~loc label)) }
+        (Labelled label, mkexpvar ~loc label) }
   | TILDE LPAREN label = LIDENT ty = type_constraint RPAREN
       { (Labelled label,
-         Exp.arg_expr (mkexp_constraint ~loc:($startpos($2), $endpos)
-                           (mkexpvar ~loc:$loc(label) label) ty)) }
+         mkexp_constraint ~loc:($startpos($2), $endpos)
+                           (mkexpvar ~loc:$loc(label) label) ty) }
   | QUESTION label = LIDENT
       { let loc = $loc(label) in
-        (Optional label, Exp.arg_expr (mkexpvar ~loc label)) }
+        (Optional label, mkexpvar ~loc label) }
   | OPTLABEL simple_expr %prec below_HASH
-      { (Optional $1, Exp.arg_expr $2) }
+      { (Optional $1, $2) }
 ;
 %inline lident_list:
   xs = mkrhs(LIDENT)+
