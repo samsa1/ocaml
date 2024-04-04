@@ -175,7 +175,7 @@ and rewrite_arg_list iflag l =
   List.iter (rewrite_arg iflag) l
 
 and rewrite_arg iflag = function
-    Parg_expression e -> rewrite_exp iflag e
+    Parg_expr e -> rewrite_exp iflag e
   | Parg_module me ->
       rewrite_mod iflag me
 

@@ -276,7 +276,8 @@ let function_param sub fp =
   sub.location sub fp.fp_loc;
   match fp.fp_kind with
   | Tparam_pat pat -> sub.pat sub pat
-  | Tparam_module (_, pack) ->
+  | Tparam_module (pat, pack) ->
+      sub.pat sub pat;
       sub.package_type sub pack
   | Tparam_optional_default (pat, default_arg) ->
       sub.pat sub pat;

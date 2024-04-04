@@ -242,7 +242,7 @@ module Exp = struct
       pbop_loc = loc;
     }
 
-  let arg_expr expr = Parg_expression expr
+  let arg_expr expr = Parg_expr expr
   let arg_mod mexpr = Parg_module mexpr
 end
 

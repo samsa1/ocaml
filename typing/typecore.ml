@@ -3257,7 +3257,7 @@ type 'ret constraint_arg =
   }
 
 let arg_loc = function
-    Parg_expression e -> e.pexp_loc
+    Parg_expr e -> e.pexp_loc
   | Parg_module m -> m.pmod_loc
 
 let rec type_exp ?recarg env sexp =
@@ -3523,17 +3523,17 @@ and type_expect_
         (*TODO : check here that we really need to do it only with expressions*)
         | Texp_ident (_, _,
                       {val_kind = Val_prim {prim_name="%revapply"}; val_type}),
-          [Nolabel, Parg_expression sarg;
-           Nolabel, Parg_expression actual_sfunct]
+          [Nolabel, Parg_expr sarg;
+           Nolabel, Parg_expr actual_sfunct]
           when is_inferred actual_sfunct
             && check_apply_prim_type Revapply val_type ->
-            type_sfunct actual_sfunct, [Nolabel, Parg_expression sarg]
+            type_sfunct actual_sfunct, [Nolabel, Parg_expr sarg]
         | Texp_ident (_, _,
                       {val_kind = Val_prim {prim_name="%apply"}; val_type}),
-          [Nolabel, Parg_expression actual_sfunct;
-           Nolabel, Parg_expression sarg]
+          [Nolabel, Parg_expr actual_sfunct;
+           Nolabel, Parg_expr sarg]
           when check_apply_prim_type Apply val_type ->
-            type_sfunct actual_sfunct, [Nolabel, Parg_expression sarg]
+            type_sfunct actual_sfunct, [Nolabel, Parg_expr sarg]
         | _ ->
             funct, sargs
       in
@@ -5406,7 +5406,7 @@ and type_application env funct sargs =
       let ty_res = Subst.type_expr subst ty_res in
       let arg () = Targ_module m in
       (ty_res, (lbl, Some (arg, Some me.pmod_loc)) :: typed_args)
-    | (lbl, Parg_expression sarg) ->
+    | (lbl, Parg_expr sarg) ->
       let (ty_arg, ty_res) =
         let ty_fun = expand_head env ty_fun in
         match get_desc ty_fun with
@@ -5534,7 +5534,7 @@ and type_application env funct sargs =
             | (l', sarg) :: remaining_sargs ->
                 if name = label_name l' || (not optional && l' = Nolabel) then
                   match sarg with
-                  | Parg_expression arg ->
+                  | Parg_expr arg ->
                     (remaining_sargs, Some (use_arg arg l', Some arg.pexp_loc))
                   | Parg_module _ -> assert false (* TODO : raise error *)
                 else if
@@ -5562,7 +5562,7 @@ and type_application env funct sargs =
                     (Warnings.Nonoptional_label (Printtyp.string_of_label l));
                 begin match sarg with
                 | Parg_module _ -> assert false (* TODO : raise error *)
-                | Parg_expression sarg ->
+                | Parg_expr sarg ->
                   remaining_sargs, Some (use_arg sarg l', Some sarg.pexp_loc)
                 end
             | None ->
@@ -5587,7 +5587,7 @@ and type_application env funct sargs =
             | (l', sarg) :: remaining_sargs ->
                 let () = assert (l' = Nolabel) in
                 let me = begin match sarg with
-                  | Parg_expression _ -> assert false (* TODO : raise error *)
+                  | Parg_expr _ -> assert false (* TODO : raise error *)
                   | Parg_module me -> me
                 end in
                 let (m, _fl') = !type_package env me p fl in
@@ -5622,7 +5622,7 @@ and type_application env funct sargs =
   with_local_level begin fun () ->
     match sargs with
     | (* Special case for ignore: avoid discarding warning *)
-      [Nolabel, Parg_expression sarg] when is_ignore funct ->
+      [Nolabel, Parg_expr sarg] when is_ignore funct ->
         let ty_arg, ty_res =
           filter_arrow env (instance funct.exp_type) Nolabel in
         let exp = type_expect env sarg (mk_expected ty_arg) in

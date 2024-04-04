@@ -473,7 +473,7 @@ module E = struct
     sub.location sub pbop_loc
 
   let iter_argument sub = function
-    | Parg_expression e -> sub.expr sub e
+    | Parg_expr e -> sub.expr sub e
     | Parg_module me -> sub.module_expr sub me
 
 end

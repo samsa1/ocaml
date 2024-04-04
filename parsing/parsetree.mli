@@ -504,7 +504,7 @@ and type_constraint =
 (** See the comment on {{!expression_desc.Pexp_function}[Pexp_function]}. *)
 
 and argument =
-  | Parg_expression of expression
+  | Parg_expr of expression
   | Parg_module of module_expr
 
 (** {2 Value descriptions} *)

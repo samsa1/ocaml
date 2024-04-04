@@ -328,7 +328,7 @@ and add_binding_op bv bv' pbop =
   add_pattern bv' pbop.pbop_pat
 
 and add_argument bv = function
-  | Parg_expression e -> add_expr bv e
+  | Parg_expr e -> add_expr bv e
   | Parg_module me -> add_module_expr bv me
 
 and add_modtype bv mty =

@@ -1001,7 +1001,7 @@ and label_x_argument i ppf (l,a) =
   argument (i+1) ppf a;
 
 and argument i ppf = function
-  | Parg_expression e -> expression i ppf e
+  | Parg_expr e -> expression i ppf e
   | Parg_module me ->
       line i ppf "<module-arg>\n";
       module_expr (i+1) ppf me

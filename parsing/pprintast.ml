@@ -555,11 +555,12 @@ and label_exp ctxt f (l,opt,p) =
     | _ ->  pp f "~%a:%a@;" ident_of_name l (simple_pattern ctxt) p
 
 and sugar_expr ctxt f e =
+  let is_expr = function Parg_expr _ -> true | Parg_module _ -> false in
   if e.pexp_attributes <> [] then false
   else match e.pexp_desc with
   | Pexp_apply ({ pexp_desc = Pexp_ident {txt = id; _};
                   pexp_attributes=[]; _}, args)
-    when List.for_all (fun (lab, _) -> lab = Nolabel) args -> begin
+    when List.for_all (fun (lab, a) -> lab = Nolabel && is_expr a) args -> begin
       let print_indexop a path_prefix assign left sep right print_index indices
           rem_args =
         let print_path ppf = function
@@ -577,8 +578,8 @@ and sugar_expr ctxt f e =
                 (simple_expr ctxt) v; true
             | _ -> false in
       let args = List.map (function
-        | (_, Parg_module _) -> assert false (* TODO *)
-        | (_, Parg_expression e) -> e) args in
+        | (_, Parg_module _) -> assert false
+        | (_, Parg_expr e) -> e) args in
       match id, args with
       | Lident "!", [e] ->
         pp f "@[<hov>!%a@]" (simple_expr ctxt) e; true
@@ -729,14 +730,14 @@ and expression ctxt f x =
             | `Infix s ->
                 begin match l with
                 | [ (Nolabel, _) as arg1;(Nolabel, _) as arg2 ] ->
-                    (* FIXME associativity argument *)
+                    (* FIXME associativity label_x_argument *)
                     pp f "@[<2>%a@;%s@;%a@]"
-                      (argument reset_ctxt) arg1 s
-                      (argument ctxt) arg2
+                      (label_x_argument reset_ctxt) arg1 s
+                      (label_x_argument ctxt) arg2
                 | _ ->
                     pp f "@[<2>%a %a@]"
                       (simple_expr ctxt) e
-                      (list (argument ctxt)) l
+                      (list (label_x_argument ctxt)) l
                 end
             | `Prefix s ->
                 let s =
@@ -744,21 +745,21 @@ and expression ctxt f x =
                    (match l with
                     (* See #7200: avoid turning (~- 1) into (- 1) which is
                        parsed as an int literal *)
-                    |[(_,Parg_expression {pexp_desc=Pexp_constant _})] -> false
+                    |[(_,Parg_expr {pexp_desc=Pexp_constant _})] -> false
                     | _ -> true)
                   then String.sub s 1 (String.length s -1)
                   else s in
                 begin match l with
-                | [(Nolabel, Parg_expression x)] ->
+                | [(Nolabel, Parg_expr x)] ->
                   pp f "@[<2>%s@;%a@]" s (simple_expr ctxt) x
                 | _   ->
                   pp f "@[<2>%a %a@]" (simple_expr ctxt) e
-                    (list (argument ctxt)) l
+                    (list (label_x_argument ctxt)) l
                 end
             | _ ->
                 pp f "@[<hov2>%a@]" begin fun f (e,l) ->
                   pp f "%a@ %a" (expression2 ctxt) e
-                    (list (argument reset_ctxt))  l
+                    (list (label_x_argument reset_ctxt))  l
                     (* reset here only because [function,match,try,sequence]
                        are lower priority *)
                 end (e,l)
@@ -1709,8 +1710,8 @@ and label_x_expression_param ctxt f (l,e) =
       else
         pp f "~%a:%a" ident_of_name lbl (simple_expr ctxt) e
 
-and argument ctxt f = function
-  | (l, Parg_expression e) -> label_x_expression_param ctxt f (l, e)
+and label_x_argument ctxt f = function
+  | (l, Parg_expr e) -> label_x_expression_param ctxt f (l, e)
   | (Nolabel, Parg_module me) -> pp f "{%a}" (module_expr ctxt) me
   | (_, Parg_module _) -> assert false (* TODO *)
 

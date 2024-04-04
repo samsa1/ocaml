@@ -308,8 +308,8 @@ let function_param sub fp =
   let fp_kind =
     match fp.fp_kind with
     | Tparam_pat pat -> Tparam_pat (sub.pat sub pat)
-    | Tparam_module (id, pack) ->
-      Tparam_module (id, sub.package_type sub pack)
+    | Tparam_module (pat, pack) ->
+      Tparam_module (sub.pat sub pat, sub.package_type sub pack)
     | Tparam_optional_default (pat, expr) ->
       let pat = sub.pat sub pat in
       let expr = sub.expr sub expr in

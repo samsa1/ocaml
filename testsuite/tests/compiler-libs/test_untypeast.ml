@@ -37,3 +37,18 @@ run {| fun x y z -> (function w -> x y z w) |};;
 [%%expect{|
 - : string = "fun x y z -> (function | w -> x y z w)"
 |}];;
+
+(***********************************)
+(* Untypeast/pprintast should handle module arguments *)
+
+run {|
+  let module M = struct module type Typ = sig type t end end in
+  let f {T : M.Typ} (x : T.t) = x in
+  let module I = struct type t = int end in
+  f {I} 3
+|}
+
+[%%expect{|
+- : string =
+"let module M = struct module type Typ  = sig type t end end in\n  let f {T : M.Typ}(x : T.t) = x in\n  let module I = struct type t = int end in f {I} 3"
+|}]

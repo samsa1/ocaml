@@ -419,17 +419,19 @@ let expression sub exp =
               in
               Pfunction_cases (cases, loc, attributes), constraint_
         in
+        let is_module_arg fp =
+          match fp.fp_kind with
+            Tparam_module _ -> true
+          | _ -> false
+        in
+        let extract_name (p : pattern) =
+          match p.pat_desc with
+            Tpat_var (_, i, _) -> i
+          | _ -> assert false
+        in
         let params =
           List.concat_map
             (fun fp ->
-               let pat, default_arg =
-                 match fp.fp_kind with
-                 | Tparam_pat pat -> pat, None
-                 | Tparam_module _ -> assert false (* TODO *)
-                 | Tparam_optional_default (pat, expr) -> pat, Some expr
-               in
-               let pat = sub.pat sub pat in
-               let default_arg = Option.map (sub.expr sub) default_arg in
                let newtypes =
                  List.map
                    (fun x ->
@@ -439,9 +441,25 @@ let expression sub exp =
                    fp.fp_newtypes
                in
                let pparam_desc =
-                 Pparam_val (fp.fp_arg_label, default_arg, pat)
-               in
-               { pparam_desc; pparam_loc = fp.fp_loc } :: newtypes)
+                 if is_module_arg fp
+                 then
+                   let (i, ptyp) =
+                     match fp.fp_kind with
+                       Tparam_module (pat, ptyp) -> (extract_name pat, ptyp)
+                     | _ -> assert false
+                   in
+                   Pparam_module (fp.fp_arg_label, i, sub.package_type sub ptyp)
+                 else
+                   let pat, default_arg =
+                     match fp.fp_kind with
+                     | Tparam_pat pat -> pat, None
+                     | Tparam_module _ -> assert false
+                     | Tparam_optional_default (pat, expr) -> pat, Some expr
+                   in
+                   let pat = sub.pat sub pat in
+                   let default_arg = Option.map (sub.expr sub) default_arg in
+                   Pparam_val (fp.fp_arg_label, default_arg, pat)
+               in { pparam_desc; pparam_loc = fp.fp_loc } :: newtypes)
             params
         in
         Pexp_function (params, constraint_, body)
@@ -551,7 +569,7 @@ let binding_op sub bop pat =
 
 let argument sub = function
   | Targ_expression e ->
-      Parg_expression (sub.expr sub e)
+      Parg_expr (sub.expr sub e)
   | Targ_module me ->
       Parg_module (sub.module_expr sub me)
 

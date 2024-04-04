@@ -532,7 +532,7 @@ module E = struct
     binding_op op pat exp loc
 
   let map_argument sub = function
-    | Parg_expression e -> Exp.arg_expr (sub.expr sub e)
+    | Parg_expr e -> Exp.arg_expr (sub.expr sub e)
     | Parg_module me -> Exp.arg_mod (sub.module_expr sub me)
 
 end
