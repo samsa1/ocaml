@@ -242,6 +242,14 @@ type error =
     }
   | Cannot_infer_functor_signature
   | Cannot_infer_functor_path
+  | Invalid_argument of {
+      funct : Typedtree.expression;
+      func_ty : type_expr;
+      res_ty : type_expr;
+      previous_arg_loc : Location.t;
+      extra_arg_loc : Location.t;
+      arg : Parsetree.argument;
+    }
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

@@ -45,6 +45,44 @@ val alpha_equiv : ({A : Add} -> A.t -> A.t) -> {T : Add} -> T.t -> T.t =
   <fun>
 |}]
 
+(* Invalid arguments *)
+
+let f x {M : Typ} (y : M.t) = (x, y)
+
+[%%expect{|
+val f : 'a -> {M : Typ} -> M.t -> 'a * M.t = <fun>
+|}]
+
+let invalid_arg1 = f {Int}
+
+[%%expect{|
+Line 1, characters 19-20:
+1 | let invalid_arg1 = f {Int}
+                       ^
+Error: This expression has type "'a -> {M : Typ} -> M.t -> 'a * M.t"
+       But was applied to a module.
+|}]
+
+let invalid_arg2 = f 3 4 {Int}
+
+[%%expect{|
+Line 1, characters 19-20:
+1 | let invalid_arg2 = f 3 4 {Int}
+                       ^
+Error: This expression has type "'a -> {M : Typ} -> M.t -> 'a * M.t"
+       But was applied to an expression.
+|}]
+
+let labelled {M : Typ} ~(y:M.t) = y
+
+let t = labelled ~y:3 {Int}
+
+[%%expect{|
+val labelled : {M : Typ} -> y:M.t -> M.t = <fun>
+Uncaught exception: File "typing/typecore.ml", line 5612, characters 25-31: Assertion failed
+
+|}]
+
 
 (* Typing rules make sense only if module argument are
    a path (module names, projections and applications) *)

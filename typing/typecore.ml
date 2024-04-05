@@ -207,6 +207,14 @@ type error =
     }
   | Cannot_infer_functor_signature
   | Cannot_infer_functor_path
+  | Invalid_argument of {
+      funct : Typedtree.expression;
+      func_ty : type_expr;
+      res_ty : type_expr;
+      previous_arg_loc : Location.t;
+      extra_arg_loc : Location.t;
+      arg : Parsetree.argument;
+    }
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -5536,7 +5544,15 @@ and type_application env funct sargs =
                   match sarg with
                   | Parg_expr arg ->
                     (remaining_sargs, Some (use_arg arg l', Some arg.pexp_loc))
-                  | Parg_module _ -> assert false (* TODO : raise error *)
+                  | Parg_module me ->
+                    let previous_arg_loc = previous_arg_loc args in
+                    raise(Error(funct.exp_loc, env, Invalid_argument {
+                        funct;
+                        func_ty = expand_head env funct.exp_type;
+                        res_ty = expand_head env ty_fun';
+                        previous_arg_loc;
+                        extra_arg_loc = me.pmod_loc;
+                        arg = sarg; }))
                 else if
                   optional &&
                   not (List.exists (fun (l, _) -> name = label_name l)
@@ -5561,9 +5577,17 @@ and type_application env funct sargs =
                   Location.prerr_warning (arg_loc sarg)
                     (Warnings.Nonoptional_label (Printtyp.string_of_label l));
                 begin match sarg with
-                | Parg_module _ -> assert false (* TODO : raise error *)
+                | Parg_module me ->
+                    let previous_arg_loc = previous_arg_loc args in
+                    raise(Error(funct.exp_loc, env, Invalid_argument {
+                        funct;
+                        func_ty = expand_head env funct.exp_type;
+                        res_ty = expand_head env ty_fun';
+                        previous_arg_loc;
+                        extra_arg_loc = me.pmod_loc;
+                        arg = sarg; }))
                 | Parg_expr sarg ->
-                  remaining_sargs, Some (use_arg sarg l', Some sarg.pexp_loc)
+                    remaining_sargs, Some (use_arg sarg l', Some sarg.pexp_loc)
                 end
             | None ->
                 sargs,
@@ -5587,7 +5611,15 @@ and type_application env funct sargs =
             | (l', sarg) :: remaining_sargs ->
                 let () = assert (l' = Nolabel) in
                 let me = begin match sarg with
-                  | Parg_expr _ -> assert false (* TODO : raise error *)
+                  | Parg_expr e ->
+                      let previous_arg_loc = previous_arg_loc args in
+                      raise(Error(funct.exp_loc, env, Invalid_argument {
+                          funct;
+                          func_ty = expand_head env funct.exp_type;
+                          res_ty = expand_head env ty_fun';
+                          previous_arg_loc;
+                          extra_arg_loc = e.pexp_loc;
+                          arg = sarg; }))
                   | Parg_module me -> me
                 end in
                 let (m, _fl') = !type_package env me p fl in
@@ -6811,6 +6843,27 @@ let report_error ~loc env = function
           Location.errorf ~loc "@[<v>@[<2>This expression has type@ %a@]@ %s@]"
             (Style.as_inline_code Printtyp.type_expr) func_ty
             "This is not a functor; it cannot be applied."
+      end
+  | Invalid_argument {
+    funct; func_ty; res_ty; previous_arg_loc; extra_arg_loc; arg
+    } ->
+      begin
+      let arg_type = match arg with
+        Parg_expr _ -> "n expression"
+      | Parg_module _ -> " module"
+      in  
+      match get_desc func_ty with
+        Tfunctor _ ->
+          let returns_unit = match get_desc res_ty with
+            | Tconstr (p, _, _) -> Path.same p Predef.path_unit
+            | _ -> false
+          in
+          report_too_many_arg_error ~funct ~func_ty ~previous_arg_loc
+            ~extra_arg_loc ~returns_unit loc
+      | _ ->
+          Location.errorf ~loc "@[<v>@[<2>This expression has type@ %a@]@ %s%s.@]"
+            (Style.as_inline_code Printtyp.type_expr) func_ty
+            "But was applied to a" arg_type
       end
   | Apply_wrong_label (l, ty, extra_info) ->
       let print_label ppf = function
