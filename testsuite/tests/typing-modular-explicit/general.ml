@@ -92,7 +92,7 @@ val apply_labelled : Int.t = 3
 let apply_labelled_fail = labelled ~y:3
 
 [%%expect{|
-Uncaught exception: File "typing/typecore.ml", line 5678, characters 16-22: Assertion failed
+Uncaught exception: File "typing/typecore.ml", line 5639, characters 32-38: Assertion failed
 
 |}]
 
