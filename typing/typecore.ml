@@ -6851,7 +6851,7 @@ let report_error ~loc env = function
       let arg_type = match arg with
         Parg_expr _ -> "n expression"
       | Parg_module _ -> " module"
-      in  
+      in
       match get_desc func_ty with
         Tfunctor _ ->
           let returns_unit = match get_desc res_ty with
@@ -6861,7 +6861,8 @@ let report_error ~loc env = function
           report_too_many_arg_error ~funct ~func_ty ~previous_arg_loc
             ~extra_arg_loc ~returns_unit loc
       | _ ->
-          Location.errorf ~loc "@[<v>@[<2>This expression has type@ %a@]@ %s%s.@]"
+          Location.errorf ~loc
+            "@[<v>@[<2>This expression has type@ %a@]@ %s%s.@]"
             (Style.as_inline_code Printtyp.type_expr) func_ty
             "But was applied to a" arg_type
       end

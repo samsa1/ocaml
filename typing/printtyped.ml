@@ -989,7 +989,7 @@ and label_x_expression i ppf (l, eo) =
   line i ppf "<arg>\n";
   arg_label (i+1) ppf l;
   (match eo with None -> () | Some e -> expression (i+1) ppf e)
-      
+
 and label_x_argument i ppf (l, ao) =
   line i ppf "<arg>\n";
   arg_label (i+1) ppf l;

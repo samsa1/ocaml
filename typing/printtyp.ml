@@ -1064,6 +1064,33 @@ end = struct
     weak_var_map := m
 end
 
+
+let wrap_env fenv ftree arg =
+  (* We save the current value of the short-path cache *)
+  (* From keys *)
+  let env = !printing_env in
+  let old_pers = !printing_pers in
+  (* to data *)
+  let old_map = !printing_map in
+  let old_depth = !printing_depth in
+  let old_cont = !printing_cont in
+  set_printing_env (fenv env);
+  let tree = ftree arg in
+  if !Clflags.real_paths
+     || same_printing_env env then ()
+   (* our cached key is still live in the cache, and we want to keep all
+      progress made on the computation of the [printing_map] *)
+  else begin
+    (* we restore the snapshotted cache before calling set_printing_env *)
+    printing_old := env;
+    printing_pers := old_pers;
+    printing_depth := old_depth;
+    printing_cont := old_cont;
+    printing_map := old_map
+  end;
+  set_printing_env env;
+  tree
+
 let reserve_names ty =
   normalize_type ty;
   Names.add_named_vars ty
@@ -1266,8 +1293,12 @@ let rec tree_of_typexp mode ty =
       let lab =
         if !print_labels || is_optional l then l else Nolabel
       in
+      let fenv env =
+        let mty = !Ctype.modtype_of_package env Location.none p fl in
+        Env.add_module ~arg:true id Mp_present mty env
+      in
+      let ty = wrap_env fenv (tree_of_typexp mode) ty in
       let fl = tree_of_pack_fields mode fl in
-      let ty = tree_of_typexp mode ty in
       Otyp_functor (lab, Oide_ident { printed_name = Ident.name id },
                     (tree_of_path (Some Module_type) p, fl), ty)
 
@@ -1921,32 +1952,6 @@ let cltype_declaration id ppf cl =
   !Oprint.out_sig_item ppf (tree_of_cltype_declaration id cl Trec_first)
 
 (* Print a module type *)
-
-let wrap_env fenv ftree arg =
-  (* We save the current value of the short-path cache *)
-  (* From keys *)
-  let env = !printing_env in
-  let old_pers = !printing_pers in
-  (* to data *)
-  let old_map = !printing_map in
-  let old_depth = !printing_depth in
-  let old_cont = !printing_cont in
-  set_printing_env (fenv env);
-  let tree = ftree arg in
-  if !Clflags.real_paths
-     || same_printing_env env then ()
-   (* our cached key is still live in the cache, and we want to keep all
-      progress made on the computation of the [printing_map] *)
-  else begin
-    (* we restore the snapshotted cache before calling set_printing_env *)
-    printing_old := env;
-    printing_pers := old_pers;
-    printing_depth := old_depth;
-    printing_cont := old_cont;
-    printing_map := old_map
-  end;
-  set_printing_env env;
-  tree
 
 let dummy =
   {

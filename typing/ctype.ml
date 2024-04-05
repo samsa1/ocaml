@@ -906,7 +906,8 @@ let update_scope_for tr_exn scope ty =
 let rec update_level env in_functor level expand ty =
   let ty_level = get_level ty in
   let restore () =
-    if in_functor && not (is_Tvar ty) && (ty_level = highest_level || ty_level = generic_level)
+    if in_functor && not (is_Tvar ty)
+      && (ty_level = highest_level || ty_level = generic_level)
     then set_level ty highest_level
   in
   if ty_level > level then begin
@@ -967,7 +968,7 @@ let rec update_level env in_functor level expand ty =
           end
     | Tfunctor (lbl, id, (p, fl), t) when level < Path.scope p ->
         let p' = normalize_package_path env p in
-        if Path.same p p' then 
+        if Path.same p p' then
           (let () = assert false in raise_escape_exn (Module p));
         set_type_desc ty (Tfunctor (lbl, id, (p', fl), t));
         update_level env in_functor level expand ty
@@ -1333,7 +1334,9 @@ let rec copy ?(in_functor=false) ?partial ?keep_names copy_scope ty =
           Tobject (copy ty1, ref None)
       | Tfunctor (lbl, id, (p, fl), ty) ->
           let fl = List.map (fun (li, ty) -> (li, copy ty)) fl in
-          let ty = copy_raw ~in_functor:true ?partial ?keep_names copy_scope ty in
+          let ty =
+            copy_raw ~in_functor:true ?partial ?keep_names copy_scope ty
+          in
           Tfunctor(lbl, id, (p, fl), ty)
       | _ -> copy_type_desc ?keep_names copy desc
     in
@@ -2155,7 +2158,7 @@ let occur_univar_or_unscoped ?(inj_only=false) ?(check_unscoped=true) env ty =
           set_type_desc ty (Tpackage (p', fl));
           occur_rec env bound ty *)
           raise_escape_exn (Module_type p)
-    
+
       | Tfunctor (_lbl, _id, (p, _fl), _ty)
         when check_unscoped && Path.scope p = generic_level ->
           (* let p' = normalize_package_path env p in
@@ -2176,9 +2179,11 @@ let occur_univar_or_unscoped ?(inj_only=false) ?(check_unscoped=true) env ty =
   end
 
 let has_free_univars env ty =
-  try occur_univar_or_unscoped ~inj_only:false env ty; false with Escape _ -> true
+  try occur_univar_or_unscoped ~inj_only:false env ty; false
+  with Escape _ -> true
 let has_injective_univars env ty =
-  try occur_univar_or_unscoped ~inj_only:true env ty; false with Escape _ -> true
+  try occur_univar_or_unscoped ~inj_only:true env ty; false
+  with Escape _ -> true
 
 let occur_univar_for tr_exn env ty =
   try
@@ -2870,7 +2875,8 @@ let unify3_var uenv t1' t2 t2' =
       reify uenv t1';
       reify uenv t2';
       if can_generate_equations uenv then begin
-        occur_univar_or_unscoped ~inj_only:true ~check_unscoped:false (get_env uenv) t2';
+        occur_univar_or_unscoped
+          ~inj_only:true ~check_unscoped:false (get_env uenv) t2';
         record_equation uenv t1' t2';
       end
 
@@ -4415,7 +4421,8 @@ let rec eqtype rename type_pairs subst env t1 t2 =
                   (get_level t1') p1 fl1 (get_level t2') p2 fl2
               with
               | Ok () -> ()
-              | Error fme -> raise_for Equality (First_class_module fme) (* Could be improved *)
+              | Error fme -> (* Could be improved *)
+                raise_for Equality (First_class_module fme)
               | exception Not_found -> raise_unexplained_for Equality
               end;
               let mty1 = !modtype_of_package env Location.none p1 fl1 in
@@ -5180,7 +5187,8 @@ let rec subtype_rec env trace t1 t2 cstrs =
               ~allow_absent:true in
           let cstrs' =
             List.map
-              (fun (n2,t2) -> (ctxt, trace, t2, List.assoc n2 ntl1, !univar_pairs))
+              (fun (n2,t2) ->
+                  (ctxt, trace, t2, List.assoc n2 ntl1, !univar_pairs))
               ntl2
             (* we swapped the order because it is the argument of an arrow *)
           in
@@ -5191,7 +5199,8 @@ let rec subtype_rec env trace t1 t2 cstrs =
               let snap = Btype.snapshot () in
               match
                 List.iter (fun ((env, id_pairs), _, t1, t2, _) ->
-                  Ident.with_id_pairs id_pairs (fun () -> unify env t1 t2)) cstrs'
+                      Ident.with_id_pairs id_pairs (fun () -> unify env t1 t2))
+                    cstrs'
               with
               | () when
                   Result.is_ok (!package_subtype env FCM p1 fl1 p2 fl2) ->
@@ -5294,7 +5303,8 @@ let rec subtype_rec env trace t1 t2 cstrs =
               ~allow_absent:true in
           let cstrs' =
             List.map
-              (fun (n2,t2) -> (ctxt, trace, List.assoc n2 ntl1, t2, !univar_pairs))
+              (fun (n2,t2) ->
+                (ctxt, trace, List.assoc n2 ntl1, t2, !univar_pairs))
               ntl2
           in
           if eq_package_path env p1 p2 then cstrs' @ cstrs

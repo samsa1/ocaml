@@ -45,6 +45,13 @@ val alpha_equiv : ({A : Add} -> A.t -> A.t) -> {T : Add} -> T.t -> T.t =
   <fun>
 |}]
 
+let apply_weird {M : Typ} (f : {M : Typ} -> _) (x : M.t) : M.t = f {M} x
+
+[%%expect{|
+val apply_weird : {M : Typ} -> ({M : Typ} -> M/2.t -> M/2.t) -> M.t -> M.t =
+  <fun>
+|}]
+
 (* Invalid arguments *)
 
 let f x {M : Typ} (y : M.t) = (x, y)

@@ -38,7 +38,7 @@ type t8 =
 
 type t9 = C of 'a constraint 'a = {T : T} -> T.t -> T.t
 
-type t10 = t8 = 
+type t10 = t8 =
     A of ({T : T} -> {A : Add with type t = T.t} -> A.t -> A.t)
   | B of ({T : T} -> {A : Add with type t = T.t} -> A.t -> A.t)
 

@@ -994,7 +994,7 @@ and label_x_expression i ppf (l,a) =
     line i ppf "<arg>\n";
     arg_label i ppf l;
     expression (i+1) ppf a;
-  
+
 and label_x_argument i ppf (l,a) =
   line i ppf "<arg>\n";
   arg_label i ppf l;
