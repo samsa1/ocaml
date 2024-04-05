@@ -5501,17 +5501,17 @@ and type_application env funct sargs =
     in
     if sargs = [] then type_unknown_args () else
     let ty_fun' = expand_head env ty_fun in
+    let lv = get_level ty_fun' in
+    let may_warn loc w =
+      if not !warned && !Clflags.principal && lv <> generic_level
+      then begin
+        warned := true;
+        Location.prerr_warning loc w
+      end
+    in
     match get_desc ty_fun', get_desc (expand_head env ty_fun0) with
     | Tarrow (l, ty, ty_fun, com), Tarrow (_, ty0, ty_fun0, _)
       when is_commu_ok com ->
-        let lv = get_level ty_fun' in
-        let may_warn loc w =
-          if not !warned && !Clflags.principal && lv <> generic_level
-          then begin
-            warned := true;
-            Location.prerr_warning loc w
-          end
-        in
         let name = label_name l
         and optional = is_optional l in
         let use_arg sarg l' =
@@ -5604,42 +5604,89 @@ and type_application env funct sargs =
         in
         type_args ((l,arg)::args) ty_fun ty_fun0 remaining_sargs
     | Tfunctor (l, id, (p, fl), ty_res), Tfunctor (_, id0, _, ty_res0) ->
+        let name = label_name l
+        and optional = is_optional l in
         let () = assert (l = Nolabel) in
+        let use_arg me =
+          let (m, _fl') = !type_package env me p fl in
+          let rec extract_path m =
+            match m.mod_desc with
+            | Tmod_ident (p, _) -> p
+            | Tmod_apply (p1, p2, _) ->
+                Path.Papply(extract_path p1, extract_path p2)
+            | Tmod_constraint (p, _, _, _) ->
+                extract_path p
+            | _ ->
+                raise (Error(me.pmod_loc, env,
+                              Cannot_infer_functor_path))
+          in
+          let path = extract_path m in
+          let subst = Subst.add_module id path Subst.identity in
+          let ty_res = Subst.type_expr subst ty_res in
+          let subst0 = Subst.add_module id0 path Subst.identity in
+          let ty_res0 = Subst.type_expr subst0 ty_res0 in
+          let arg () = Targ_module m in
+          (ty_res, ty_res0, arg)
+        in
         let remaining_sargs, ty_fun, ty_fun0, arg =
-          match sargs with
-            | [] -> assert false
-            | (l', sarg) :: remaining_sargs ->
-                let () = assert (l' = Nolabel) in
-                let me = begin match sarg with
-                  | Parg_expr e ->
-                      let previous_arg_loc = previous_arg_loc args in
-                      raise(Error(funct.exp_loc, env, Invalid_argument {
-                          funct;
-                          func_ty = expand_head env funct.exp_type;
-                          res_ty = expand_head env ty_fun';
-                          previous_arg_loc;
-                          extra_arg_loc = e.pexp_loc;
-                          arg = sarg; }))
-                  | Parg_module me -> me
-                end in
-                let (m, _fl') = !type_package env me p fl in
-                let rec extract_path m =
-                  match m.mod_desc with
-                  | Tmod_ident (p, _) -> p
-                  | Tmod_apply (p1, p2, _) ->
-                      Path.Papply(extract_path p1, extract_path p2)
-                  | Tmod_constraint (p, _, _, _) ->
-                      extract_path p
-                  | _ ->
-                      raise (Error(me.pmod_loc, env, Cannot_infer_functor_path))
-                in
-                let path = extract_path m in
-                let subst = Subst.add_module id path Subst.identity in
-                let ty_res = Subst.type_expr subst ty_res in
-                let subst0 = Subst.add_module id0 path Subst.identity in
-                let ty_res0 = Subst.type_expr subst0 ty_res0 in
-                let arg () = Targ_module m in
-                (remaining_sargs, ty_res, ty_res0, Some (arg, Some me.pmod_loc))
+          if ignore_labels then begin
+            match sargs with
+              | [] -> assert false
+              | (l', sarg) :: remaining_sargs ->
+                  let () = assert (l' = Nolabel) in
+                  let me = begin match sarg with
+                    | Parg_expr e ->
+                        let previous_arg_loc = previous_arg_loc args in
+                        raise(Error(funct.exp_loc, env, Invalid_argument {
+                            funct;
+                            func_ty = expand_head env funct.exp_type;
+                            res_ty = expand_head env ty_fun';
+                            previous_arg_loc;
+                            extra_arg_loc = e.pexp_loc;
+                            arg = sarg; }))
+                    | Parg_module me -> me
+                  end in
+                  let ty_res, ty_res0, arg = use_arg me in                  
+                  (remaining_sargs, ty_res, ty_res0,
+                   Some (arg, Some me.pmod_loc))
+          end else
+            match extract_label name sargs with
+            | Some (l', sarg, commuted, remaining_sargs) ->
+                if commuted then begin
+                  may_warn (arg_loc sarg)
+                    (Warnings.Not_principal "commuting this argument")
+                end;
+                if not optional && is_optional l' then
+                  Location.prerr_warning (arg_loc sarg)
+                    (Warnings.Nonoptional_label (Printtyp.string_of_label l));
+                begin match sarg with
+                | Parg_expr e ->
+                    let previous_arg_loc = previous_arg_loc args in
+                    raise(Error(funct.exp_loc, env, Invalid_argument {
+                        funct;
+                        func_ty = expand_head env funct.exp_type;
+                        res_ty = expand_head env ty_fun';
+                        previous_arg_loc;
+                        extra_arg_loc = e.pexp_loc;
+                        arg = sarg; }))
+                | Parg_module me ->
+                    let ty_res, ty_res0, arg = use_arg me in                  
+                    (remaining_sargs, ty_res, ty_res0,
+                    Some (arg, Some me.pmod_loc))
+                end
+            | None ->
+                assert false
+                (* sargs, ty_fun', ty_fun0,
+                if optional && List.mem_assoc Nolabel sargs then
+                  Some (eliminate_optional_arg (), None)
+                else begin
+                  (* No argument was given for this parameter, we abstract over
+                      it. *)
+                  may_warn funct.exp_loc
+                    (Warnings.Non_principal_labels "commuted an argument");
+                  omitted_parameters := (l,ty,lv) :: !omitted_parameters;
+                  None
+                end *)
         in
         type_args ((l,arg)::args) ty_fun ty_fun0 remaining_sargs
     | _ ->

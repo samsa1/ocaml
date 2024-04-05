@@ -86,10 +86,14 @@ let t = labelled ~y:3 {Int}
 
 [%%expect{|
 val labelled : {M : Typ} -> y:M.t -> M.t = <fun>
-Uncaught exception: File "typing/typecore.ml", line 5612, characters 25-31: Assertion failed
-
+val t : Int.t = 3
 |}]
 
+let apply_opt (f : ?opt:int -> {M : Typ} -> M.t) = f {Int}
+
+[%%expect{|
+val apply_opt : (?opt:int -> {M : Typ} -> M.t) -> Int.t = <fun>
+|}]
 
 (* Typing rules make sense only if module argument are
    a path (module names, projections and applications) *)
