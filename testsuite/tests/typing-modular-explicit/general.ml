@@ -82,11 +82,18 @@ Error: This expression has type "'a -> {M : Typ} -> M.t -> 'a * M.t"
 
 let labelled {M : Typ} ~(y:M.t) = y
 
-let t = labelled ~y:3 {Int}
+let apply_labelled = labelled ~y:3 {Int}
 
 [%%expect{|
 val labelled : {M : Typ} -> y:M.t -> M.t = <fun>
-val t : Int.t = 3
+val apply_labelled : Int.t = 3
+|}]
+
+let apply_labelled_fail = labelled ~y:3
+
+[%%expect{|
+Uncaught exception: File "typing/typecore.ml", line 5678, characters 16-22: Assertion failed
+
 |}]
 
 let apply_opt (f : ?opt:int -> {M : Typ} -> M.t) = f {Int}
