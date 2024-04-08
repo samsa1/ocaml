@@ -3528,20 +3528,19 @@ and type_expect_
       let funct, sargs =
         let funct = type_sfunct sfunct in
         match funct.exp_desc, sargs with
-        (*TODO : check here that we really need to do it only with expressions*)
         | Texp_ident (_, _,
                       {val_kind = Val_prim {prim_name="%revapply"}; val_type}),
-          [Nolabel, Parg_expr sarg;
+          [Nolabel, sarg;
            Nolabel, Parg_expr actual_sfunct]
           when is_inferred actual_sfunct
             && check_apply_prim_type Revapply val_type ->
-            type_sfunct actual_sfunct, [Nolabel, Parg_expr sarg]
+            type_sfunct actual_sfunct, [Nolabel, sarg]
         | Texp_ident (_, _,
                       {val_kind = Val_prim {prim_name="%apply"}; val_type}),
           [Nolabel, Parg_expr actual_sfunct;
-           Nolabel, Parg_expr sarg]
+           Nolabel, sarg]
           when check_apply_prim_type Apply val_type ->
-            type_sfunct actual_sfunct, [Nolabel, Parg_expr sarg]
+            type_sfunct actual_sfunct, [Nolabel, sarg]
         | _ ->
             funct, sargs
       in
@@ -4666,20 +4665,21 @@ and type_function
       let pack = {
         ptyp_desc = Ptyp_package(p, fl);
         ptyp_loc = pparam_loc;
-        ptyp_loc_stack = []; (* TODO : improve *)
+        ptyp_loc_stack = [];
         ptyp_attributes = [];
       } in
       let pack = Typetexp.transl_simple_type env ~closed:false pack in
-      let path = match pack.ctyp_desc with
-        | Ttyp_package pack -> pack.pack_path
+      let pck_ty = match pack.ctyp_desc with
+        | Ttyp_package pack -> pack
         | _ -> assert false
       in
+      let path = pck_ty.pack_path in
       let fl = match get_desc pack.ctyp_type with
           Tpackage (_, fl) -> fl
         | _ -> assert false
       in
       let mty = !Ctype.modtype_of_package env p.loc path fl in
-      let expected_id_res =
+      let id_expected_typ_opt =
         match split_function_mty env ty_expected
                 ~arg_label ~first ~in_function with
         | None -> None
@@ -4700,7 +4700,7 @@ and type_function
           in
           let new_env = Env.add_module s_ident
                               Mp_present mty env in
-          let expected_res = match expected_id_res with
+          let expected_res = match id_expected_typ_opt with
             | Some (id, ety) ->
               let subst = Subst.add_module id (Pident s_ident) Subst.identity in
               Subst.type_expr subst ety
@@ -4722,19 +4722,13 @@ and type_function
         with Unify trace ->
           raise (Error(loc, env, Expr_type_clash(trace, None, None)))
       in
-      let pck_ty = {
-        pack_path = path;
-        pack_fields = [];
-        pack_type = Mty_ident path;
-        pack_txt = p;
-      } in
       let pv_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
       let pat_desc = Tpat_var (s_ident, name, pv_uid) in
       let pattern = {
         pat_desc;
         pat_loc = pparam_loc;
         pat_extra = [Tpat_unpack, pparam_loc, []];
-        pat_type = newty (Tpackage (path, []));
+        pat_type = newty (Tpackage (path, fl));
         pat_env = env;
         pat_attributes = []
       } in
@@ -5636,7 +5630,10 @@ and type_application env funct sargs =
                       omitted_parameters := (l,ty,lv) :: !omitted_parameters;
                       None
                     end
-                | Tfunctor _ -> assert false (* send a nice error message *)
+                | Tfunctor _ ->
+                  (* TODO : send a nice error message here because we cannot
+                     allow this missing argument as it could break typing *)
+                  assert false
                 | _ -> assert false
               end
         in type_args ((l,arg)::args) ty_fun ty_fun0 remaining_sargs
