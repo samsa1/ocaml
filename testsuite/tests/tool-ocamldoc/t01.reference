@@ -11,6 +11,15 @@
 # Odoc_info.string_of_module_type ~complete: true :
 <[sig val y : int end]>
 #
+# module type T01.Typ:
+# Odoc_info.string_of_module_type:
+<[sig end]>
+# Odoc_info.string_of_module_type ~complete: true :
+<[sig type t end]>
+# type T01.Typ.t:
+# manifest (Odoc_info.string_of_type_expr):
+<[None]>
+#
 # module type T01.MT:
 # Odoc_info.string_of_module_type:
 <[sig end]>
@@ -29,6 +38,7 @@
         gee : int -> int * string >
   type g = [ `A ]
   type h = [ `A | `B of int | `C of string ]
+  type i = {T : Typ} -> T.t -> T.t
 end]>
 # type T01.MT.t:
 # manifest (Odoc_info.string_of_type_expr):
@@ -49,3 +59,6 @@ end]>
 # type T01.MT.h:
 # manifest (Odoc_info.string_of_type_expr):
 <[[ `A | `B of int | `C of string ]]>
+# type T01.MT.i:
+# manifest (Odoc_info.string_of_type_expr):
+<[{T : Typ} -> T.t -> T.t]>

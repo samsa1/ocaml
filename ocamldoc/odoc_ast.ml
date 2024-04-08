@@ -294,6 +294,7 @@ module Analyser =
              let pat =
                match param.fp_kind with
                | Tparam_pat pat -> pat
+               | Tparam_module (pat, _) -> pat
                | Tparam_optional_default (pat, _) -> pat
             in
             tt_param_info_from_pattern
@@ -727,8 +728,7 @@ module Analyser =
               (fun acc -> fun (_, exp_opt) ->
                 match exp_opt with
                   None -> acc
-                | Some (Targ_module _) -> assert false (* TODO *)
-                | Some (Targ_expression e) -> acc @ [e])
+                | Some e -> acc @ [e])
               []
               exp_opt_optional_list
           in

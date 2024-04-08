@@ -17,6 +17,8 @@ module M = struct
 
 end
 
+module type Typ = sig type t end
+
 module type MT = sig
   type t = string -> int -> string -> (string * string * string) ->
     (string * string * string) ->
@@ -30,4 +32,5 @@ module type MT = sig
 
   type g = [`A]
   type h = [`B of int | g | `C of string]
+  type i = {T : Typ} -> T.t -> T.t
 end

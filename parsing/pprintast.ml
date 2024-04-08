@@ -330,10 +330,11 @@ and core_type ctxt f x =
                       pp f "%a@;.@;"
                         (list tyvar_loc ~sep:"@;")  l)
           sl (core_type ctxt) ct
-    (* | Ptyp_functor (label, name, pack, ct) ->
-        assert (label = Nolabel); (* TODO *)
+    | Ptyp_functor (label, name, pack, ct) ->
+        (* TODO : choose syntax for labelled modargs *)
+        assert (label = Nolabel);
         pp f "@[<2>@[<hov2>{%s :@ %a}@]@;->@;%a@]" name.txt (package_type ctxt)
-                  pack (core_type ctxt) ct *)
+                  pack (core_type ctxt) ct
     | _ -> pp f "@[<2>%a@]" (core_type1 ctxt) x
 
 and core_type1 ctxt f x =
@@ -637,9 +638,9 @@ and sugar_expr ctxt f e =
 and function_param ctxt f param =
   match param.pparam_desc with
   | Pparam_val (a, b, c) -> label_exp ctxt f (a, b, c)
-  | Pparam_module (Nolabel, l, mty) ->
+  | Pparam_module (lbl, l, mty) ->
+      assert (lbl = Nolabel); (* TODO : add if added to the language *)
       pp f "@[{%s : %a}@]" l.txt (package_type ctxt) mty
-  | Pparam_module _ -> assert false (* TODO *)
   | Pparam_newtype ty -> pp f "(type %s)@;" ty.txt
 
 and function_body ctxt f function_body =
@@ -1712,8 +1713,10 @@ and label_x_expression_param ctxt f (l,e) =
 
 and label_x_argument ctxt f = function
   | (l, Parg_expr e) -> label_x_expression_param ctxt f (l, e)
-  | (Nolabel, Parg_module me) -> pp f "{%a}" (module_expr ctxt) me
-  | (_, Parg_module _) -> assert false (* TODO *)
+  | (lbl, Parg_module me) ->
+    (* TODO : choose syntax for labelled module arguments *)
+    assert (lbl = Nolabel);
+    pp f "{%a}" (module_expr ctxt) me
 
 and directive_argument f x =
   match x.pdira_desc with
