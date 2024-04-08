@@ -207,6 +207,7 @@ type error =
     }
   | Cannot_infer_functor_signature
   | Cannot_infer_functor_path
+  | Cannot_commute_label of type_expr
   | Invalid_argument of {
       funct : Typedtree.expression;
       func_ty : type_expr;
@@ -5378,7 +5379,12 @@ and type_application env funct sargs =
         | Tfunctor (l, id, pl, t) when l = lbl
           || !Clflags.classic && lbl = Nolabel && not (is_optional l) ->
             (id, pl, t)
-        | Tfunctor _ -> assert false (* TODO *)
+        | Tfunctor _ ->
+          if !Clflags.classic || not (has_label lbl ty_fun) then
+            raise (Error(me.pmod_loc, env,
+                        Apply_wrong_label(lbl, ty_fun, false)))
+          else
+            raise (Error(funct.exp_loc, env, Incoherent_label_order))
         | Tvar _ ->
             raise (Error(me.pmod_loc, env, Cannot_infer_functor_signature))
         | _ ->
@@ -5541,6 +5547,16 @@ and type_application env funct sargs =
               Targ_expression (option_none env (instance ty) Location.none))
         in
         let use_marg id id0 p fl me =
+          (* TODO : this could be handled in a cleaner way that delays typing
+            like with expression arguments.
+            - build a signature with unification in stead of abstract types
+            - latter when typing the argument unify the obtained signature with
+              the signature containing holes.
+
+            This way we can delay typing of the argument. However this would
+            need to do unification on signatures and adding unification
+            variables in the module environment.
+          *)
           let (m, _fl') = !type_package env me p fl in
           let rec extract_path m =
             match m.mod_desc with
@@ -5599,7 +5615,10 @@ and type_application env funct sargs =
                   | Tarrow (_, ty, _, _) ->
                     (sargs, ty_fun, ty_fun0,
                      Some (eliminate_optional_arg ty, Some (arg_loc sarg)))
-                  | Tfunctor _ -> assert false (* TODO *)
+                  | Tfunctor _ ->
+                    (* TODO : this will happen if we allow optional arguments
+                      with modular arguments, currently this is not handled! *)
+                    assert false
                   | _ -> assert false (* should never happen *)
                 end else
                   raise(Error(arg_loc sarg, env,
@@ -5631,9 +5650,13 @@ and type_application env funct sargs =
                       None
                     end
                 | Tfunctor _ ->
-                  (* TODO : send a nice error message here because we cannot
-                     allow this missing argument as it could break typing *)
-                  assert false
+                    let ty_res =
+                      result_type
+                        (!omitted_parameters @ !eliminated_optional_arguments)
+                        ty_fun
+                    in
+                    raise(Error(funct.exp_loc, env,
+                                Cannot_commute_label ty_res))
                 | _ -> assert false
               end
         in type_args ((l,arg)::args) ty_fun ty_fun0 remaining_sargs
@@ -7227,6 +7250,12 @@ let report_error ~loc env = function
   | Cannot_infer_functor_signature ->
       Location.errorf ~loc
         "Cannot infer signature of functor."
+  | Cannot_commute_label func_ty ->
+      Location.errorf ~loc
+            "@[<v>@[<2>This expression has type@ %a@]@ \
+            Received an expression argument. \
+             However, module arguments cannot be omitted.@]"
+            (Style.as_inline_code Printtyp.type_expr) func_ty
 
 let report_error ~loc env err =
   Printtyp.wrap_printing_env ~error:true env

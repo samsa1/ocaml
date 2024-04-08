@@ -250,6 +250,7 @@ type error =
       extra_arg_loc : Location.t;
       arg : Parsetree.argument;
     }
+  | Cannot_commute_label
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

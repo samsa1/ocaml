@@ -69,6 +69,7 @@ type error =
   | Multiple_native_repr_attributes
   | Cannot_unbox_or_untag_type of native_repr_kind
   | Deep_unbox_or_untag_attribute of native_repr_kind
+  | Type_cannot_be_external
   | Immediacy of Typedecl_immediacy.error
   | Separability of Typedecl_separability.error
   | Bad_unboxed_attribute of string
@@ -1595,7 +1596,8 @@ let rec parse_native_repr_attributes env core_type ty ~global_repr =
       parse_native_repr_attributes env ct2 t2 ~global_repr
     in
     (repr_arg :: repr_args, repr_res)
-  | Ptyp_functor _, Tfunctor _, _ -> assert false (* TODO *)
+  | Ptyp_functor _, Tfunctor _, _ ->
+    raise (Error (core_type.ptyp_loc, Type_cannot_be_external))
   | (Ptyp_poly (_, t) | Ptyp_alias (t, _)), _, _ ->
      parse_native_repr_attributes env t ty ~global_repr
   | Ptyp_arrow _, _, _ | _, Tarrow _, _ -> assert false
@@ -2240,6 +2242,9 @@ let report_error ppf = function
          it should not occur deeply into its type.@]"
         Style.inline_code
         (match kind with Unboxed -> "@unboxed" | Untagged -> "@untagged")
+  | Type_cannot_be_external ->
+      fprintf ppf "@[This type cannot be used to annotate an \
+                   external function.@]"
   | Immediacy (Typedecl_immediacy.Bad_immediacy_attribute violation) ->
       (match violation with
        | Type_immediacy.Violation.Not_always_immediate ->

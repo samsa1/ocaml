@@ -968,8 +968,7 @@ let rec update_level env in_functor level expand ty =
           end
     | Tfunctor (lbl, id, (p, fl), t) when level < Path.scope p ->
         let p' = normalize_package_path env p in
-        if Path.same p p' then
-          (let () = assert false in raise_escape_exn (Module p));
+        if Path.same p p' then raise_escape_exn (Module p);
         set_type_desc ty (Tfunctor (lbl, id, (p', fl), t));
         update_level env in_functor level expand ty
     | Tfunctor (_, id, (p, fl), t) ->
@@ -2271,19 +2270,11 @@ let identifier_escape _env id ty =
     if try_mark_node mark t then begin
       match get_desc t with
         Tconstr (p, _, _) | Tfunctor (_, _, (p, _), _)
+      | Tpackage (p, _)
           when Path.contains id p ->
             raise_escape_exn (Module (Pident id))
-      | Tconstr (_p, tl, _abbrev) ->
-            begin try
-              (* let td = Env.find_type p env in *)
-              List.iter occur tl
-            with Not_found -> List.iter occur tl
-            end
       | Tfunctor (_, id', (_, fl) , _) when Ident.same id id' ->
-        begin try
-            List.iter (fun (_, t) -> occur t) fl
-        with Not_found -> assert false (* TODO *)
-        end
+        List.iter (fun (_, t) -> occur t) fl
       | _ -> iter_type_expr occur t
     end
   in
@@ -4974,7 +4965,16 @@ let rec build_subtype env (visited : transient_expr list)
       if c > Unchanged
       then (newty (Tarrow(l, t1', t2', commu_ok)), c)
       else (t, Unchanged)
-  | Tfunctor (_l, _id, (_p, _fl), _t) -> assert false (* TODO *)
+  | Tfunctor (l, id, (p, fl), ty) ->
+      let tt = Transient_expr.repr t in
+      if memq_warn tt visited then (t, Unchanged) else
+      let visited = tt :: visited in
+      let mty = !modtype_of_package env Location.none p fl in
+      let env = Env.add_module id Mp_present mty env in
+      let (ty, c) = build_subtype env visited loops posi level ty in
+      if c > Unchanged
+      then (newty (Tfunctor (l, id, (p, fl), ty)), c)
+      else (t, Unchanged)
   | Ttuple tlist ->
       let tt = Transient_expr.repr t in
       if memq_warn tt visited then (t, Unchanged) else

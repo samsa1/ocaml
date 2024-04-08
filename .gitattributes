@@ -125,6 +125,7 @@ testsuite/tests/**/*.reference               typo.prune
 
 # Expect tests with overly long lines of expected output
 testsuite/tests/parsing/docstrings.ml        typo.very-long-line
+testsuite/tests/compiler-libs/test_untypeast.ml         typo.very-long-line
 
 # Generated test with overly long ocamltest description
 testsuite/tests/lib-dynlink-domains/main.ml  typo.very-long-line
