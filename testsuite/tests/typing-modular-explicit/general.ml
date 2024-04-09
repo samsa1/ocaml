@@ -92,8 +92,11 @@ val apply_labelled : Int.t = 3
 let apply_labelled_fail = labelled ~y:3
 
 [%%expect{|
-Uncaught exception: File "typing/typecore.ml", line 5644, characters 18-24: Assertion failed
-
+Line 1, characters 26-34:
+1 | let apply_labelled_fail = labelled ~y:3
+                              ^^^^^^^^
+Error: This expression has type "y:M.t -> M.t"
+       Received an expression argument. However, module arguments cannot be omitted.
 |}]
 
 let apply_opt (f : ?opt:int -> {M : Typ} -> M.t) = f {Int}
@@ -130,7 +133,7 @@ val map : {M : Map} -> ('a -> 'b) -> 'a M.t -> 'b M.t = <fun>
 let s_list = map {List} string_of_int [3; 1; 4]
 
 [%%expect{|
-val s_list : string List.t = List.(::) ("3", ["1"; "4"])
+val s_list : string List.t = ["3"; "1"; "4"]
 |}]
 
 let s_list : string list = s_list
@@ -154,7 +157,7 @@ module MapCombin :
       val map : ('a -> 'b) -> 'a M1.t M2.t -> 'b M1.t M2.t
     end
 val s_list_array : string MapCombin(List)(Array).t =
-  [|List.(::) ("3", ["2"]); List.(::) ("2", []); List.[]|]
+  [|["3"; "2"]; ["2"]; []|]
 |}]
 
 
@@ -555,8 +558,8 @@ let rec m = map {List} (fun x -> x) [3]
 and g = 3 :: m
 
 [%%expect{|
-val m : int List.t = List.(::) (3, [])
-val m : int List.t = List.(::) (3, [])
+val m : int List.t = [3]
+val m : int List.t = [3]
 val g : int list = [3; 3]
 |}]
 

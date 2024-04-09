@@ -990,10 +990,10 @@ and longident_x_expression i ppf (li, e) =
   line i ppf "%a\n" fmt_longident_loc li;
   expression (i+1) ppf e;
 
-and label_x_expression i ppf (l,a) =
-    line i ppf "<arg>\n";
-    arg_label i ppf l;
-    expression (i+1) ppf a;
+and label_x_expression i ppf (l,e) =
+  line i ppf "<arg>\n";
+  arg_label i ppf l;
+  expression (i+1) ppf e;
 
 and label_x_argument i ppf (l,a) =
   line i ppf "<arg>\n";

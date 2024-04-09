@@ -242,6 +242,7 @@ type error =
     }
   | Cannot_infer_functor_signature
   | Cannot_infer_functor_path
+  | Cannot_commute_label of type_expr
   | Invalid_argument of {
       funct : Typedtree.expression;
       func_ty : type_expr;
@@ -250,7 +251,6 @@ type error =
       extra_arg_loc : Location.t;
       arg : Parsetree.argument;
     }
-  | Cannot_commute_label
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
