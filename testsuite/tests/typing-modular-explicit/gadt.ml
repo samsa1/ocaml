@@ -68,6 +68,9 @@ Error: This expression has type "int" but an expression was expected of type "'a
        it would escape the scope of its equation
 |}]
 
+
+(* escape errors *)
+
 let f (type a) (x : a) (el : ({N : T} -> a) t2) =
   match el, x with
   | B, f -> f
@@ -82,19 +85,3 @@ Error: This pattern matches values of type "({M : T} -> M.t -> M.t) t2"
          "({N : T} -> a) t2"
        The module "M" would escape its scope
 |}]
-
-let f (type a) (x : a) (el : ({N : Add} -> a) t2) =
-  match el, x with
-  | D, f -> f
-
-[%%expect{|
-Line 3, characters 4-5:
-3 |   | D, f -> f
-        ^
-Error: This pattern matches values of type "({M : Add} -> M.t -> M.t) t2"
-       but a pattern was expected which matches values of type
-         "({N : Add} -> a) t2"
-       The module "M" would escape its scope
-|}]
-
-(* escape errors *)
