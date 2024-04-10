@@ -63,10 +63,12 @@ let name = function
 
 let rename = function
   | Local { name; stamp = _ }
-  | Unscoped { name; stamp = _ }
   | Scoped { name; stamp = _; scope = _ } ->
       incr currentstamp;
       Local { name; stamp = !currentstamp }
+  | Unscoped { name; stamp = _ } ->
+      incr currentstamp;
+      Unscoped { name; stamp = !currentstamp }
   | id ->
       Misc.fatal_errorf "Ident.rename %s" (name id)
 

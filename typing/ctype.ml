@@ -2357,7 +2357,7 @@ let identifier_escape _env id1 id2 ty =
     if try_mark_node mark t then begin
       match get_desc t with
         Tconstr (p, _, _) | Tfunctor (_, _, (p, _), _)
-      | Tpackage (p, _)
+      | Tpackage (p, _) | Tobject (_, {contents = Some (p, _)})
           when Path.contains id1 p ->
             raise_escape_exn (Module (Pident id1))
       | Tconstr (p, _, _) | Tfunctor (_, _, (p, _), _)
