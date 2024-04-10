@@ -49,7 +49,7 @@ Line 2, characters 3-4:
        ^
 Error: This expression has type "{M : T} -> (M.t * ({N : T} -> 'a) as 'a)"
        but an expression was expected of type "{O : T} -> O.t * 'b as 'b"
-       The type constructor "O.t" would escape its scope
+       The module "O" would escape its scope
 |}]
 
 let f (x : {M : T} -> (M.t * ({N : T} -> (N.t * 'a) as 'a))) =

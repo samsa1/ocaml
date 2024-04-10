@@ -125,6 +125,17 @@ let subst id_in p_out p =
   in
   try aux p with Unchanged -> p
 
+let unbounded_unscoped idl p =
+  let rec aux = function
+      Pident id when Ident.is_unscoped id ->
+      if List.exists (Ident.same id) idl
+      then ()
+      else raise (Ident.No_scope id)
+    | Pident _ -> ()
+    | Pdot (p, _) | Pextra_ty (p, _) -> aux p
+    | Papply (p1, p2) -> aux p1; aux p2
+  in aux p
+
 let kfalse _ = false
 
 let maybe_escape s =

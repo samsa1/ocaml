@@ -142,7 +142,7 @@ let equiv i1 i2 =
   | Predef { stamp = s1; _ }, Predef { stamp = s2 } ->
       s1 = s2
   | Unscoped { stamp = s1; _ }, Unscoped { stamp = s2; _ } ->
-    List.exists (fun (i1, i2, _) -> (stamp i1 = s1 && stamp i2 = s2)
+    List.exists (fun (i1, i2) -> (stamp i1 = s1 && stamp i2 = s2)
                                     || stamp i2 = s1 && stamp i1 = s2) !id_pairs
   | Global name1, Global name2 ->
       name1 = name2
@@ -156,15 +156,7 @@ let scope = function
   | Scoped { scope; _ } -> scope
   | Local _ -> highest_scope
   | Global _ | Predef _ -> lowest_scope
-  | Unscoped {stamp = s1; _ } as i ->
-    begin try
-      match
-        List.find (fun (i1, i2, _) -> stamp i1 = s1 || stamp i2 = s1) !id_pairs
-      with
-      | (_, _, Some s) -> s
-      | (_, _, None) -> highest_scope - 1
-    with Not_found -> raise (No_scope i)
-    end
+  | Unscoped _ -> lowest_scope
 
 let reinit_level = ref (-1)
 
@@ -182,6 +174,10 @@ let global = function
 
 let is_predef = function
   | Predef _ -> true
+  | _ -> false
+
+let is_unscoped = function
+  | Unscoped _ -> true
   | _ -> false
 
 let print ~with_scope ppf =

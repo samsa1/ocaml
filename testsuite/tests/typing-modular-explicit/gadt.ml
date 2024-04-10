@@ -74,15 +74,13 @@ let f (type a) (x : a) (el : ({N : T} -> a) t2) =
   | C, f -> f
 
 [%%expect{|
-Lines 2-4, characters 2-13:
-2 | ..match el, x with
+Line 3, characters 4-5:
 3 |   | B, f -> f
-4 |   | C, f -> f
-Warning 8 [partial-match]: this pattern-matching is not exhaustive.
-Here is an example of a case that is not matched:
-(D, _)
-
-val f : 'a -> ({N : T} -> 'a) t2 -> 'a = <fun>
+        ^
+Error: This pattern matches values of type "({M : T} -> M.t -> M.t) t2"
+       but a pattern was expected which matches values of type
+         "({N : T} -> a) t2"
+       The module "M" would escape its scope
 |}]
 
 let f (type a) (x : a) (el : ({N : Add} -> a) t2) =
@@ -90,14 +88,13 @@ let f (type a) (x : a) (el : ({N : Add} -> a) t2) =
   | D, f -> f
 
 [%%expect{|
-Lines 2-3, characters 2-13:
-2 | ..match el, x with
+Line 3, characters 4-5:
 3 |   | D, f -> f
-Warning 8 [partial-match]: this pattern-matching is not exhaustive.
-Here is an example of a case that is not matched:
-(B, _)
-
-val f : 'a -> ({N : Add} -> 'a) t2 -> 'a = <fun>
+        ^
+Error: This pattern matches values of type "({M : Add} -> M.t -> M.t) t2"
+       but a pattern was expected which matches values of type
+         "({N : Add} -> a) t2"
+       The module "M" would escape its scope
 |}]
 
 (* escape errors *)

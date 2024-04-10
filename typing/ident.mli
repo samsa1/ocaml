@@ -66,14 +66,15 @@ val compare: t -> t -> int
 
 val global: t -> bool
 val is_predef: t -> bool
+val is_unscoped: t -> bool
 
 val scope: t -> int
 
 val lowest_scope : int
 val highest_scope: int
 
-val get_id_pairs: unit -> (t * t * int option) list
-val with_id_pairs: (t * t * int option) list -> (unit -> 'a) -> 'a
+val get_id_pairs: unit -> (t * t) list
+val with_id_pairs: (t * t) list -> (unit -> 'a) -> 'a
         (** Set an equivalence between identifiers and give to the related
             identifer a scope. We expect all identifiers to have been created
             with [create_unscoped] to obtain the expected semantic. *)
