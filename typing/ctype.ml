@@ -1176,6 +1176,27 @@ let compute_univars ty =
   fun ty ->
     try !(TypeHash.find node_univars ty) with Not_found -> TypeSet.empty
 
+let compute_required_subst id ty =
+  let inverted = TypeHash.create 17 in
+  inv_type inverted [] ty;
+  let nodes = ref TypeSet.empty in
+  let rec add_all_parents inv =
+    if TypeSet.mem inv.inv_type !nodes
+    then ()
+    else
+      match get_desc inv.inv_type with
+      | Tfunctor (_, id', _, _) when Ident.same id id' -> ()
+      | _ ->
+        nodes := TypeSet.add inv.inv_type !nodes;
+        List.iter add_all_parents inv.inv_parents
+  in
+  TypeHash.iter (fun ty inv ->
+    match get_desc ty with
+    | Tconstr (p, _, _) | Tobject (_, {contents = Some (p, _)})
+    | Tfunctor (_, _, (p, _), _) | Tpackage (p, _)
+      when Path.contains id p -> add_all_parents inv
+    | _ -> ()) inverted;
+  fun ty -> TypeSet.mem ty !nodes
 
 let fully_generic ty =
   with_type_mark begin fun mark ->
@@ -1601,6 +1622,76 @@ let instance_poly' copy_scope ~keep_names ~fixed univars sch =
 let instance_poly ?(keep_names=false) ~fixed univars sch =
   For_copy.with_scope (fun copy_scope ->
     instance_poly' copy_scope ~keep_names ~fixed univars sch
+  )
+
+let copy_sep_funct ~copy_scope ~id_in ~id_out ~fixed
+                      ~(visited : type_expr TypeHash.t) sch =
+  let free = compute_required_subst id_in sch in
+  let delayed_copies = ref [] in
+  let add_delayed_copy t ty =
+    delayed_copies :=
+      (fun () -> Transient_expr.set_stub_desc t (Tlink (copy copy_scope ty))) ::
+      !delayed_copies
+  in
+  let rec copy_rec ~may_share (ty : type_expr) =
+    if is_Tvar ty || may_share && not (free ty) then
+      if get_level ty <> generic_level then ty else
+      let t = newstub ~level:highest_level  ~scope:(get_scope ty) in
+      add_delayed_copy t ty;
+      t
+    else try
+      TypeHash.find visited ty
+    with Not_found -> begin
+      let t = newstub ~level:highest_level ~scope:(get_scope ty) in
+      TypeHash.add visited ty t;
+      let desc' =
+        match get_desc ty with
+        | Tvariant row ->
+            let more = row_more row in
+            (* We shall really check the level on the row variable *)
+            let keep = is_Tvar more && get_level more <> generic_level in
+            (* In that case we should keep the original, but we still
+               call copy to correct the levels *)
+            if keep then (add_delayed_copy t ty; Tvar None) else
+            let more' = copy_rec ~may_share:false more in
+            let fixed' = fixed && (is_Tvar more || is_Tunivar more) in
+            let row =
+              copy_row (copy_rec ~may_share:true) fixed' row keep more' in
+            Tvariant row
+        | Tconstr (p, tl, _abbrev) ->
+            Tconstr (Path.subst id_in id_out p,
+                     List.map (copy_rec ~may_share:true) tl,
+                     ref Mnil)
+        | Tpackage (p, fl) ->
+            Tpackage (Path.subst id_in id_out p,
+                  List.map (fun (n, ty) -> (n, copy_rec ~may_share:true ty)) fl)
+        | Tfunctor (lbl, id, (p, fl), ty) ->
+            let ty =
+              if Ident.same id_in id then ty
+              else copy_rec ~may_share:true ty
+            in
+            let fl =
+              List.map (fun (n, ty) -> (n, copy_rec ~may_share:true ty)) fl
+            in Tfunctor (lbl, id, (Path.subst id_in id_out p, fl), ty)
+        | Tfield (p, k, ty1, ty2) ->
+            (* the kind is kept shared, see Btype.copy_type_desc *)
+            Tfield (p, field_kind_internal_repr k,
+                    copy_rec ~may_share:true ty1,
+                    copy_rec ~may_share:false ty2)
+        | desc -> copy_type_desc (copy_rec ~may_share:true) desc
+      in
+      Transient_expr.set_stub_desc t desc';
+      t
+    end
+  in
+  let ty = copy_rec ~may_share:true sch in
+  List.iter (fun force -> force ()) !delayed_copies;
+  ty
+
+let instance_funct ~id_in ~id_out ~fixed sch =
+  let visited = TypeHash.create 17 in
+  For_copy.with_scope (fun copy_scope ->
+    copy_sep_funct ~copy_scope ~id_in ~id_out ~fixed ~visited sch
   )
 
 let instance_label ~fixed lbl =
@@ -2264,21 +2355,44 @@ let enter_poly_for tr_exn env t1 tl1 t2 tl2 f =
     enter_poly env t1 tl1 t2 tl2 f
   with Escape e -> raise_for tr_exn (Escape e)
 
-let identifier_escape _env id ty =
+let path_contains_opt id_opt p =
+  match id_opt with
+  | None -> false
+  | Some id -> Path.contains id p
+
+let ident_opt_same id_opt id =
+  match id_opt with
+  | None -> false
+  | Some id' -> Ident.same id' id
+
+let identifier_escape _env id1 id2 ty =
   with_type_mark begin fun mark ->
-  let rec occur t =
+  let rec occur id1 id2_opt t =
     if try_mark_node mark t then begin
       match get_desc t with
         Tconstr (p, _, _) | Tfunctor (_, _, (p, _), _)
       | Tpackage (p, _)
-          when Path.contains id p ->
-            raise_escape_exn (Module (Pident id))
-      | Tfunctor (_, id', (_, fl) , _) when Ident.same id id' ->
-        List.iter (fun (_, t) -> occur t) fl
-      | _ -> iter_type_expr occur t
+          when Path.contains id1 p ->
+            raise_escape_exn (Module (Pident id1))
+      | Tconstr (p, _, _) | Tfunctor (_, _, (p, _), _)
+      | Tpackage (p, _)
+          when path_contains_opt id2_opt p ->
+            raise_escape_exn (Module (Pident (Option.get id2_opt)))
+      | Tfunctor (_, id', (_, fl) , ty) when Ident.same id1 id' ->
+          begin
+            List.iter (fun (_, t) -> occur id1 id2_opt t) fl;
+            match id2_opt with
+            | None -> ()
+            | Some id2 ->
+              if not (Ident.same id2 id') then occur id2 None ty
+          end
+      | Tfunctor (_, id', (_, fl) , ty) when ident_opt_same id2_opt id' ->
+          List.iter (fun (_, t) -> occur id1 id2_opt t) fl;
+          occur id1 None ty
+      | _ -> iter_type_expr (occur id1 id2_opt) t
     end
   in
-  occur ty
+  occur id1 (Some id2) ty
   end
 
 let enter_functor env id1 t1 id2 t2 f =
@@ -2288,10 +2402,8 @@ let enter_functor env id1 t1 id2 t2 f =
       if Ident.same id1 i1 || Ident.same id1 i2
         || Ident.same id2 i1 || Ident.same id2 i2
       then begin
-        identifier_escape env i1 t1;
-        identifier_escape env i2 t1;
-        identifier_escape env i1 t2;
-        identifier_escape env i2 t2;
+        identifier_escape env i1 i2 t1;
+        identifier_escape env i1 i2 t2;
         filter_id_pairs tl
       end else
         (i1, i2, s) :: filter_id_pairs tl
@@ -3048,10 +3160,10 @@ and unify3 uenv in_functor t1 t1' t2 t2' =
             let env = get_env uenv in
             let mty1 = !modtype_of_package env Location.none p1 fl1 in
             let mty2 = !modtype_of_package env Location.none p2 fl2 in
-            with_mty uenv id1 mty1 (fun uenv ->
-              with_mty uenv id2 mty2 (fun uenv ->
-                enter_functor env id1 (newty d1) id2 t2'
-                    (fun () -> unify uenv true ty1 ty2)))
+            enter_functor env id1 (newty d1) id2 t2'
+              (fun () -> with_mty uenv id1 mty1
+                          (fun uenv -> with_mty uenv id2 mty2
+                                        (fun uenv -> unify uenv true ty1 ty2)))
       | (Ttuple tl1, Ttuple tl2) ->
           unify_list uenv in_functor tl1 tl2
       | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _)) when Path.equiv p1 p2 ->

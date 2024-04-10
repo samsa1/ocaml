@@ -26,6 +26,8 @@ let f (x : {M : T} -> ({M : T} -> 'a as 'a)) =
   (x : ({N : T} -> 'b) as 'b)
 
 [%%expect{|
+val f : ({M : T} -> ({N : T} -> 'a as 'a)) -> 'a = <fun>
+|}, Principal{|
 val f : ({M : T} -> ({M : T} -> 'a as 'a)) -> ({N : T} -> 'b as 'b) = <fun>
 |}]
 
@@ -52,6 +54,8 @@ let f (x : {M : T} -> (M.t * ({N : T} -> (N.t * 'a) as 'a))) =
   (x : ({O : T} -> O.t * 'b) as 'b)
 
 [%%expect{|
+val f : ({M : T} -> M.t * ({O : T} -> O.t * 'a as 'a)) -> 'a = <fun>
+|}, Principal{|
 val f :
   ({M : T} -> M.t * ({N : T} -> N.t * 'a as 'a)) ->
   ({O : T} -> O.t * 'b as 'b) = <fun>

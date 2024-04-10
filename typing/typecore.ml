@@ -4703,8 +4703,7 @@ and type_function
                               Mp_present mty env in
           let expected_res = match id_expected_typ_opt with
             | Some (id, ety) ->
-              let subst = Subst.add_module id (Pident s_ident) Subst.identity in
-              Subst.type_expr subst ety
+              instance_funct ~id_in:id ~id_out:s_ident ~fixed:false ety
             | None -> newvar ()
           in
           type_function new_env rest body_constraint body
@@ -4713,8 +4712,9 @@ and type_function
       end
       in
       let ident = Ident.create_unscoped name.txt in
-      let subst = Subst.add_module s_ident (Path.Pident ident) Subst.identity in
-      let res_ty = Subst.type_expr subst res_ty in
+      let res_ty =
+        instance_funct ~id_in:s_ident ~id_out:ident ~fixed:false res_ty
+      in
       let exp_type =
           Btype.newgenty (Tfunctor (arg_label, ident, (path, fl), res_ty)) in
       let _ =

@@ -109,43 +109,21 @@ let rec contains id = function
   | Pdot(p, _) | Pextra_ty(p, _) -> contains id p
   | Papply(p1, p2) -> contains id p1 || contains id p2
 
-let subst id_subst p =
+let subst id_in id_out p =
+  let exception Unchanged in
   let rec aux = function
-  | Pident id ->
-    Pident(snd (List.find (fun (i, _) -> Ident.same id i) id_subst))
+  | Pident id when Ident.same id_in id -> Pident id_out
+  | Pident _ -> raise Unchanged
   | Pdot(p, s) -> Pdot(aux p, s)
   | Pextra_ty(p, e) -> Pextra_ty(aux p, e)
   | Papply(p1, p2) ->
-    let p1 = try aux p1 with Not_found -> p1 in
-    let p2 = try aux p2 with Not_found -> p2 in
-    Papply(p1, p2)
+    let p1, b1 = try aux p1, false with Unchanged -> p1, true in
+    let p2, b2 = try aux p2, false with Unchanged -> p2, true in
+    if b1 && b2
+    then raise Unchanged
+    else Papply(p1, p2)
   in
-  try aux p with Not_found -> p
-
-let unsubst id_subst p =
-  let rec aux = function
-  | Pident id ->
-    Pident (fst (List.find (fun (_, i) -> Ident.same id i) id_subst))
-  | Pdot (p, s) -> Pdot (aux p, s)
-  | Pextra_ty (p, e) -> Pextra_ty (aux p, e)
-  | Papply (p1, p2) ->
-    let p1 = try aux p1 with Not_found -> p1 in
-    let p2 = try aux p2 with Not_found -> p2 in
-    Papply (p1, p2)
-  in
-  try aux p with Not_found -> p
-
-let scope_subst id_subst p =
-  let rec aux = function
-  | Pident id ->
-    begin
-    match List.find_opt (fun (i, _) -> Ident.same i id) id_subst with
-    | None -> Ident.scope id
-    | Some (_, id') -> Ident.scope id'
-    end
-  | Pdot (p, _) | Pextra_ty (p, _) -> aux p
-  | Papply(p1, p2) -> Int.max (aux p1) (aux p2)
-  in aux p
+  try aux p with Unchanged -> p
 
 let kfalse _ = false
 

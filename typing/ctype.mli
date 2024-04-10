@@ -212,6 +212,9 @@ val instance_poly:
         ?keep_names:bool -> fixed:bool ->
         type_expr list -> type_expr -> type_expr list * type_expr
         (* Take an instance of a type scheme containing free univars *)
+val instance_funct:
+        id_in:Ident.t -> id_out:Ident.t -> fixed:bool ->
+        type_expr -> type_expr
 val polyfy: Env.t -> type_expr -> type_expr list -> type_expr * bool
 val instance_label:
         fixed:bool ->
