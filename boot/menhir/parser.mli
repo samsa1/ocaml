@@ -8,6 +8,7 @@ type token =
   | VIRTUAL
   | VAL
   | UNDERSCORE
+  | ULABEL of (string)
   | UIDENT of (string)
   | TYPE
   | TRY

@@ -845,6 +845,7 @@ let mk_directive ~loc name arg =
 %token TRY                    "try"
 %token TYPE                   "type"
 %token <string> UIDENT        "UIdent" (* just an example *)
+%token <string> ULABEL         "~Label:" (* just an example *)
 %token UNDERSCORE             "_"
 %token VAL                    "val"
 %token VIRTUAL                "virtual"
@@ -2393,6 +2394,16 @@ labeled_simple_pattern:
   | simple_pattern
       { (Nolabel, None, $1) }
 ;
+labeled_module_pattern:
+    TILDE mp = module_pattern
+      { let (_, s, mt) = mp in (Labelled s.txt, s, mt) }
+    | mp = module_pattern
+      { mp }
+;
+module_pattern:
+    LBRACE s = mkrhs(UIDENT) COLON mt = module_type RBRACE
+      { (Nolabel, s, mt) }
+;
 
 pattern_var:
   mkpat(
@@ -2669,8 +2680,8 @@ simple_expr:
 labeled_argument:
     le = labeled_simple_expr
       { let (l, e) = le in  (l, Exp.arg_expr e) }
-  | LBRACE me = module_expr_without_parens RBRACE
-      { Nolabel, Parg_module me }
+    | lm = labeled_module
+      { let (l, m) = lm in (l, Exp.arg_mod m) }
 ;
 labeled_simple_expr:
     simple_expr %prec below_HASH
@@ -2690,6 +2701,18 @@ labeled_simple_expr:
   | OPTLABEL simple_expr %prec below_HASH
       { (Optional $1, $2) }
 ;
+labeled_module:
+    TILDE LBRACE ui = UIDENT RBRACE
+      { let loc = $loc(ui) in
+        let id = mkrhs (Lident ui) loc in
+        let me = mkmod ~loc (Pmod_ident id) in
+        (Labelled ui, me) }
+  | l = ULABEL LBRACE me = module_expr_without_parens RBRACE
+      { (Labelled l, me) }
+  | LBRACE me = module_expr_without_parens RBRACE
+      { (Nolabel, me) }
+;
+
 %inline lident_list:
   xs = mkrhs(LIDENT)+
     { xs }
@@ -2840,11 +2863,12 @@ fun_param_as_list:
       { let a, b, c = $1 in
         [ { pparam_loc = make_loc $sloc; pparam_desc = Pparam_val (a, b, c) } ]
       }
-  | LBRACE s = mkrhs(UIDENT) COLON mt = module_type RBRACE
+  | labeled_module_pattern
       {
+        let lbl, s, mt = $1 in
         let (lid, cstrs, _attrs) = package_type_of_module_type mt in
         [ { pparam_loc = make_loc $sloc;
-            pparam_desc = Pparam_module (Nolabel, s, (lid, cstrs)) } ]
+            pparam_desc = Pparam_module (lbl, s, (lid, cstrs)) } ]
       }
 ;
 fun_params:
@@ -3557,6 +3581,7 @@ function_type:
     )
     { $1 }
   | mktyp(
+      label = arg_ulabel
       LBRACE
       name = mkrhs(UIDENT)
       COLON
@@ -3565,7 +3590,7 @@ function_type:
       MINUSGREATER
       codomain = function_type
         { let (lid, cstrs, _attrs) = package_type_of_module_type mty in
-          Ptyp_functor (Nolabel, name, (lid, cstrs), codomain) }
+          Ptyp_functor (label, name, (lid, cstrs), codomain) }
     )
     { $1 }
 ;
@@ -3577,6 +3602,13 @@ function_type:
   | /* empty */
       { Nolabel }
 ;
+%inline arg_ulabel:
+  | TILDE label = UIDENT COLON
+      { Labelled label }
+  | /* empty */
+      { Nolabel }
+;
+
 (* Tuple types include:
    - atomic types (see below);
    - proper tuple types:                  int * int * int list
