@@ -119,7 +119,7 @@ let rec add_type bv ty =
     let bv = open_module bv mod_ident.txt in
     add_type bv t
   | Ptyp_extension e -> handle_extension e
-  | Ptyp_functor (_, _, pt, t2) -> add_package_type bv pt; add_type bv t2
+  | Ptyp_functor (_, pt, t2) -> add_package_type bv pt; add_type bv t2
 
 and add_package_type bv (lid, l) =
   add bv lid;
@@ -278,7 +278,7 @@ and add_function_param bv param =
   | Pparam_val (_, opte, pat) ->
       add_opt add_expr bv opte;
       add_pattern bv pat
-  | Pparam_module (_, _, pack_opt) ->
+  | Pparam_module (_, pack_opt) ->
       add_package_type bv pack_opt;
       bv
   | Pparam_newtype _ -> bv

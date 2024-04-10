@@ -4587,10 +4587,10 @@ and split_function_ty env ty_expected ~arg_label ~first ~in_function =
     (ty_arg, ty_res), [ ty_arg; ty_res ]
   end
 
-and split_function_mty env ty_expected ~arg_label ~first ~in_function =
+and split_function_mty env ty_expected ~first ~in_function =
   let { ty = ty_fun; explanation }, loc = in_function in
   with_local_level_iter ~post:generalize_structure begin fun () ->
-    match filter_functor env (instance ty_expected) arg_label with
+    match filter_functor env (instance ty_expected) with
     | None -> (None, [])
     | Some (_, _, ty) as o -> (o, [ty])
     | exception Filter_arrow_failed err ->
@@ -4661,7 +4661,7 @@ and type_function
       with_explanation ty_fun.explanation (fun () ->
         unify_exp_types loc env exp_type (instance ty_expected));
       exp_type, params, body, newtype :: newtypes, contains_gadt
-  | { pparam_desc = Pparam_module (arg_label, name, (p, fl)); pparam_loc}
+  | { pparam_desc = Pparam_module (name, (p, fl)); pparam_loc}
     :: rest ->
       let pack = {
         ptyp_desc = Ptyp_package(p, fl);
@@ -4681,14 +4681,13 @@ and type_function
       in
       let mty = !Ctype.modtype_of_package env p.loc path fl in
       let id_expected_typ_opt =
-        match split_function_mty env ty_expected
-                ~arg_label ~first ~in_function with
+        match split_function_mty env ty_expected ~first ~in_function with
         | None -> None
         | Some (id, (path', fl'), ety) ->
           begin try
             unify env
-              (newty (Tfunctor (arg_label, id, (path, fl), newvar())))
-              (newty (Tfunctor (arg_label, id, (path', fl'), newvar())))
+              (newty (Tfunctor (id, (path, fl), newvar())))
+              (newty (Tfunctor (id, (path', fl'), newvar())))
           with Unify trace ->
               raise (Error(loc, env, Expr_type_clash(trace, None, None)))
           end;
@@ -4723,7 +4722,7 @@ and type_function
         instance_funct ~id_in:s_ident ~p_out:(Pident ident) ~fixed:false res_ty
       in
       let exp_type =
-          Btype.newgenty (Tfunctor (arg_label, ident, (path, fl), res_ty)) in
+          Btype.newgenty (Tfunctor (ident, (path, fl), res_ty)) in
       let _ =
         try
           unify env ty_expected exp_type
@@ -4742,7 +4741,7 @@ and type_function
       let fp_kind = Tparam_module (pattern, pck_ty) in
       let param =
         { fp_kind;
-          fp_arg_label = arg_label;
+          fp_arg_label = Nolabel;
           fp_param = ident;
           fp_partial = Total;
           fp_newtypes = newtypes;
@@ -5379,18 +5378,11 @@ and type_application env funct sargs =
   in
   let type_unknown_arg (ty_fun, typed_args) = function
     | (lbl, Parg_module me) ->
+      let () = assert (lbl = Nolabel) in
       let (id, (p, fl), ty_res) =
         let ty_fun = expand_head env ty_fun in
         match get_desc ty_fun with
-        | Tfunctor (l, id, pl, t) when l = lbl
-          || !Clflags.classic && lbl = Nolabel && not (is_optional l) ->
-            (id, pl, t)
-        | Tfunctor _ ->
-          if !Clflags.classic || not (has_label lbl ty_fun) then
-            raise (Error(me.pmod_loc, env,
-                        Apply_wrong_label(lbl, ty_fun, false)))
-          else
-            raise (Error(funct.exp_loc, env, Incoherent_label_order))
+          Tfunctor (id, pl, t) -> (id, pl, t)
         | Tvar _ ->
             raise (Error(me.pmod_loc, env, Cannot_infer_functor_signature))
         | _ ->
@@ -5522,8 +5514,8 @@ and type_application env funct sargs =
         Tarrow (l, _, ty_fun, com), Tarrow (_, _, ty_fun0, _)
         when is_commu_ok com ->
           Some (l, ty_fun, ty_fun0)
-      | Tfunctor (l, _, _, ty_fun), Tfunctor (_, _, _, ty_fun0) ->
-          Some (l, ty_fun, ty_fun0)
+      | Tfunctor (_, _, ty_fun), Tfunctor (_, _, ty_fun0) ->
+          Some (Nolabel, ty_fun, ty_fun0)
       | _ -> None
     in
     match lopt with
@@ -5588,8 +5580,7 @@ and type_application env funct sargs =
           | Parg_expr e, Tarrow (_, ty, _, _), Tarrow (_, ty0, _, _) ->
               (remaining_sargs, ty_fun, ty_fun0,
               Some (use_earg e l' ty ty0, Some e.pexp_loc))
-          | Parg_module me, Tfunctor (_, id, (p, fl), _),
-            Tfunctor (_, id0, _, _) ->
+          | Parg_module me, Tfunctor (id, (p, fl), _), Tfunctor (id0, _, _) ->
               let ty_fun, ty_fun0, arg = use_marg id id0 p fl me in
               (remaining_sargs, ty_fun, ty_fun0, Some (arg, Some me.pmod_loc))
           | _, _, _ ->

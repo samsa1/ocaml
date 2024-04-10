@@ -77,7 +77,7 @@ module Typ = struct
   let poly ?loc ?attrs a b = mk ?loc ?attrs (Ptyp_poly (a, b))
   let package ?loc ?attrs a b = mk ?loc ?attrs (Ptyp_package (a, b))
   let extension ?loc ?attrs a = mk ?loc ?attrs (Ptyp_extension a)
-  let functor_ ?loc ?attrs a b c d = mk ?loc ?attrs (Ptyp_functor (a, b, c, d))
+  let functor_ ?loc ?attrs a b c = mk ?loc ?attrs (Ptyp_functor (a, b, c))
   let open_ ?loc ?attrs mod_ident t = mk ?loc ?attrs (Ptyp_open (mod_ident, t))
 
   let force_poly t =
@@ -125,9 +125,9 @@ module Typ = struct
             Ptyp_open (mod_ident, loop core_type)
         | Ptyp_extension (s, arg) ->
             Ptyp_extension (s, arg)
-        | Ptyp_functor (label, name, (longident, lst), codomain) ->
+        | Ptyp_functor (name, (longident, lst), codomain) ->
             Ptyp_functor
-              (label, name,
+              (name,
                (longident, List.map (fun (n, typ) -> (n, loop typ)) lst),
                loop codomain)
       in

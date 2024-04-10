@@ -20486,7 +20486,7 @@ module Tables = struct
       (
         let (lid, cstrs, _attrs) = package_type_of_module_type mt in
         [ { pparam_loc = make_loc _sloc;
-            pparam_desc = Pparam_module (Nolabel, s, (lid, cstrs)) } ]
+            pparam_desc = Pparam_module (s, (lid, cstrs)) } ]
       )
 # 20492 "parsing/parser.ml"
            : (Parsetree.function_param list))
@@ -21044,7 +21044,7 @@ module Tables = struct
               
 # 3567 "parsing/parser.mly"
         ( let (lid, cstrs, _attrs) = package_type_of_module_type mty in
-          Ptyp_functor (Nolabel, name, (lid, cstrs), codomain) )
+          Ptyp_functor (name, (lid, cstrs), codomain) )
 # 21049 "parsing/parser.ml"
               
             in

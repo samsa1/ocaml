@@ -140,7 +140,7 @@ module T = struct
         iter_loc sub mod_ident;
         sub.typ sub t
     | Ptyp_extension x -> sub.extension sub x
-    | Ptyp_functor (_lab, s, (lid, l), t2) ->
+    | Ptyp_functor (s, (lid, l), t2) ->
       iter_loc sub s;
       iter_loc sub lid;
       List.iter (iter_tuple (iter_loc sub) (sub.typ sub)) l;
@@ -366,7 +366,7 @@ module E = struct
     | Pparam_val (_lab, def, p) ->
         iter_opt (sub.expr sub) def;
         sub.pat sub p
-    | Pparam_module (_lab, s, pack_opt) ->
+    | Pparam_module (s, pack_opt) ->
         iter_loc sub s;
         iter_tuple (iter_loc sub)
           (List.iter (iter_tuple (iter_loc sub) (sub.typ sub)))

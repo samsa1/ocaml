@@ -188,9 +188,8 @@ let rec core_type i ppf x =
   | Ptyp_extension (s, arg) ->
       line i ppf "Ptyp_extension \"%s\"\n" s.txt;
       payload i ppf arg
-  | Ptyp_functor (label, name, (li, l), ct2) ->
+  | Ptyp_functor (name, (li, l), ct2) ->
       line i ppf "Ptyp_functor\n";
-      arg_label i ppf label;
       line i ppf "\"%s\" : %a\n" name.txt fmt_longident_loc li;
       list i package_with ppf l;
       core_type i ppf ct2
@@ -403,10 +402,8 @@ and function_param i ppf { pparam_desc = desc; pparam_loc = loc } =
       arg_label (i+1) ppf l;
       option (i+1) expression ppf eo;
       pattern (i+1) ppf p
-  | Pparam_module (label, s, (li, l)) ->
-      line i ppf "Pparam_module %a\n" fmt_location loc;
-      arg_label (i+1) ppf label;
-      line (i+1) ppf "Pexp_ident %a\n" fmt_string_loc s;
+  | Pparam_module (s, (li, l)) ->
+      line i ppf "Pparam_module \"%s\" %a\n" s.txt fmt_location loc;
       line (i+1) ppf "%a\n" fmt_longident_loc li;
       list (i+1) package_with ppf l
   | Pparam_newtype ty ->

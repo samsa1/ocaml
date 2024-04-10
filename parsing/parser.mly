@@ -2844,7 +2844,7 @@ fun_param_as_list:
       {
         let (lid, cstrs, _attrs) = package_type_of_module_type mt in
         [ { pparam_loc = make_loc $sloc;
-            pparam_desc = Pparam_module (Nolabel, s, (lid, cstrs)) } ]
+            pparam_desc = Pparam_module (s, (lid, cstrs)) } ]
       }
 ;
 fun_params:
@@ -3565,7 +3565,7 @@ function_type:
       MINUSGREATER
       codomain = function_type
         { let (lid, cstrs, _attrs) = package_type_of_module_type mty in
-          Ptyp_functor (Nolabel, name, (lid, cstrs), codomain) }
+          Ptyp_functor (name, (lid, cstrs), codomain) }
     )
     { $1 }
 ;

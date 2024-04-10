@@ -168,8 +168,8 @@ module T = struct
     | Ptyp_open (mod_ident, t) ->
         open_ ~loc ~attrs (map_loc sub mod_ident) (sub.typ sub t)
     | Ptyp_extension x -> extension ~loc ~attrs (sub.extension sub x)
-    | Ptyp_functor (lab, s, (lid, l), t) ->
-        functor_ ~loc ~attrs lab (map_loc sub s)
+    | Ptyp_functor (s, (lid, l), t) ->
+        functor_ ~loc ~attrs (map_loc sub s)
           (map_loc sub lid, List.map (map_tuple (map_loc sub) (sub.typ sub)) l)
           (sub.typ sub t)
 
@@ -415,10 +415,9 @@ module E = struct
             (lab,
              map_opt (sub.expr sub) def,
              sub.pat sub p)
-      | Pparam_module (lab, s, pack_opt) ->
+      | Pparam_module (s, pack_opt) ->
           Pparam_module
-            (lab,
-             map_loc sub s,
+            (map_loc sub s,
              map_tuple (map_loc sub)
                 (List.map (map_tuple (map_loc sub) (sub.typ sub)))
                 pack_opt)

@@ -173,7 +173,7 @@ and core_type_desc =
   | Ptyp_package of package_type  (** [(module S)]. *)
   | Ptyp_open of Longident.t loc * core_type (** [M.(T)] *)
   | Ptyp_extension of extension  (** [[%id]]. *)
-  | Ptyp_functor of arg_label * string loc * package_type * core_type
+  | Ptyp_functor of string loc * package_type * core_type
         (** [{M : S} -> ...] *)
 
 and package_type = Longident.t loc * (Longident.t loc * core_type) list
@@ -458,7 +458,7 @@ and function_param_desc =
       Note: If [E0] is provided, only
       {{!Asttypes.arg_label.Optional}[Optional]} is allowed.
   *)
-  | Pparam_module of arg_label * string loc * package_type
+  | Pparam_module of string loc * package_type
   (**
     [Pparam_module (M, S)] represents the parameter [{M : S}].
   *)

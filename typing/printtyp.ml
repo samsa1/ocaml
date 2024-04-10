@@ -553,10 +553,9 @@ and raw_type_desc ppf = function
               fprintf ppf "Some(@,%a,@,%a)" path p raw_type_list tl)
   | Tpackage (p, fl) ->
     fprintf ppf "@[<hov1>Tpackage(@,%a,@,%a)@]" path p raw_lid_type_list fl
-  | Tfunctor (lbl, name, (p, fl), ty) ->
-      fprintf ppf "@[<hov1>Tfunctor(\"%s\",@,%s,@,(%a,@,%a),@,%a)@]"
-        (string_of_label lbl) (Ident.name name) path p
-        raw_lid_type_list fl raw_type ty
+  | Tfunctor (name, (p, fl), ty) ->
+      fprintf ppf "@[<hov1>Tfunctor(%s,@,(%a,@,%a),@,%a)@]"
+        (Ident.name name) path p raw_lid_type_list fl raw_type ty
 and raw_row_fixed ppf = function
 | None -> fprintf ppf "None"
 | Some Types.Fixed_private -> fprintf ppf "Some Fixed_private"
@@ -1289,17 +1288,14 @@ let rec tree_of_typexp mode ty =
     | Tpackage (p, fl) ->
         let fl = tree_of_pack_fields mode fl in
         Otyp_module (tree_of_path (Some Module_type) p, fl)
-    | Tfunctor (l, id, (p, fl), ty) ->
-      let lab =
-        if !print_labels || is_optional l then l else Nolabel
-      in
+    | Tfunctor (id, (p, fl), ty) ->
       let fenv env =
         let mty = !Ctype.modtype_of_package env Location.none p fl in
         Env.add_module ~arg:true id Mp_present mty env
       in
       let ty = wrap_env fenv (tree_of_typexp mode) ty in
       let fl = tree_of_pack_fields mode fl in
-      Otyp_functor (lab, Oide_ident { printed_name = Ident.name id },
+      Otyp_functor (Oide_ident { printed_name = Ident.name id },
                     (tree_of_path (Some Module_type) p, fl), ty)
 
   in

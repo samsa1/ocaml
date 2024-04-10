@@ -448,7 +448,8 @@ let expression sub exp =
                        Tparam_module (pat, ptyp) -> (extract_name pat, ptyp)
                      | _ -> assert false
                    in
-                   Pparam_module (fp.fp_arg_label, i, sub.package_type sub ptyp)
+                   let () = assert (fp.fp_arg_label = Nolabel) in
+                   Pparam_module (i, sub.package_type sub ptyp)
                  else
                    let pat, default_arg =
                      match fp.fp_kind with
@@ -827,9 +828,9 @@ let core_type sub ct =
         Ptyp_poly (list, sub.typ sub ct)
     | Ttyp_package pack -> Ptyp_package (sub.package_type sub pack)
     | Ttyp_open (_path, mod_ident, t) -> Ptyp_open (mod_ident, sub.typ sub t)
-    | Ttyp_functor (label, name, pack, ct) ->
+    | Ttyp_functor (name, pack, ct) ->
         let name = Location.mkloc (Ident.name name.txt) name.loc in
-        Ptyp_functor (label, name, sub.package_type sub pack, sub.typ sub ct)
+        Ptyp_functor (name, sub.package_type sub pack, sub.typ sub ct)
   in
   Typ.mk ~loc ~attrs desc
 

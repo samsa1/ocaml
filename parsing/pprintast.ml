@@ -330,9 +330,7 @@ and core_type ctxt f x =
                       pp f "%a@;.@;"
                         (list tyvar_loc ~sep:"@;")  l)
           sl (core_type ctxt) ct
-    | Ptyp_functor (label, name, pack, ct) ->
-        (* TODO : choose syntax for labelled modargs *)
-        assert (label = Nolabel);
+    | Ptyp_functor (name, pack, ct) ->
         pp f "@[<2>@[<hov2>{%s :@ %a}@]@;->@;%a@]" name.txt (package_type ctxt)
                   pack (core_type ctxt) ct
     | _ -> pp f "@[<2>%a@]" (core_type1 ctxt) x
@@ -638,8 +636,7 @@ and sugar_expr ctxt f e =
 and function_param ctxt f param =
   match param.pparam_desc with
   | Pparam_val (a, b, c) -> label_exp ctxt f (a, b, c)
-  | Pparam_module (lbl, l, mty) ->
-      assert (lbl = Nolabel); (* TODO : add if added to the language *)
+  | Pparam_module (l, mty) ->
       pp f "@[{%s : %a}@]" l.txt (package_type ctxt) mty
   | Pparam_newtype ty -> pp f "(type %s)@;" ty.txt
 
