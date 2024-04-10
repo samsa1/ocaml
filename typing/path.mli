@@ -66,7 +66,7 @@ val exists_free: Ident.t list -> t -> bool
 val scope: t -> int
 val contains: Ident.t -> t -> bool
 
-val subst: Ident.t -> Ident.t -> t -> t
+val subst: Ident.t -> t -> t -> t
 
 val flatten : t -> [ `Contains_apply | `Ok of Ident.t * string list ]
 

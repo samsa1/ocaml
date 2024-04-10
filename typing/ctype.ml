@@ -1624,7 +1624,7 @@ let instance_poly ?(keep_names=false) ~fixed univars sch =
     instance_poly' copy_scope ~keep_names ~fixed univars sch
   )
 
-let copy_sep_funct ~copy_scope ~id_in ~id_out ~fixed
+let copy_sep_funct ~copy_scope ~id_in ~p_out ~fixed
                       ~(visited : type_expr TypeHash.t) sch =
   let free = compute_required_subst id_in sch in
   let delayed_copies = ref [] in
@@ -1659,11 +1659,11 @@ let copy_sep_funct ~copy_scope ~id_in ~id_out ~fixed
               copy_row (copy_rec ~may_share:true) fixed' row keep more' in
             Tvariant row
         | Tconstr (p, tl, _abbrev) ->
-            Tconstr (Path.subst id_in id_out p,
+            Tconstr (Path.subst id_in p_out p,
                      List.map (copy_rec ~may_share:true) tl,
                      ref Mnil)
         | Tpackage (p, fl) ->
-            Tpackage (Path.subst id_in id_out p,
+            Tpackage (Path.subst id_in p_out p,
                   List.map (fun (n, ty) -> (n, copy_rec ~may_share:true ty)) fl)
         | Tfunctor (lbl, id, (p, fl), ty) ->
             let ty =
@@ -1672,7 +1672,7 @@ let copy_sep_funct ~copy_scope ~id_in ~id_out ~fixed
             in
             let fl =
               List.map (fun (n, ty) -> (n, copy_rec ~may_share:true ty)) fl
-            in Tfunctor (lbl, id, (Path.subst id_in id_out p, fl), ty)
+            in Tfunctor (lbl, id, (Path.subst id_in p_out p, fl), ty)
         | Tfield (p, k, ty1, ty2) ->
             (* the kind is kept shared, see Btype.copy_type_desc *)
             Tfield (p, field_kind_internal_repr k,
@@ -1688,10 +1688,10 @@ let copy_sep_funct ~copy_scope ~id_in ~id_out ~fixed
   List.iter (fun force -> force ()) !delayed_copies;
   ty
 
-let instance_funct ~id_in ~id_out ~fixed sch =
+let instance_funct ~id_in ~p_out ~fixed sch =
   let visited = TypeHash.create 17 in
   For_copy.with_scope (fun copy_scope ->
-    copy_sep_funct ~copy_scope ~id_in ~id_out ~fixed ~visited sch
+    copy_sep_funct ~copy_scope ~id_in ~p_out ~fixed ~visited sch
   )
 
 let instance_label ~fixed lbl =

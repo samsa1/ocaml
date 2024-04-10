@@ -693,7 +693,7 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
       end in
     let ident = Ident.create_unscoped name.txt in
     let ctyp_type =
-        instance_funct ~id_in:scoped_ident ~id_out:ident ~fixed:false
+        instance_funct ~id_in:scoped_ident ~p_out:(Pident ident) ~fixed:false
           cty.ctyp_type
     in
     (* could be newty or Btype.newgenty *)

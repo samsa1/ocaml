@@ -35,6 +35,8 @@ let f {M : T} (x : {M : T} -> 'a as 'a) =
   x {M} {M} {M} {M} {M}
 
 [%%expect{|
+val f : {M : T} -> ({M : T} -> 'a as 'a) -> 'a = <fun>
+|}, Principal{|
 val f : {M : T} -> ({M : T} -> 'a as 'a) -> ({M : T} -> 'b as 'b) = <fun>
 |}]
 

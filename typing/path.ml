@@ -109,10 +109,10 @@ let rec contains id = function
   | Pdot(p, _) | Pextra_ty(p, _) -> contains id p
   | Papply(p1, p2) -> contains id p1 || contains id p2
 
-let subst id_in id_out p =
+let subst id_in p_out p =
   let exception Unchanged in
   let rec aux = function
-  | Pident id when Ident.same id_in id -> Pident id_out
+  | Pident id when Ident.same id_in id -> p_out
   | Pident _ -> raise Unchanged
   | Pdot(p, s) -> Pdot(aux p, s)
   | Pextra_ty(p, e) -> Pextra_ty(aux p, e)
