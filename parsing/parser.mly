@@ -3185,7 +3185,7 @@ type_kind:
     COLONEQUAL nonempty_type_kind
       { $2 }
 ;
-type_parameters:
+%inline type_parameters:
     /* empty */
       { [] }
   | p = type_parameter
@@ -3851,6 +3851,7 @@ mod_longident:
 ;
 mod_ext_longident:
     mk_longident(mod_ext_longident, UIDENT) { $1 }
+  | LPAREN VAL LIDENT RPAREN            { assert false }
   | mod_ext_longident LPAREN mod_ext_longident RPAREN
       { lapply ~loc:$sloc $1 $3 }
   | mod_ext_longident LPAREN error
