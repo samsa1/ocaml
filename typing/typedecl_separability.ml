@@ -154,7 +154,7 @@ let rec immediate_subtypes : type_expr -> type_expr list = fun ty ->
   | Tvar _ | Tunivar _ -> []
   | Tpoly (pty, _) -> [pty]
   | Tconstr (_path, tys, _) -> tys
-  | Tfunctor (_, _, _, ty) -> [ty]
+  | Tfunctor (_, _, (_, fl), ty) -> ty :: List.map snd fl
 
 and immediate_subtypes_object_row acc ty = match get_desc ty with
   | Tnil -> acc
