@@ -5653,7 +5653,7 @@ and type_application env funct sargs =
                     let ty_res =
                       result_type
                         (!omitted_parameters @ !eliminated_optional_arguments)
-                        ty_fun
+                        ty_fun'
                     in
                     raise(Error(funct.exp_loc, env,
                                 Cannot_commute_label ty_res))

@@ -95,7 +95,7 @@ let apply_labelled_fail = labelled ~y:3
 Line 1, characters 26-34:
 1 | let apply_labelled_fail = labelled ~y:3
                               ^^^^^^^^
-Error: This expression has type "y:M.t -> M.t"
+Error: This expression has type "{M : Typ} -> y:M.t -> M.t"
        Received an expression argument. However, module arguments cannot be omitted.
 |}]
 
