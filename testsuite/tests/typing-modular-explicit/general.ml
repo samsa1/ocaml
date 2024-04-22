@@ -105,7 +105,7 @@ let apply_opt (f : ?opt:int -> {M : Typ} -> M.t) = f {Int}
 val apply_opt : (?opt:int -> {M : Typ} -> M.t) -> Int.t = <fun>
 |}]
 
-(* let f_labelled_marg ~{M : Typ} ~{N : Typ} (x : M.t) (y : N.t) = (y, x)
+let f_labelled_marg ~{M : Typ} ~{N : Typ} (x : M.t) (y : N.t) = (y, x)
 
 let apply_labelled_m = f_labelled_marg ~N:{ Int } ~M:{ Float} 0.3 1
 
@@ -113,7 +113,13 @@ let apply_labelled_m = f_labelled_marg ~N:{ Int } ~M:{ Float} 0.3 1
 val f_labelled_marg : M:{M : Typ} -> N:{N : Typ} -> M.t -> N.t -> N.t * M.t =
   <fun>
 val apply_labelled_m : Int.t * Float.t = (1, 0.3)
-|}] *)
+|}]
+
+let f_labelled_marg : ~N:{M : Typ} -> M.t -> M.t =
+  fun ~N:{ M : Typ} (x : M.t) = x
+
+[%%expect{|
+|}]
 
 (* Typing rules make sense only if module argument are
    a path (module names, projections and applications) *)
