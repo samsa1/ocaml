@@ -2396,13 +2396,15 @@ labeled_simple_pattern:
 ;
 labeled_module_pattern:
     TILDE mp = module_pattern
-      { let (_, s, mt) = mp in (Labelled s.txt, s, mt) }
-    | mp = module_pattern
-      { mp }
+      { let (s, mt) = mp in (Labelled s.txt, s, mt) }
+  | l = ULABEL mp = module_pattern
+      { let (s, mt) = mp in (Labelled l, s, mt)}
+  | mp = module_pattern
+      { let (s, mt) = mp in (Nolabel, s, mt) }
 ;
 module_pattern:
     LBRACE s = mkrhs(UIDENT) COLON mt = module_type RBRACE
-      { (Nolabel, s, mt) }
+      { (s, mt) }
 ;
 
 pattern_var:
@@ -3590,7 +3592,7 @@ function_type:
       MINUSGREATER
       codomain = function_type
         { let (lid, cstrs, _attrs) = package_type_of_module_type mty in
-          Ptyp_functor (label, name, (lid, cstrs), codomain) }
+          Ptyp_functor (label name.txt, name, (lid, cstrs), codomain) }
     )
     { $1 }
 ;
@@ -3603,10 +3605,12 @@ function_type:
       { Nolabel }
 ;
 %inline arg_ulabel:
-  | TILDE label = UIDENT COLON
-      { Labelled label }
+  | label = ULABEL
+      { fun _ -> Labelled label }
+  | TILDE
+      { fun s -> Labelled s }
   | /* empty */
-      { Nolabel }
+      { fun _ -> Nolabel }
 ;
 
 (* Tuple types include:

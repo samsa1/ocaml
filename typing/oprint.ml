@@ -305,7 +305,12 @@ and print_out_type_1 ppf =
       pp_close_box ppf ()
   | Otyp_functor (lab, id, (p, fl), ty) ->
       pp_open_box ppf 0;
-      print_arg_label ppf lab;
+      begin
+        match lab with
+        | Nolabel -> ()
+        | Labelled s -> fprintf ppf "~%a:" print_lident s
+        | Optional s -> fprintf ppf "?%a:" print_lident s      
+      end;
       pp_print_string ppf "{";
       print_ident ppf id;
       pp_print_string ppf " : ";
