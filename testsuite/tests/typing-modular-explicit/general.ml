@@ -110,15 +110,16 @@ let f_labelled_marg ~{M : Typ} ~{N : Typ} (x : M.t) (y : N.t) = (y, x)
 let apply_labelled_m = f_labelled_marg ~N:{ Int } ~M:{ Float} 0.3 1
 
 [%%expect{|
-val f_labelled_marg : M:{M : Typ} -> N:{N : Typ} -> M.t -> N.t -> N.t * M.t =
+val f_labelled_marg : ~M:{M : Typ} -> ~N:{N : Typ} -> M.t -> N.t -> N.t * M.t =
   <fun>
 val apply_labelled_m : Int.t * Float.t = (1, 0.3)
 |}]
 
 let f_labelled_marg : ~N:{M : Typ} -> M.t -> M.t =
-  fun ~N:{ M : Typ} (x : M.t) = x
+  fun ~N:{ M : Typ} (x : M.t) -> x
 
 [%%expect{|
+val f_labelled_marg : ~N:{M : Typ} -> M.t -> M.t = <fun>
 |}]
 
 (* Typing rules make sense only if module argument are

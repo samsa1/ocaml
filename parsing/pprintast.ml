@@ -296,6 +296,12 @@ let tyvar ppf s =
 let tyvar_loc f str = tyvar f str.txt
 let string_quot f x = pp f "`%a" ident_of_name x
 
+let xxx_with_label pprint f (label, c) =
+  match label with
+  | Nolabel    -> pprint f c (* otherwise parenthesize *)
+  | Labelled s -> pp f "%a:%a" ident_of_name s pprint c
+  | Optional s -> pp f "?%a:%a" ident_of_name s pprint c
+
 (* c ['a,'b] *)
 let rec class_params_def ctxt f =  function
   | [] -> ()
@@ -303,11 +309,12 @@ let rec class_params_def ctxt f =  function
       pp f "[%a] " (* space *)
         (list (type_param ctxt) ~sep:",") l
 
-and type_with_label ctxt f (label, c) =
-  match label with
-  | Nolabel    -> core_type1 ctxt f c (* otherwise parenthesize *)
-  | Labelled s -> pp f "%a:%a" ident_of_name s (core_type1 ctxt) c
-  | Optional s -> pp f "?%a:%a" ident_of_name s (core_type1 ctxt) c
+and type_with_label ctxt = xxx_with_label (core_type1 ctxt)
+
+and package_param ctxt f (name, pack) =
+  pp f "@[<hov2>{%s : %a}@]" name.txt (package_type ctxt) pack
+
+and package_with_label ctxt = xxx_with_label (package_param ctxt)
 
 and core_type ctxt f x =
   if x.ptyp_attributes <> [] then begin
@@ -330,11 +337,9 @@ and core_type ctxt f x =
                       pp f "%a@;.@;"
                         (list tyvar_loc ~sep:"@;")  l)
           sl (core_type ctxt) ct
-    | Ptyp_functor (label, name, pack, ct) ->
-        (* TODO : choose syntax for labelled modargs *)
-        assert (label = Nolabel);
-        pp f "@[<2>@[<hov2>{%s :@ %a}@]@;->@;%a@]" name.txt (package_type ctxt)
-                  pack (core_type ctxt) ct
+    | Ptyp_functor (l, name, pack, ct) ->
+        pp f "@[<2>%a@;->@;%a@]" (package_with_label ctxt) (l, (name, pack))
+                  (core_type ctxt) ct
     | _ -> pp f "@[<2>%a@]" (core_type1 ctxt) x
 
 and core_type1 ctxt f x =
@@ -638,9 +643,8 @@ and sugar_expr ctxt f e =
 and function_param ctxt f param =
   match param.pparam_desc with
   | Pparam_val (a, b, c) -> label_exp ctxt f (a, b, c)
-  | Pparam_module (lbl, l, mty) ->
-      assert (lbl = Nolabel); (* TODO : add if added to the language *)
-      pp f "@[{%s : %a}@]" l.txt (package_type ctxt) mty
+  | Pparam_module (lbl, l, pck_ty) ->
+      package_with_label ctxt f (lbl, (l, pck_ty))
   | Pparam_newtype ty -> pp f "(type %s)@;" ty.txt
 
 and function_body ctxt f function_body =
