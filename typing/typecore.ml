@@ -4694,13 +4694,20 @@ and type_function
           end;
           Some (id, ety)
       in
+      let pv_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
+      let arg_md = {
+        md_type = mty;
+        md_attributes = [];
+        md_loc = pparam_loc;
+        md_uid = pv_uid;
+      } in
       let (res_ty, params, body, newtypes, contains_gadt), s_ident =
         with_local_level begin fun () ->
           let s_ident =
             Ident.create_scoped ~scope:(Ctype.get_current_level()) name.txt
           in
-          let new_env = Env.add_module s_ident
-                              Mp_present mty env in
+          let new_env = Env.add_module_declaration ~check:true s_ident
+                              Mp_present arg_md env in
           let expected_res = match id_expected_typ_opt with
             | Some (id, ety) ->
               instance_funct ~id_in:id ~p_out:(Pident s_ident) ~fixed:false ety
@@ -4723,7 +4730,6 @@ and type_function
         with Unify trace ->
           raise (Error(loc, env, Expr_type_clash(trace, None, None)))
       in
-      let pv_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
       let pat_desc = Tpat_var (s_ident, name, pv_uid) in
       let pattern = {
         pat_desc;
