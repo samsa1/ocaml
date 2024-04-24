@@ -2382,6 +2382,16 @@ let identifier_escape _env id1 id2 ty =
   end
 
 let enter_functor env id1 t1 id2 t2 f =
+  (*
+    An identifier for a Tfunctor is bound only at a single type node.
+    Howether with recursive types we can match this identifier multiple times.
+    This is a safe gard to prevent problems by stating that an identifier is the
+    equal to multiple ones.
+    For example both types are cannot be unifyed
+    - {M : T} -> ((M.t * {N : T} -> 'a) as 'a)
+    - ({O : T} -> O.t * 'a) as 'a
+    But without the following check they would be accepted.
+  *)
   let rec filter_id_pairs = function
     | [] -> []
     | (i1, i2) :: tl ->
