@@ -4710,7 +4710,8 @@ and type_function
                               Mp_present arg_md env in
           let expected_res = match id_expected_typ_opt with
             | Some (id, ety) ->
-              instance_funct ~id_in:id ~p_out:(Pident s_ident) ~fixed:false ety
+              instance_funct ~id_in:(Ident.of_unscoped id)
+                             ~p_out:(Pident s_ident) ~fixed:false ety
             | None -> newvar ()
           in
           type_function new_env rest body_constraint body
@@ -4718,12 +4719,13 @@ and type_function
           s_ident
       end
       in
-      let ident = Ident.create_unscoped name.txt in
+      let us_ident = Ident.create_unscoped name.txt in
+      let ident = Ident.of_unscoped us_ident in
       let res_ty =
         instance_funct ~id_in:s_ident ~p_out:(Pident ident) ~fixed:false res_ty
       in
       let exp_type =
-          Btype.newgenty (Tfunctor (arg_label, ident, (path, fl), res_ty)) in
+          Btype.newgenty (Tfunctor (arg_label, us_ident, (path, fl), res_ty)) in
       let _ =
         try
           unify env ty_expected exp_type
@@ -5416,8 +5418,8 @@ and type_application env funct sargs =
             extract_path p
         | _ -> raise (Error(me.pmod_loc, env, Cannot_infer_functor_path))
       in
-      let ty_res = instance_funct ~id_in:id ~p_out:(extract_path m)
-                    ~fixed:false ty_res in
+      let ty_res = instance_funct ~id_in:(Ident.of_unscoped id)
+                                ~p_out:(extract_path m) ~fixed:false ty_res in
       let arg () = Targ_module m in
       (ty_res, (lbl, Some (arg, Some me.pmod_loc)) :: typed_args)
     | (lbl, Parg_expr sarg) ->
@@ -5576,10 +5578,10 @@ and type_application env funct sargs =
                               Cannot_infer_functor_path))
           in
           let path = extract_path m in
-          let ty_res = instance_funct ~id_in:id ~p_out:path
-                            ~fixed:false ty_fun in
-          let ty_res0 = instance_funct ~id_in:id0 ~p_out:path
-                            ~fixed:false ty_fun0 in
+          let ty_res = instance_funct ~id_in:(Ident.of_unscoped id)
+                            ~p_out:path ~fixed:false ty_fun in
+          let ty_res0 = instance_funct ~id_in:(Ident.of_unscoped id0)
+                            ~p_out:path ~fixed:false ty_fun0 in
           let arg () = Targ_module m in
           (ty_res, ty_res0, arg)
         in

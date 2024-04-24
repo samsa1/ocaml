@@ -132,9 +132,9 @@ type type_desc =
   | Tpackage of Path.t * (Longident.t * type_expr) list
   (** Type of a first-class module (a.k.a package). *)
 
-  | Tfunctor of arg_label * Ident.t
+  | Tfunctor of arg_label * Ident.unscoped
                 * (Path.t * (Longident.t * type_expr) list) * type_expr
-  (** [Tfunctor (Nolabel, M, S, e)] ==> [{M : S} -> e]
+  (** [Tfunctor (l, M, S, e)] ==> [l:{M : S} -> e]
       Most of typing currently we assume that no other labels are possible.
   *)
 

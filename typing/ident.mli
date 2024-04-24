@@ -15,9 +15,10 @@
 
 (* Identifiers (unique names) *)
 
+type unscoped
 type t
 
-exception No_scope of t
+exception No_scope of unscoped
 
 include Identifiable.S with type t := t
 (* Notes:
@@ -33,7 +34,8 @@ val print_with_scope : Format.formatter -> t -> unit
 
 val create_scoped: scope:int -> string -> t
 val create_local: string -> t
-val create_unscoped: string -> t
+val create_unscoped: string -> unscoped
+val of_unscoped: unscoped -> t
 val create_persistent: string -> t
 val create_predef: string -> t
 
@@ -42,10 +44,12 @@ val rename: t -> t
             stamp, and no scope.
             @raise [Fatal_error] if called on a persistent / predef ident. *)
 
+val get_unscoped: t -> unscoped option
 val name: t -> string
 val unique_name: t -> string
 val unique_toplevel_name: t -> string
 val persistent: t -> bool
+val same_unscoped: unscoped -> unscoped -> bool
 val same: t -> t -> bool
         (** Compare identifiers by binding location.
             Two identifiers are the same either if they are both
@@ -73,11 +77,9 @@ val scope: t -> int
 val lowest_scope : int
 val highest_scope: int
 
-val get_id_pairs: unit -> (t * t) list
-val with_id_pairs: (t * t) list -> (unit -> 'a) -> 'a
-        (** Set an equivalence between identifiers and give to the related
-            identifer a scope. We expect all identifiers to have been created
-            with [create_unscoped] to obtain the expected semantic. *)
+val get_id_pairs: unit -> (unscoped * unscoped) list
+val with_id_pairs: (unscoped * unscoped) list -> (unit -> 'a) -> 'a
+        (** Set an equivalence between unscoped identifiers. *)
 
 val reinit: unit -> unit
 

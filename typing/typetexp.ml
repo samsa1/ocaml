@@ -691,14 +691,15 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
         let env = Env.add_module scoped_ident Mp_present mty env in
         scoped_ident, transl_type env ~policy ~row_context st
       end in
-    let ident = Ident.create_unscoped name.txt in
+    let us_ident = Ident.create_unscoped name.txt in
+    let ident = Ident.of_unscoped us_ident in
     let ctyp_type =
         instance_funct ~id_in:scoped_ident ~p_out:(Pident ident) ~fixed:false
           cty.ctyp_type
     in
     (* could be newty or Btype.newgenty *)
     let l' = List.map (fun (s, cty) -> (s.txt, cty.ctyp_type)) ptys in
-    let ty = Btype.newgenty (Tfunctor (lbl, ident, (path, l'), ctyp_type)) in
+    let ty = Btype.newgenty (Tfunctor (lbl, us_ident, (path, l'), ctyp_type)) in
     (* could also use [Location.mkloc scoped_ident name.loc] *)
     (* TODO : need to choose what to use instead of sloc *)
     ctyp (Ttyp_functor (lbl, {txt = scoped_ident; loc = name.loc}, {
