@@ -2341,44 +2341,57 @@ let enter_poly_for tr_exn env t1 tl1 t2 tl2 f =
     enter_poly env t1 tl1 t2 tl2 f
   with Escape e -> raise_for tr_exn (Escape e)
 
-let path_contains_opt id_opt p =
-  match id_opt with
-  | None -> false
-  | Some id -> Path.contains id p
+let path_contains_one idl p =
+  List.find_opt (fun i -> Path.contains i p) idl
 
-let ident_opt_same id_opt id =
-  match id_opt with
-  | None -> false
-  | Some id' -> Ident.same id' id
-
-let identifier_escape _env id1 id2 ty =
+let identifier_escape env idl ty =
   with_type_mark begin fun mark ->
-  let rec occur id1 id2_opt t =
-    if try_mark_node mark t then begin
-      match get_desc t with
-        Tconstr (p, _, _) | Tfunctor (_, _, (p, _), _)
-      | Tpackage (p, _) | Tobject (_, {contents = Some (p, _)})
-          when Path.contains id1 p ->
-            raise_escape_exn (Module (Pident id1))
-      | Tconstr (p, _, _) | Tfunctor (_, _, (p, _), _)
-      | Tpackage (p, _)
-          when path_contains_opt id2_opt p ->
-            raise_escape_exn (Module (Pident (Option.get id2_opt)))
-      | Tfunctor (_, id', (_, fl) , ty) when Ident.same id1 id' ->
-          begin
-            List.iter (fun (_, t) -> occur id1 id2_opt t) fl;
-            match id2_opt with
-            | None -> ()
-            | Some id2 ->
-              if not (Ident.same id2 id') then occur id2 None ty
+  let rec occur ?(ignore_mark=false) idl ty =
+    if try_mark_node mark ty || ignore_mark then begin
+      match get_desc ty with
+        Tconstr (p, _, _) ->
+          begin match path_contains_one idl p with
+          | None -> iter_type_expr (occur idl) ty
+          | Some i ->
+              begin try
+                let ty' = try_expand_safe env ty in
+                link_type ty ty';
+                occur ~ignore_mark:true idl ty'
+              with Cannot_expand ->
+                raise_escape_exn (Module (Pident i))
+              end
           end
-      | Tfunctor (_, id', (_, fl) , ty) when ident_opt_same id2_opt id' ->
-          List.iter (fun (_, t) -> occur id1 id2_opt t) fl;
-          occur id1 None ty
-      | _ -> iter_type_expr (occur id1 id2_opt) t
+      | Tpackage (p, fl) ->
+          begin match path_contains_one idl p with
+          | None -> iter_type_expr (occur idl) ty
+          | Some i ->
+            let p' = normalize_package_path env p in
+            if Path.same p p' then raise_escape_exn (Module (Pident i));
+            set_type_desc ty (Tpackage (p', fl));
+            occur ~ignore_mark:true idl ty
+          end
+      | Tobject (_, ({contents = Some (p, _)} as nm))
+        when path_contains_one idl p <> None ->
+          set_name nm None;
+          occur ~ignore_mark:true idl ty
+      | Tfunctor (l, id, (p, fl), t) ->
+          begin match path_contains_one idl p with
+          | Some i ->
+              let p' = normalize_package_path env p in
+              if Path.same p p' then raise_escape_exn (Module (Pident i));
+              set_type_desc ty (Tfunctor (l, id, (p', fl), ty));
+              occur ~ignore_mark:true idl ty
+          | None ->
+              List.iter (fun (_, t) -> occur idl t) fl;
+              let idl' = List.filter (fun i -> not (Ident.same i id)) idl in
+              if idl' = []
+              then ()
+              else occur idl' t
+          end
+      | _ -> iter_type_expr (occur idl) ty
     end
   in
-  occur id1 (Some id2) ty
+  occur idl ty
   end
 
 let enter_functor env id1 t1 id2 t2 f =
@@ -2398,8 +2411,8 @@ let enter_functor env id1 t1 id2 t2 f =
       if Ident.same id1 i1 || Ident.same id1 i2
         || Ident.same id2 i1 || Ident.same id2 i2
       then begin
-        identifier_escape env i1 i2 t1;
-        identifier_escape env i1 i2 t2;
+        identifier_escape env [i1; i2] t1;
+        identifier_escape env [i1; i2] t2;
         filter_id_pairs tl
       end else
         (i1, i2) :: filter_id_pairs tl

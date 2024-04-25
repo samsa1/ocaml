@@ -52,6 +52,22 @@ Error: This expression has type "{M : T} -> (M.t * ({N : T} -> 'a) as 'a)"
        The module "O" would escape its scope
 |}]
 
+let f (x : {M : T with type t = int} ->
+              (M.t * ({N : T with type t = int} -> 'a) as 'a)) =
+  (x : ({O : T with type t = int} -> O.t * 'b) as 'b)
+
+[%%expect{|
+val f :
+  ({M : T with type t = int} ->
+   (M.t * ({N : T with type t = int} -> 'a) as 'a)) ->
+  ({O : T with type t = int} -> int * 'b as 'b) = <fun>
+|}, Principal{|
+val f :
+  ({M : T with type t = int} ->
+   (M.t * ({N : T with type t = int} -> 'a) as 'a)) ->
+  ({O : T with type t = int} -> O.t * 'b as 'b) = <fun>
+|}]
+
 let f (x : {M : T} -> (M.t * ({N : T} -> (N.t * 'a) as 'a))) =
   (x : ({O : T} -> O.t * 'b) as 'b)
 
