@@ -504,7 +504,7 @@ let remove_option typ =
     | Tvar _
     | Tunivar _
     | Tpoly _
-    | Tarrow _
+    | Tarrow _ | Tfunctor _
     | Ttuple _
     | Tobject _
     | Tfield _
