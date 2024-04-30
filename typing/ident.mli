@@ -17,6 +17,8 @@
 
 type t
 
+exception No_scope of t
+
 include Identifiable.S with type t := t
 (* Notes:
    - [equal] compares identifiers by name
@@ -31,6 +33,7 @@ val print_with_scope : Format.formatter -> t -> unit
 
 val create_scoped: scope:int -> string -> t
 val create_local: string -> t
+val create_unscoped: string -> t
 val create_persistent: string -> t
 val create_predef: string -> t
 
@@ -50,6 +53,11 @@ val same: t -> t -> bool
             [create_*], or if they are both persistent and have the same
             name. *)
 
+val equiv: t -> t -> bool
+        (** Same as [same] up to the fact that identifiers
+            created by [create_unscoped] are equivalent only
+            the corresponding pair is stored in the list *)
+
 val compare_stamp: t -> t -> int
         (** Compare only the internal stamps, 0 if absent *)
 
@@ -58,11 +66,18 @@ val compare: t -> t -> int
 
 val global: t -> bool
 val is_predef: t -> bool
+val is_unscoped: t -> bool
 
 val scope: t -> int
 
 val lowest_scope : int
 val highest_scope: int
+
+val get_id_pairs: unit -> (t * t) list
+val with_id_pairs: (t * t) list -> (unit -> 'a) -> 'a
+        (** Set an equivalence between identifiers and give to the related
+            identifer a scope. We expect all identifiers to have been created
+            with [create_unscoped] to obtain the expected semantic. *)
 
 val reinit: unit -> unit
 
