@@ -2191,6 +2191,11 @@ let unify_univar_for tr_exn t1 t2 univar_pairs =
 (* Test the occurrence of free univars in a type *)
 (* That's way too expensive. Must do some kind of caching *)
 (* If [inj_only=true], only check injective positions *)
+
+(* TODO : implement for unscoped a similar invariant than the one used for
+   unification variables.
+   Current invariant is : set of types `t`checked in context bound_uv
+*)
 let occur_univar_or_unscoped ?(inj_only=false) ?(check_unscoped=true) env ty =
   let visited = ref TypeMap.empty in
   with_type_mark begin fun mark ->
