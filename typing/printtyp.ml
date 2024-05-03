@@ -1167,11 +1167,11 @@ let rec tree_of_typexp mode ty =
       in
       let fenv env =
         let mty = !Ctype.modtype_of_package env Location.none p fl in
-        Env.add_module ~arg:true id Mp_present mty env
+        Env.add_module ~arg:true (Ident.of_unscoped id) Mp_present mty env
       in
       let ty = wrap_env fenv (tree_of_typexp mode) ty in
       let fl = tree_of_pack_fields mode fl in
-      Otyp_functor (lab, Oide_ident { printed_name = Ident.name id },
+      Otyp_functor (lab, Oide_ident { printed_name = Ident.name_unscoped id },
                     (tree_of_path (Some Module_type) p, fl), ty)
   in
   if List.memq px !delayed then delayed := List.filter ((!=) px) !delayed;
@@ -2317,10 +2317,10 @@ let explain_escape pre = function
         "%a@,@[The module type@;<1 2>%a@ would escape its scope@]"
         pp_doc pre (Style.as_inline_code path) p
     )
-  | Errortrace.Module p -> Some(
+  | Errortrace.Module us -> Some(
       doc_printf
         "%a@,@[The module@;<1 2>%a@ would escape its scope@]"
-        pp_doc pre (Style.as_inline_code path) p
+        pp_doc pre (Style.as_inline_code path) (Pident (Ident.of_unscoped us))
     )
   | Errortrace.Equation Errortrace.{ty = _; expanded = t} ->
       reserve_names t;
