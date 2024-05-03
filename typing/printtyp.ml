@@ -555,7 +555,7 @@ and raw_type_desc ppf = function
     fprintf ppf "@[<hov1>Tpackage(@,%a,@,%a)@]" path p raw_lid_type_list fl
   | Tfunctor (lbl, name, (p, fl), ty) ->
       fprintf ppf "@[<hov1>Tfunctor(\"%s\",@,%s,@,(%a,@,%a),@,%a)@]"
-        (string_of_label lbl) (Ident.name name) path p
+        (string_of_label lbl) (Ident.name_unscoped name) path p
         raw_lid_type_list fl raw_type ty
 and raw_row_fixed ppf = function
 | None -> fprintf ppf "None"
@@ -1306,11 +1306,11 @@ let rec tree_of_typexp mode ty =
       in
       let fenv env =
         let mty = !Ctype.modtype_of_package env Location.none p fl in
-        Env.add_module ~arg:true id Mp_present mty env
+        Env.add_module ~arg:true (Ident.of_unscoped id) Mp_present mty env
       in
       let ty = wrap_env fenv (tree_of_typexp mode) ty in
       let fl = tree_of_pack_fields mode fl in
-      Otyp_functor (lab, Oide_ident { printed_name = Ident.name id },
+      Otyp_functor (lab, Oide_ident { printed_name = Ident.name_unscoped id },
                     (tree_of_path (Some Module_type) p, fl), ty)
   in
   if List.memq px !delayed then delayed := List.filter ((!=) px) !delayed;
@@ -2449,10 +2449,10 @@ let explain_escape pre = function
         "%t@,@[The module type@;<1 2>%a@ would escape its scope@]"
         pre (Style.as_inline_code path) p
     )
-  | Errortrace.Module p -> Some(
+  | Errortrace.Module us -> Some(
       dprintf
         "%t@,@[The module@;<1 2>%a@ would escape its scope@]"
-        pre (Style.as_inline_code path) p
+        pre (Style.as_inline_code path) (Pident (Ident.of_unscoped us))
     )
   | Errortrace.Equation Errortrace.{ty = _; expanded = t} ->
       reserve_names t;
