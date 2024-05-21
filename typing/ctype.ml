@@ -4315,35 +4315,21 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
             || !Clflags.classic && not (is_optional l1 || is_optional l2) ->
                 let t2 = newty (Tpackage (p2, fl2)) in
                 let mty = !modtype_of_package env Location.none p2 fl2 in
-<<<<<<< HEAD
                 let env' = Env.add_module (Ident.of_unscoped id2)
                                           Mp_present mty env in
                 identifier_escape_for Moregen env' [id2] u2;
                 moregen inst_nongen type_pairs env t1 t2;
                 moregen inst_nongen type_pairs env u1 u2
-=======
-                let env' = Env.add_module (Ident.of_unscoped id2) Mp_present mty env in
-                identifier_escape_for Moregen env' [id2] u2;
-                moregen inst_nongen type_pairs env t1 t2;
-                moregen inst_nongen type_pairs env u1 u2  
->>>>>>> 65b354fccb (Fixed bug of unhandled cases for unification)
           | Tfunctor (l1, id1, (p1, fl1), u1),
               Tarrow (l2, t2, u2, _) when l1 = l2
             || !Clflags.classic && not (is_optional l1 || is_optional l2) ->
                 let t1 = newty (Tpackage (p1, fl1)) in
                 let mty = !modtype_of_package env Location.none p1 fl1 in
-<<<<<<< HEAD
                 let env' = Env.add_module (Ident.of_unscoped id1)
                                           Mp_present mty env in
                 identifier_escape_for Moregen env' [id1] u1;
                 moregen inst_nongen type_pairs env t1 t2;
                 moregen inst_nongen type_pairs env u1 u2
-=======
-                let env' = Env.add_module (Ident.of_unscoped id1) Mp_present mty env in
-                identifier_escape_for Moregen env' [id1] u1;
-                moregen inst_nongen type_pairs env t1 t2;
-                moregen inst_nongen type_pairs env u1 u2  
->>>>>>> 65b354fccb (Fixed bug of unhandled cases for unification)
           | (Ttuple tl1, Ttuple tl2) ->
               moregen_list inst_nongen type_pairs env tl1 tl2
           | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
