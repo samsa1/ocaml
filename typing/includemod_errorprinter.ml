@@ -59,6 +59,7 @@ module Context = struct
         Fmt.fprintf ppf " :@ %a" context_mty cxt
   and argname = function
     | Types.Unit -> ""
+    | Types.Newtype id -> Ident.name id
     | Types.Named (None, _) -> "_"
     | Types.Named (Some id, _) -> Ident.name id
 
@@ -294,6 +295,7 @@ module With_shorthand = struct
 
   type functor_param =
     | Unit
+    | Newtype of Ident.t
     | Named of (Ident.t option * Types.module_type t)
 
   (** Shorthand generation *)
@@ -352,6 +354,7 @@ module With_shorthand = struct
 
   let functor_param (ua : _ named) = match ua.item with
     | Types.Unit -> Unit
+    | Types.Newtype id -> Newtype id
     | Types.Named (from, mty) ->
         Named (from, modtype { ua with item = mty })
 
@@ -365,6 +368,7 @@ module With_shorthand = struct
 
   let definition x = match functor_param x with
     | Unit -> Fmt.dprintf "()"
+    | Newtype _ -> Fmt.dprintf "type"
     | Named(_,short_mty) ->
         match short_mty with
         | Original mty -> dmodtype mty
@@ -374,11 +378,13 @@ module With_shorthand = struct
 
   let param x = match functor_param x with
     | Unit -> Fmt.dprintf "()"
+    | Newtype _ -> Fmt.dprintf "type"
     | Named (_, short_mty) ->
         pp dmodtype short_mty
 
   let qualified_param x = match functor_param x with
     | Unit -> Fmt.dprintf "()"
+    | Newtype p -> Fmt.dprintf "(type %s)" (Ident.name p)
     | Named (None, Original (Mty_signature []) ) ->
         Fmt.dprintf "(sig end)"
     | Named (None, short_mty) ->
@@ -398,6 +404,8 @@ module With_shorthand = struct
           "%a@ :@ %t"
           Printtyp.path p
           (pp_orig dmodtype mty)
+    | Newtype ->
+        Format.dprintf "(type)"
     | Anonymous ->
         let short_mty = modtype { ua with item = mty } in
         begin match short_mty with
@@ -412,6 +420,7 @@ module With_shorthand = struct
     | Unit -> Fmt.dprintf "()"
     | Empty_struct -> Fmt.dprintf "(struct end)"
     | Named p -> fun ppf -> Printtyp.path ppf p
+    | Newtype -> Format.dprintf "(type)"
     | Anonymous ->
         let short_mty = modtype { ua with item=mty } in
         pp dmodtype short_mty
@@ -424,6 +433,7 @@ module Functor_suberror = struct
 
   let param_id x = match x.With_shorthand.item with
     | Types.Named (Some _ as x,_) -> x
+    | Types.Newtype p -> Some p
     | Types.(Unit | Named(None,_)) -> None
 
   (** Print the list of params with style *)
@@ -499,7 +509,7 @@ module Functor_suberror = struct
         | Types.Unit ->
             Fmt.dprintf
               "The functor was expected to be applicative at this position"
-        | Types.Named _ ->
+        | Types.Named _ | Types.Newtype _ ->
             Fmt.dprintf
               "The functor was expected to be generative at this position"
 
@@ -558,6 +568,7 @@ module Functor_suberror = struct
       let _arg, mty = g.With_shorthand.item in
       let e = match e.With_shorthand.item with
         | Types.Unit -> Fmt.dprintf "()"
+        | Types.Newtype _ -> Fmt.dprintf "type"
         | Types.Named(_, mty) -> dmodtype mty
       in
       Fmt.dprintf
@@ -570,7 +581,7 @@ module Functor_suberror = struct
       | Unit ->
           Fmt.dprintf
             "The functor was expected to be applicative at this position"
-      | Named _ | Anonymous ->
+      | Named _ | Anonymous | Newtype ->
           Fmt.dprintf
             "The functor was expected to be generative at this position"
       | Empty_struct ->

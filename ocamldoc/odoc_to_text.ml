@@ -555,6 +555,14 @@ class virtual to_text =
           (self#text_of_module_kind ~with_def_syntax: false k1) @
           [Code "()"]
 
+      | Module_apply_type (_k1, _t2) ->
+          assert false (* TODO *)
+          (* (if with_def_syntax then [Code " = "] else []) @
+          (self#text_of_module_kind ~with_def_syntax: false k1) @
+          [Code " (type "] @
+          (self#normal_type ? t2) @
+          [Code " ) "] *)
+
       | Module_with (tk, code) ->
           (if with_def_syntax then [Code " : "] else []) @
           (self#text_of_module_type_kind ~with_def_syntax: false tk) @

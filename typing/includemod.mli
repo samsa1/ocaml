@@ -43,6 +43,7 @@ module Error: sig
     | Anonymous
     | Named of Path.t
     | Unit
+    | Newtype
     | Empty_struct
      (** For backward compatibility's sake, an empty struct can be implicitly
          converted to an unit module. *)
