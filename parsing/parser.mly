@@ -1393,6 +1393,9 @@ functor_arg:
     (* An anonymous and untyped argument. *)
     LPAREN RPAREN
       { $startpos, Unit }
+    (* A type argument *)
+  | LPAREN TYPE ty_param = mkrhs(LIDENT) RPAREN
+      { $startpos, Newtype ty_param }
   | (* An argument accompanied with an explicit type. *)
     LPAREN x = mkrhs(module_name) COLON mty = module_type RPAREN
       { $startpos, Named (x, mty) }
@@ -1440,6 +1443,9 @@ module_expr:
     | (* In a functor application, the actual argument must be parenthesized. *)
       me1 = module_expr me2 = paren_module_expr
         { Pmod_apply(me1, me2) }
+    | (* In a functor application, the actual argument must be parenthesized. *)
+      me = module_expr LPAREN TYPE ty = core_type RPAREN
+        { Pmod_apply_type(me, ty) }
     | (* Functor applied to unit. *)
       me = module_expr LPAREN RPAREN
         { Pmod_apply_unit me }
@@ -3648,7 +3654,7 @@ function_type:
       }
   | attrs1 = ext_attributes x = X { (x, (attrs1, []), None) }
 ;
-type_param:
+%inline type_param:
     TYPE id = mkrhs(LIDENT) { id }
 ;
 %inline arg_label_or_question:
