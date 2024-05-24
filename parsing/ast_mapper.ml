@@ -319,6 +319,7 @@ end
 
 let map_functor_param sub = function
   | Unit -> Unit
+  | Newtype ty -> Newtype (map_loc map_string sub ty)
   | Named (s, mt) ->
       Named (map_loc map_string_opt sub s, sub.module_type sub mt)
 
@@ -403,6 +404,8 @@ module M = struct
           (sub.module_expr sub body)
     | Pmod_apply (m1, m2) ->
         apply ~loc ~attrs (sub.module_expr sub m1) (sub.module_expr sub m2)
+    | Pmod_apply_type (m1, t2) ->
+        apply_type ~loc ~attrs (sub.module_expr sub m1) (sub.typ sub t2)
     | Pmod_apply_unit m1 ->
         apply_unit ~loc ~attrs (sub.module_expr sub m1)
     | Pmod_constraint (m, mty) ->
