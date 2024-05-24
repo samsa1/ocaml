@@ -3402,7 +3402,7 @@ and is_nonexpansive_mod mexp =
   | Tmod_unpack (e, _) -> is_nonexpansive e
   | Tmod_constraint (m, _, _, _) -> is_nonexpansive_mod m
   | Tmod_structure str -> List.for_all is_nonexpansive_struct_item str.str_items
-  | Tmod_apply _ | Tmod_apply_unit _ -> false
+  | Tmod_apply _ | Tmod_apply_unit _  | Tmod_apply_type _ -> false
 
 and is_nonexpansive_opt = function
   | None -> true

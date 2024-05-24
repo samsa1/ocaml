@@ -279,6 +279,8 @@ end
 
 let iter_functor_param sub = function
   | Unit -> ()
+  | Newtype ty ->
+    iter_loc iter_string sub ty
   | Named (name, mty) ->
     iter_loc iter_string_opt sub name;
     sub.module_type sub mty
@@ -357,6 +359,9 @@ module M = struct
     | Pmod_apply (m1, m2) ->
         sub.module_expr sub m1;
         sub.module_expr sub m2
+    | Pmod_apply_type (m1, t2) ->
+        sub.module_expr sub m1;
+        sub.typ sub t2
     | Pmod_apply_unit m1 ->
         sub.module_expr sub m1
     | Pmod_constraint (m, mty) ->
