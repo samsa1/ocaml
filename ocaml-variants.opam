@@ -1,8 +1,8 @@
 opam-version: "2.0"
-version: "5.3.0+trunk"
+version: "5.2.0+modular-explicits"
 license: "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
-synopsis: "OCaml development version"
-maintainer: "caml-list@inria.fr"
+synopsis: "OCaml development version of modular explicits"
+maintainer: "samuel.vivien@ens.psl.eu"
 authors: [
   "Xavier Leroy"
   "Damien Doligez"
@@ -11,10 +11,11 @@ authors: [
   "Didier Rémy"
   "Jérôme Vouillon"
 ]
-homepage: "https://github.com/ocaml/ocaml/"
-bug-reports: "https://github.com/ocaml/ocaml/issues"
+homepage: "https://github.com/samsa1/ocaml"
+bug-reports: "https://github.com/samsa1/ocaml/issues"
+dev-repo: "git+https://github.com/samsa1/ocaml.git#5.2.0+modular-explicits"
 depends: [
-  "ocaml" {= "5.3.0" & post}
+  "ocaml" {= "5.2.0" & post}
   "base-unix" {post}
   "base-bigarray" {post}
   "base-threads" {post}
@@ -60,6 +61,9 @@ build: [
   [make "-j%{jobs}%"]
 ]
 install: [make "install"]
+url {
+  src: "https://github.com/samsa1/ocaml/archive/5.2.0+modular-explicits.tar.gz"
+}
 depopts: [
   "ocaml-option-32bit"
   "ocaml-option-afl"
