@@ -5618,21 +5618,31 @@ and type_application env funct sargs =
                               Cannot_infer_functor_path))
           in
           begin
-            try
-              let path = extract_path me in
-              let ty_res =
-                  Option.value ~default:t
-                      (instance_funct ~id_in:(Ident.of_unscoped id)
-                                      ~p_out:path ~fixed:false t) in
-              let ty_res0 =
-                  Option.value ~default:t0
-                      (instance_funct ~id_in:(Ident.of_unscoped id0)
-                                      ~p_out:path ~fixed:false t0) in
-              let arg = Some ((fun () -> texp), Some sarg.pexp_loc) in
-              type_args ((l, arg)::args) ty_res ty_res0 remaining_sargs
-            with Error(_, _, Cannot_infer_functor_path) as err ->
-              unify_to_arrows (fun _trace -> raise err);
-              type_args args ty_fun ty_fun0 sargs
+            let ty_res, ty_res0 = try
+                let path = extract_path me in
+                let ty_res =
+                    Option.value ~default:t
+                        (instance_funct ~id_in:(Ident.of_unscoped id)
+                                        ~p_out:path ~fixed:false t) in
+                let ty_res0 =
+                    Option.value ~default:t0
+                        (instance_funct ~id_in:(Ident.of_unscoped id0)
+                                        ~p_out:path ~fixed:false t0) in
+                (ty_res, ty_res0)
+              with Error(_, _, Cannot_infer_functor_path) as err ->
+                (* Does no work because the type in me is abstracted ! *)
+                let env1 = Env.add_module (Ident.of_unscoped id) Mp_present
+                                         me.mod_type env in
+                let env0 = Env.add_module (Ident.of_unscoped id0) Mp_present
+                                         me.mod_type env in
+                try
+                  (Ctype.nondep_type env1 [Ident.of_unscoped id] t,
+                   Ctype.nondep_type env0 [Ident.of_unscoped id] t0)
+                with Ctype.Nondep_cannot_erase _ ->
+                  raise err
+            in
+            let arg = Some ((fun () -> texp), Some sarg.pexp_loc) in
+            type_args ((l, arg)::args) ty_res ty_res0 remaining_sargs
           end
         | Some _ | None ->
           unify_to_arrows begin fun trace ->
