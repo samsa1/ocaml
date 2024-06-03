@@ -10,15 +10,20 @@ module List (type a) = struct
   type t = a list
 end
 
-module List2 = functor (type a) -> struct
+(* test alpha renaming *)
+module List2 : functor (type b) -> sig
+  type t = (b * b) list
+end = functor (type a) -> struct
   type t = (a * a) list
 end
 
 [%%expect{|
 module type F = functor (type a) -> sig val default : a end
 module List : functor (type a) -> sig type t = a list end
-module List2 : functor (type a) -> sig type t = (a * a) list end
+module List2 : functor (type b) -> sig type t = (b * b) list end
 |}]
+
+(* Test valid applications *)
 
 module IntList = List(type int)
 
@@ -29,7 +34,7 @@ module IntList : sig type t = int list end
 module SumList : sig type t = [ `A | `B ] list end
 |}]
 
-(* Test all cases of wrong applications of modules *)
+(* Test all cases of wrong applications of modules for error messages *)
 
 module Err1 = List(Int)
 
@@ -37,7 +42,7 @@ module Err1 = List(Int)
 Line 1, characters 14-23:
 1 | module Err1 = List(Int)
                   ^^^^^^^^^
-Error: The functor was expected to be generative at this position
+Error: The functor expected a type argument at this position
 |}]
 
 module Err2 = List()
@@ -46,7 +51,7 @@ module Err2 = List()
 Line 1, characters 14-20:
 1 | module Err2 = List()
                   ^^^^^^
-Error: The functor was expected to be applicative at this position
+Error: The functor expected a type argument at this position
 |}]
 
 module type T = sig
@@ -62,12 +67,11 @@ module Id : functor (X : T) -> sig type t = X.t end
 
 module Err3 = Id(type int)
 
-(* TODO : correct this error message *)
 [%%expect{|
 Line 1, characters 14-26:
 1 | module Err3 = Id(type int)
                   ^^^^^^^^^^^^
-Error: The functor was expected to be generative at this position
+Error: The functor was expected to be applicative at this position
 |}]
 
 module G () = struct end
@@ -82,7 +86,7 @@ Line 3, characters 14-15:
 Error: This is a generative functor. It can only be applied to "()"
 |}]
 
-(* Test coercions *)
+(* Test coercions between types and related errors messages *)
 
 module Swaping : functor (type a) (type b) -> sig
     type t = a
@@ -107,8 +111,33 @@ Error: Signature mismatch:
          functor (X : T) -> ...
        is not included in
          functor (type t) -> ...
-       The functor was expected to be generative at this position
+       The functor expected a type argument at this position
 |}]
+
+module type Typ = sig type t end
+
+module Err6 : functor (T : Typ) -> sig
+  type t = (T.t * T.t) list
+end = functor (type a) -> struct
+  type t = (a * a) list
+end
+
+[%%expect{|
+module type Typ = sig type t end
+Lines 5-7, characters 14-3:
+5 | ..............(type a) -> struct
+6 |   type t = (a * a) list
+7 | end
+Error: Signature mismatch:
+       Modules do not match:
+         functor (type a) -> ...
+       is not included in
+         functor (T : Typ) -> ...
+       The functor was expected to be applicative at this position
+|}]
+
+
+(* Test about applicativity of type application to a module *)
 
 let f1 (x : List(type int).t) : List(type int).t = x
 
@@ -122,13 +151,49 @@ module M : sig type t = int list end
 val f2 : M.t -> List(type int).t = <fun>
 |}]
 
-let f_fail (x : List(type int).t) : List(type float).t = x
+let f_fail1 (x : List(type int).t) : List(type float).t = x
 
 [%%expect{|
-Line 1, characters 57-58:
-1 | let f_fail (x : List(type int).t) : List(type float).t = x
-                                                             ^
+Line 1, characters 58-59:
+1 | let f_fail1 (x : List(type int).t) : List(type float).t = x
+                                                              ^
 Error: This expression has type "List(type int).t" = "int list"
        but an expression was expected of type "List(type float).t" = "float list"
        Type "int" is not compatible with type "float"
+|}]
+
+
+let f_fail2 (x : List(type list).t) = x
+
+[%%expect{|
+Line 1, characters 17-34:
+1 | let f_fail2 (x : List(type list).t) = x
+                     ^^^^^^^^^^^^^^^^^
+Error: The type constructor list expects 1 argument(s)
+|}]
+
+(* Tests error messages of invalid application in paths *)
+
+let fail_in_path (x : List(Int).t) = x
+
+[%%expect{|
+Line 1, characters 22-33:
+1 | let fail_in_path (x : List(Int).t) = x
+                          ^^^^^^^^^^^
+Error: The functor expected a type argument at this position
+|}]
+
+module type Typ = sig type t end
+
+module IdTyp (T : Typ) = T
+
+let fail_in_path2 (x : IdTyp(type int).t) = x
+
+[%%expect{|
+module type Typ = sig type t end
+module IdTyp : functor (T : Typ) -> sig type t = T.t end
+Line 5, characters 23-40:
+5 | let fail_in_path2 (x : IdTyp(type int).t) = x
+                           ^^^^^^^^^^^^^^^^^
+Error: The functor was expected to be applicative at this position
 |}]

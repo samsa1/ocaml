@@ -19,6 +19,10 @@ _______________
   (Leo White, Tom Kelly, Anil Madhavapeddy, KC Sivaramakrishnan, Xavier Leroy
    and Florian Angeletti, review by the same, Hugo Heuzard, and Ulysse Gérard)
 
+- #XXXXX: Added support for type arguments to modules :
+  `M(type int)` and `functor (type a) -> ...`
+  (Samuel Vivien, review by ...)
+
 ### Type system
 
 - #11891, #12507: Allow to name new locally abstract types in constructor type
