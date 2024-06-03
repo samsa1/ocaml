@@ -317,7 +317,10 @@ let of_path ~find_shape ~namespace path =
   let rec aux : Sig_component_kind.t -> Path.t -> t = fun ns -> function
     | Pident id -> find_shape ns id
     | Pdot (path, name) -> proj (aux Module path) (name, ns)
-    | Papply (p1, p2) -> app (aux Module p1) ~arg:(aux Module p2)
+    | Papply (Longident.Kmod, p1, p2) ->
+        app (aux Module p1) ~arg:(aux Module p2)
+    | Papply (Longident.Ktype, p1, p2) ->
+        app (aux Module p1) ~arg:(aux Type p2)
     | Pextra_ty (path, extra) -> begin
         match extra, ns, path with
         | Pcstr_ty name, Label, Pextra_ty _ ->

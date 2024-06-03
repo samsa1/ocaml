@@ -918,9 +918,11 @@ let rec path_of_module mexp =
   match mexp.mod_desc with
   | Tmod_ident (p,_) -> p
   | Tmod_apply(funct, arg, _coercion) when !Clflags.applicative_functors ->
-      Path.Papply(path_of_module funct, path_of_module arg)
+      Path.Papply(Longident.Kmod, path_of_module funct, path_of_module arg)
   | Tmod_constraint (mexp, _, _, _) ->
       path_of_module mexp
+  | Tmod_apply_type _ when !Clflags.applicative_functors ->
+      assert false (* TODO *)
   | (Tmod_structure _ | Tmod_functor _ | Tmod_apply_unit _ | Tmod_unpack _ |
     Tmod_apply _ | Tmod_apply_type _) ->
     raise Not_a_path

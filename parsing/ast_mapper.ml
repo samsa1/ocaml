@@ -110,10 +110,10 @@ let rec map_lid sub lid =
       let lid = map_loc_lid sub lid in
       let id = map_loc map_string sub id in
       Ldot (lid, id)
-  | Lapply (lid, lid') ->
+  | Lapply (k, lid, lid') ->
     let lid = map_loc_lid sub lid in
     let lid' = map_loc_lid sub lid' in
-    Lapply(lid, lid')
+    Lapply(k, lid, lid')
 
 and map_loc_lid sub loc_lid =
   map_loc map_lid sub loc_lid

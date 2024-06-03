@@ -244,7 +244,7 @@ let rec iter_path_apply p ~f =
   match p with
   | Pident _ -> ()
   | Pdot (p, _) -> iter_path_apply p ~f
-  | Papply (p1, p2) ->
+  | Papply (_, p1, p2) ->
      iter_path_apply p1 ~f;
      iter_path_apply p2 ~f;
      f p1 p2 (* after recursing, so we know both paths are well typed *)
