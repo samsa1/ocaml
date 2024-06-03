@@ -130,7 +130,7 @@ module Doc = struct
 
   let longident_kind f = function
     | Kmod -> ()
-    | Ktype -> pp f "type "
+    | Ktype -> Format_doc.fprintf f "type "
 
   let rec longident f = function
     | Lident s -> ident_of_name f s

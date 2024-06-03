@@ -101,11 +101,17 @@ let rec name ?(paren=kfalse) = function
   | Papply(_, p1, p2) -> name ~paren p1 ^ "(" ^ name ~paren p2 ^ ")"
   | Pextra_ty (p, Pext_ty) -> name ~paren p
 
+let longident_kind ppf = function
+  | Longident.Kmod -> ()
+  | Longident.Ktype -> Format_doc.fprintf ppf "type "
+
 let rec print ppf = function
   | Pident id -> Ident.print_with_scope ppf id
   | Pdot(p, s) | Pextra_ty (p, Pcstr_ty s) ->
       Format_doc.fprintf ppf "%a.%s" print p s
-  | Papply(_, p1, p2) -> Format_doc.fprintf ppf "%a(%a)" print p1 print p2
+  | Papply(k, p1, p2) ->
+      Format_doc.fprintf ppf "%a(%a%a)"
+        print p1 longident_kind k print p2
   | Pextra_ty (p, Pext_ty) -> print ppf p
 
 let rec head = function
