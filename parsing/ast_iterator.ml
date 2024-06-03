@@ -107,7 +107,7 @@ let rec iter_lid sub lid =
   | Ldot (lid, id) ->
     iter_loc_lid sub lid;
     iter_loc iter_string sub id
-  | Lapply (lid, lid') ->
+  | Lapply (_, lid, lid') ->
     iter_loc_lid sub lid;
     iter_loc_lid sub lid'
 

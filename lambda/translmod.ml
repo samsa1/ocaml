@@ -59,7 +59,7 @@ let global_path glob = Some(Pident glob)
 let functor_path path param =
   match path with
     None -> None
-  | Some p -> Some(Papply(p, Pident param))
+  | Some p -> Some(Papply(Longident.Kmod, p, Pident param))
 let field_path path field =
   match path with
     None -> None
@@ -537,7 +537,7 @@ and transl_module ~scopes cc rootpath mexp =
   | Tmod_apply_unit funct ->
       transl_apply ~scopes ~loc ~cc mexp.mod_env funct lambda_unit
   | Tmod_apply_type (funct, _) ->
-    transl_apply ~scopes ~loc ~cc mexp.mod_env funct lambda_unit
+      transl_apply ~scopes ~loc ~cc mexp.mod_env funct lambda_unit
   | Tmod_constraint(arg, _, _, ccarg) ->
       transl_module ~scopes (compose_coercions cc ccarg) rootpath arg
   | Tmod_unpack(arg, _) ->
@@ -1664,7 +1664,7 @@ let print_cycle ppf cycle =
 let rec collect_components = function
   | Pident id -> [Ident.name id]
   | Pdot (p, s) -> collect_components p @ [s]
-  | Papply (p, _) -> collect_components p
+  | Papply (_, p, _) -> collect_components p
   | Pextra_ty (p, _) -> collect_components p
 
 let get_relative_path top_module path =
