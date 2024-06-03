@@ -23,10 +23,14 @@
 
 *)
 
+type arg_kind =
+  | Ktype
+  | Kmod
+
 type t =
     Lident of string
   | Ldot of t * string
-  | Lapply of t * t
+  | Lapply of arg_kind * t * t
 
 val flatten: t -> string list
 val unflatten: string list -> t option

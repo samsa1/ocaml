@@ -32,12 +32,20 @@ let fmt_location f loc =
     if loc.loc_ghost then fprintf f " ghost";
   end
 
+let fmt_longident_kind f x =
+  match x with
+  | Longident.Kmod -> ()
+  | Longident.Ktype -> fprintf f "type "
+
 let rec fmt_longident_aux f x =
   match x with
   | Longident.Lident (s) -> fprintf f "%s" s;
   | Longident.Ldot (y, s) -> fprintf f "%a.%s" fmt_longident_aux y s;
-  | Longident.Lapply (y, z) ->
-      fprintf f "%a(%a)" fmt_longident_aux y fmt_longident_aux z
+  | Longident.Lapply (k, y, z) ->
+      fprintf f "%a(%a%a)"
+        fmt_longident_aux y
+        fmt_longident_kind k
+        fmt_longident_aux z
 
 let fmt_longident f x = fprintf f "\"%a\"" fmt_longident_aux x.txt
 
@@ -52,8 +60,8 @@ let rec fmt_path_aux f x =
   | Path.Pident (s) -> fprintf f "%a" fmt_ident s
   | Path.Pdot (y, s) | Path.(Pextra_ty (y, Pcstr_ty s)) ->
       fprintf f "%a.%s" fmt_path_aux y s
-  | Path.Papply (y, z) ->
-      fprintf f "%a(%a)" fmt_path_aux y fmt_path_aux z
+  | Path.Papply (k, y, z) ->
+      fprintf f "%a(%a%a)" fmt_path_aux y fmt_longident_kind k fmt_path_aux z
   | Path.Pextra_ty (y, Pext_ty) -> fmt_path_aux f y
 
 let fmt_path f x = fprintf f "\"%a\"" fmt_path_aux x
