@@ -128,11 +128,15 @@ module Doc = struct
     else
       Format_doc.fprintf ppf "%a.(%s)" print_longident longprefix txt
 
+  let longident_kind f = function
+    | Kmod -> ()
+    | Ktype -> Format_doc.fprintf f "type "
+
   let rec longident f = function
     | Lident s -> ident_of_name f s
     | Ldot(y,s) -> protect_longident f longident y s
-    | Lapply (y,s) ->
-        Format_doc.fprintf f "%a(%a)" longident y longident s
+    | Lapply (k, y,s) ->
+        Format_doc.fprintf f "%a(%a%a)" longident y longident_kind k longident s
 
   let tyvar ppf s =
     Format_doc.fprintf ppf "%s" (tyvar_of_name s)

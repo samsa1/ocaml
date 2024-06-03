@@ -99,4 +99,36 @@ module Swaping : functor (type a) (type b) -> sig type t = a type s = b end
 module Err5 : functor (type t) -> sig type nonrec t = t end = Id
 
 [%%expect{|
+Line 1, characters 62-64:
+1 | module Err5 : functor (type t) -> sig type nonrec t = t end = Id
+                                                                  ^^
+Error: Signature mismatch:
+       Modules do not match:
+         functor (X : T) -> ...
+       is not included in
+         functor (type t) -> ...
+       The functor was expected to be generative at this position
+|}]
+
+let f1 (x : List(type int).t) : List(type int).t = x
+
+module M = List(type int)
+
+let f2 (x : M.t) : List(type int).t = x
+
+[%%expect{|
+val f1 : List(type int).t -> List(type int).t = <fun>
+module M : sig type t = int list end
+val f2 : M.t -> List(type int).t = <fun>
+|}]
+
+let f_fail (x : List(type int).t) : List(type float).t = x
+
+[%%expect{|
+Line 1, characters 57-58:
+1 | let f_fail (x : List(type int).t) : List(type float).t = x
+                                                             ^
+Error: This expression has type "List(type int).t" = "int list"
+       but an expression was expected of type "List(type float).t" = "float list"
+       Type "int" is not compatible with type "float"
 |}]

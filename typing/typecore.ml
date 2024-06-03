@@ -5836,7 +5836,7 @@ and type_application env funct sargs =
             match m.mod_desc with
             | Tmod_ident (p, _) -> p
             | Tmod_apply (p1, p2, _) ->
-                Path.Papply(extract_path p1, extract_path p2)
+                Path.Papply(Longident.Kmod, extract_path p1, extract_path p2)
             | Tmod_constraint (p, _, _, _) ->
                 extract_path p
             | _ ->
@@ -5982,7 +5982,7 @@ and type_application env funct sargs =
             match m.mod_desc with
             | Tmod_ident (p, _) -> p
             | Tmod_apply (p1, p2, _) ->
-                Path.Papply(extract_path p1, extract_path p2)
+                Path.Papply(Longident.Kmod, extract_path p1, extract_path p2)
             | Tmod_constraint (p, _, _, _) ->
                 extract_path p
             | _ ->
