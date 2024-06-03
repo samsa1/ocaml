@@ -35,12 +35,20 @@ let fmt_location f loc =
     if loc.loc_ghost then fprintf f " ghost";
   end
 
+let fmt_longident_kind f x =
+  match x with
+  | Longident.Kmod -> ()
+  | Longident.Ktype -> fprintf f "type "
+
 let rec fmt_longident_aux f x =
   match x with
   | Longident.Lident (s) -> fprintf f "%s" s
   | Longident.Ldot (y, s) -> fprintf f "%a.%s" fmt_longident_aux y s
-  | Longident.Lapply (y, z) ->
-      fprintf f "%a(%a)" fmt_longident_aux y fmt_longident_aux z
+  | Longident.Lapply (k, y, z) ->
+      fprintf f "%a(%a%a)"
+        fmt_longident_aux y
+        fmt_longident_kind k
+        fmt_longident_aux z
 
 let fmt_longident f x = fprintf f "\"%a\"" fmt_longident_aux x
 

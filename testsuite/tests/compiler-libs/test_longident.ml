@@ -19,7 +19,7 @@ let flatten_dot = L.flatten (L.Ldot (L.Lident "M", "foo"))
 [%%expect {|
 val flatten_dot : string list = ["M"; "foo"]
 |}]
-let flatten_apply = L.flatten (L.Lapply (L.Lident "F", L.Lident "X"))
+let flatten_apply = L.flatten (L.Lapply (L.Kmod, L.Lident "F", L.Lident "X"))
 [%%expect {|
 >> Fatal error: Longident.flat
 Exception: Misc.Fatal_error.
@@ -47,13 +47,13 @@ let last_dot = L.last (L.Ldot (L.Lident "M", "foo"))
 [%%expect {|
 val last_dot : string = "foo"
 |}]
-let last_apply = L.last (L.Lapply (L.Lident "F", L.Lident "X"))
+let last_apply = L.last (L.Lapply (L.Kmod, L.Lident "F", L.Lident "X"))
 [%%expect {|
 >> Fatal error: Longident.last
 Exception: Misc.Fatal_error.
 |}]
 let last_dot_apply = L.last
-    (L.Ldot (L.Lapply (L.Lident "F", L.Lident "X"), "foo"))
+    (L.Ldot (L.Lapply (L.Kmod, L.Lident "F", L.Lident "X"), "foo"))
 [%%expect {|
 val last_dot_apply : string = "foo"
 |}];;
@@ -108,7 +108,8 @@ val parse_complex : parse_result =
    spec =
     L.Ldot
      (L.Ldot
-       (L.Lapply (L.Ldot (L.Lident "M", "F"), L.Ldot (L.Lident "M", "N")),
+       (L.Lapply (L.Kmod, L.Ldot (L.Lident "M", "F"),
+         L.Ldot (L.Lident "M", "N")),
        "N"),
      "foo");
    any_is_correct = true}
@@ -154,11 +155,11 @@ val mod_ext : parse_result =
      "D");
    spec =
     L.Ldot
-     (L.Lapply
-       (L.Ldot
-         (L.Lapply (L.Ldot (L.Lident "A", "F"),
-           L.Lapply (L.Ldot (L.Lident "B", "C"), L.Lident "X")),
-         "G"),
+     (L.Lapply (L.Kmod,
+       L.Ldot
+        (L.Lapply (L.Kmod, L.Ldot (L.Lident "A", "F"),
+          L.Lapply (L.Kmod, L.Ldot (L.Lident "B", "C"), L.Lident "X")),
+        "G"),
        L.Lident "Y"),
      "D");
    any_is_correct = true}
@@ -189,7 +190,7 @@ val str_path : string = "M.N.foo"
 
 let str_complex = string_of_longident
    (let (&.) p word = L.Ldot(p, word) in
-    L.Lapply(L.Lident "M" &. "F", L.Lident "M" &. "N") &. "N" &. "foo")
+    L.Lapply(L.Kmod, L.Lident "M" &. "F", L.Lident "M" &. "N") &. "N" &. "foo")
 [%%expect{|
 val str_complex : string = "M.F(M.N).N.foo"
 |}]

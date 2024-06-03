@@ -80,12 +80,17 @@ let remove_duplicates (type a) compare (li : a list) =
   let (_, rev_acc) = List.fold_left maybe_cons (S.empty, []) li in
   List.rev rev_acc
 
+let string_of_longident_kind = function
+    | Longident.Kmod -> ""
+    | Longident.Ktype -> "type "
+
 let rec string_of_longident li =
   match li with
   | Longident.Lident s -> s
   | Longident.Ldot(li, s) -> string_of_longident li ^ "." ^ s
-  | Longident.Lapply(l1, l2) ->
-      string_of_longident l1 ^ "(" ^ string_of_longident l2 ^ ")"
+  | Longident.Lapply(k, l1, l2) ->
+      string_of_longident l1 ^ "(" ^ string_of_longident_kind k
+                                   ^ string_of_longident l2 ^ ")"
 
 let rec string_of_text t =
   let rec iter t_ele =

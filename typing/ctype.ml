@@ -2999,7 +2999,7 @@ let rec concat_longident lid1 =
   function
     Lident s -> Ldot (lid1, s)
   | Ldot (lid2, s) -> Ldot (concat_longident lid1 lid2, s)
-  | Lapply (lid2, lid) -> Lapply (concat_longident lid1 lid2, lid)
+  | Lapply (k, lid2, lid) -> Lapply (k, concat_longident lid1 lid2, lid)
 
 let nondep_instance env level id ty =
   let ty = !nondep_type' env [id] ty in
