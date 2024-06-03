@@ -26,6 +26,10 @@ _______________
   module-dependent functions (aka modular explicits).
   (Samuel Vivien review by Leo White, ...)
 
+- #XXXXX: Added support for type arguments to modules :
+  `M(type int)` and `functor (type a) -> ...`
+  (Samuel Vivien, review by ...)
+
 ### Type system
 
 - #11891, #12507: Allow to name new locally abstract types in constructor type
