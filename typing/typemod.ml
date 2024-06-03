@@ -2038,11 +2038,6 @@ and transl_recmodule_modtypes env sdecls =
   in
   (dcl2, env2)
 
-let path_of_type ty =
- match ty.ctyp_desc with
- | Ttyp_constr (p, _, []) -> Some p
- | _ -> None
-
 (* Check that all core type schemes in a structure
    do not contain non-generalized type variable *)
 
@@ -2376,8 +2371,8 @@ type application_summary = {
 let simplify_app_summary app_view = match app_view.arg with
   | Unit ->
     Includemod.Error.Unit, Mty_signature []
-  | Type _ ->
-    Includemod.Error.Newtype, Mty_signature []
+  | Type arg ->
+    Includemod.Error.Newtype arg.path, Mty_signature []
   | Arg arg ->
     let mty = arg.arg.mod_type in
     match arg.is_syntactic_unit , arg.path with

@@ -914,6 +914,11 @@ let map_apply_arg f = function
 
 exception Not_a_path
 
+let path_of_type typ =
+  match typ.ctyp_desc with
+  | Ttyp_constr (p, _, []) -> p
+  | _ -> raise Not_a_path
+
 let rec path_of_module mexp =
   match mexp.mod_desc with
   | Tmod_ident (p,_) -> p
@@ -921,14 +926,17 @@ let rec path_of_module mexp =
       Path.Papply(Longident.Kmod, path_of_module funct, path_of_module arg)
   | Tmod_constraint (mexp, _, _, _) ->
       path_of_module mexp
-  | Tmod_apply_type _ when !Clflags.applicative_functors ->
-      assert false (* TODO *)
+  | Tmod_apply_type(funct, arg) when !Clflags.applicative_functors ->
+      Path.Papply(Longident.Ktype, path_of_module funct, path_of_type arg)
   | (Tmod_structure _ | Tmod_functor _ | Tmod_apply_unit _ | Tmod_unpack _ |
     Tmod_apply _ | Tmod_apply_type _) ->
     raise Not_a_path
 
 let path_of_module mexp =
- try Some (path_of_module mexp) with Not_a_path -> None
+  try Some (path_of_module mexp) with Not_a_path -> None
+
+let path_of_type ty =
+  try Some (path_of_type ty) with Not_a_path -> None
 
 let remove_module_constraint me =
   match me.mod_desc with
