@@ -4789,6 +4789,10 @@ and type_function
             end;
             (Some (id, ety), (path, fl))
         | Some (id, (path', fl'), ety), None ->
+            if !Clflags.principal
+                && get_level ty_expected < Btype.generic_level
+            then Location.prerr_warning loc
+                  (not_principal "this module unpacking");
             (Some (id, ety), (path', fl'))
       in
       !check_closed_package ~loc:name.loc ~env
@@ -5723,11 +5727,20 @@ and type_application env funct sargs =
               Texp_pack me -> me
             | _ -> assert false
           in
+          let path_of_type typ =
+            match typ.ctyp_desc with
+            | Ttyp_constr (p, _, []) -> p
+            | _ ->
+              raise (Error(sarg.pexp_loc, env,
+                Cannot_infer_functor_path))
+          in
           let rec extract_path m =
             match m.mod_desc with
             | Tmod_ident (p, _) -> p
             | Tmod_apply (p1, p2, _) ->
-                Path.Papply(extract_path p1, extract_path p2)
+                Path.Papply(Longident.Kmod, extract_path p1, extract_path p2)
+            | Tmod_apply_type (p1, t2) ->
+                Path.Papply(Longident.Ktype, extract_path p1, path_of_type t2)
             | Tmod_constraint (p, _, _, _) ->
                 extract_path p
             | _ ->

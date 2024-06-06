@@ -44,7 +44,7 @@ let rec equiv p1 p2 =
         (Pident id1, Pident id2) -> Ident.equiv id1 id2
       | (Pdot(p1, s1), Pdot(p2, s2)) ->
         s1 = s2 && equiv p1 p2
-      | (Papply(fun1, arg1), Papply(fun2, arg2)) ->
+      | (Papply(_, fun1, arg1), Papply(_, fun2, arg2)) ->
         equiv fun1 fun2 && equiv arg1 arg2
       | (Pextra_ty (p1, t1), Pextra_ty(p2, t2)) ->
         let same_extra = match t1, t2 with
@@ -107,7 +107,7 @@ let rec scope = function
 let rec contains id = function
     Pident id' -> Ident.same id' id
   | Pdot(p, _) | Pextra_ty(p, _) -> contains id p
-  | Papply(p1, p2) -> contains id p1 || contains id p2
+  | Papply(_, p1, p2) -> contains id p1 || contains id p2
 
 let subst id_map p =
   let exception Unchanged in
@@ -119,12 +119,12 @@ let subst id_map p =
     end
   | Pdot(p, s) -> Pdot(aux p, s)
   | Pextra_ty(p, e) -> Pextra_ty(aux p, e)
-  | Papply(p1, p2) ->
+  | Papply(k, p1, p2) ->
     let p1, b1 = try aux p1, false with Unchanged -> p1, true in
     let p2, b2 = try aux p2, false with Unchanged -> p2, true in
     if b1 && b2
     then raise Unchanged
-    else Papply(p1, p2)
+    else Papply(k, p1, p2)
   in
   try aux p with Unchanged -> p
 
@@ -140,7 +140,7 @@ let unbounded_unscoped idl p =
             else raise (Escape us)
         end
     | Pdot (p, _) | Pextra_ty (p, _) -> aux p
-    | Papply (p1, p2) -> aux p1; aux p2
+    | Papply (_, p1, p2) -> aux p1; aux p2
   in try aux p; None with Escape id -> Some id
 
 let kfalse _ = false
