@@ -162,7 +162,7 @@ Error: This expression has type "List(type int).t" = "int list"
        Type "int" is not compatible with type "float"
 |}]
 
-
+(* Test error message if the type is a parametric type *)
 let f_fail2 (x : List(type list).t) = x
 
 [%%expect{|
@@ -196,4 +196,68 @@ Line 5, characters 23-40:
 5 | let fail_in_path2 (x : IdTyp(type int).t) = x
                            ^^^^^^^^^^^^^^^^^
 Error: The functor was expected to be applicative at this position
+|}]
+
+
+(** Check that type-functors receive the same checks as applicative functors
+  All the following tests go by two : one with a module argument and one with
+  a type argument to check that both work the same way
+*)
+
+(* Preliminaries *)
+
+module Gen () : Typ = struct type t = int end
+
+[%%expect{|
+module Gen : functor () -> Typ
+|}]
+
+
+(* No unpacking of first-class module in applicative functors *)
+
+module F1app (T : Typ) = struct
+  let m = (module T : Typ)
+  module M = (val m)
+end
+
+[%%expect{|
+Line 3, characters 13-20:
+3 |   module M = (val m)
+                 ^^^^^^^
+Error: This expression creates fresh types.
+       It is not allowed inside applicative functors.
+|}]
+
+module F1typ (type a) = struct
+  module T = struct type t = a end
+  let m = (module T : Typ)
+  module M = (val m)
+end
+
+[%%expect{|
+Line 4, characters 13-20:
+4 |   module M = (val m)
+                 ^^^^^^^
+Error: This expression creates fresh types.
+       It is not allowed inside applicative functors.
+|}]
+
+module F2app (T : Typ) = Gen ()
+
+[%%expect{|
+Line 1, characters 25-31:
+1 | module F2app (T : Typ) = Gen ()
+                             ^^^^^^
+Error: This expression creates fresh types.
+       It is not allowed inside applicative functors.
+|}]
+
+module F2typ (type a) = Gen ()
+
+[%%expect{|
+Line 1, characters 24-30:
+1 | module F2typ (type a) = Gen ()
+                            ^^^^^^
+Error: This expression creates fresh types.
+       It is not allowed inside applicative functors.
 |}]
