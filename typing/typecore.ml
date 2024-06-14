@@ -4589,6 +4589,7 @@ and type_newtype
     else
       newvar ()
   in
+  let compare = newvar () in
   (* Use [with_local_level] just for scoping *)
   with_local_level begin fun () ->
     (* Create a fake abstract type declaration for [name]. *)
@@ -4599,7 +4600,7 @@ and type_newtype
     let result, exp_type = type_body new_env in
     (* Replace every instance of this type constructor in the resulting
        type. *)
-    let seen = Hashtbl.create 8 in
+    (* let seen = Hashtbl.create 8 in
     let rec replace t =
       if Hashtbl.mem seen (get_id t) then ()
       else begin
@@ -4608,9 +4609,14 @@ and type_newtype
         | Tconstr (Path.Pident id', _, _) when id == id' -> link_type t ty
         | _ -> Btype.iter_type_expr replace t
       end
-    in
-    let ety = Subst.type_expr Subst.identity exp_type in
-    replace ety;
+    in *)
+    (* let ety = Subst.type_expr Subst.identity exp_type in *)
+    let ety = exp_type in
+    let decl =
+        new_local_type ~loc ~manifest_and_scope:(ty, get_scope ty) Definition in
+    let new_env = Env.add_type ~check:true id decl env in
+    unify new_env compare ety;
+    (* replace ety; *)
     (result, ety)
   end
 
