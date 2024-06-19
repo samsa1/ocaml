@@ -183,6 +183,11 @@ let is_omitted = function
   | Arg _ -> false
   | Omitted () -> true
 
+(* let rec has_n_eargs arity oargs =
+  arity = 0 && match oargs with
+  | (_, Some (Targ_exp _)) :: tl -> has_n_eargs (arity - 1) tl
+  | _ -> false *)
+
 let rec transl_exp ~scopes e =
   transl_exp1 ~scopes ~in_new_scope:false e
 
@@ -225,7 +230,7 @@ and transl_exp0 ~in_new_scope ~scopes e =
     && List.for_all (fun (_, arg) -> not (is_omitted arg)) oargs ->
       let argl, extra_args = cut p.prim_arity oargs in
       let arg_exps =
-         List.map (function _, Arg x -> x | _, Omitted () -> assert false) argl
+         List.map (function _, Arg (Targ_exp x) -> x | _, Omitted () -> assert false) argl
       in
       let args = transl_list ~scopes arg_exps in
       let prim_exp = if extra_args = [] then Some e else None in
@@ -566,6 +571,9 @@ and transl_exp0 ~in_new_scope ~scopes e =
   | Texp_struct_item (si, e) ->
       !transl_struct_item ~scopes [] None si (fun _ -> transl_exp ~scopes e)
 
+and transl_arg = function
+    Targ_exp e -> transl_exp e
+
 and pure_module m =
   match m.mod_desc with
     Tmod_ident _ -> Alias
@@ -718,9 +726,9 @@ and transl_apply ~scopes
     | [] ->
         lapply lam (List.rev_map fst args)
   in
-  let transl_arg arg = Typedtree.map_apply_arg (transl_exp ~scopes) arg in
+  let transl_arg' arg = Typedtree.map_apply_arg (transl_arg ~scopes) arg in
   (build_apply lam [] (List.map (fun (l, arg) ->
-                                   transl_arg arg,
+                                   transl_arg' arg,
                                    Btype.is_optional l)
                                 sargs)
      : Lambda.lambda)

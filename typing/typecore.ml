@@ -2875,7 +2875,8 @@ type untyped_apply_arg =
        [level] is the level of the function arrow. *)
   | Typed_arg of
        {
-        targ : Typedtree.expression;
+        targ : Typedtree.argument;
+        loc : Location.t option;
        }
     (* Already typed argument. For example with modular explicits. *)
 
@@ -2906,7 +2907,7 @@ let previous_arg_loc rev_args ~funct =
     rev_args
     |> List.find_map (function
         | _, Arg (Known_arg { sarg = {pexp_loc = loc; _ }}
-                  | Typed_arg { targ = {exp_loc = loc; _ }}
+                  | Typed_arg { loc = Some loc }
                   | Unknown_arg { sarg = {pexp_loc = loc; _}}) ->
             Some loc
         | _ -> None)
@@ -3019,7 +3020,11 @@ let collect_functor_module_arg ~env ~sarg ~rev_args ~funct ~me ~optyp
   let modl, texp =
     type_tfunctor_module_arg ~env ~sarg ~me ~optyp
                              ~pack:tfun.pack ~pack0:tfun0.pack in
-  let arg = Arg (Typed_arg { targ = texp }) in
+  let arg = Arg (Typed_arg {
+      targ = Targ_exp texp;
+      loc = Some sarg.pexp_loc;
+    })
+  in
   match path_of_module modl with
   | Some path ->
     let ty_ret =
@@ -3102,7 +3107,11 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
                 let modl, texp =
                   type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack
                                            ~pack0:pack in
-                let arg = Typed_arg { targ = texp } in
+                let arg = Typed_arg {
+                    targ = Targ_exp texp;
+                    loc = Some sarg.pexp_loc
+                  }
+                in
                 let ty_res =
                   match path_of_module modl with
                   | Some path ->
@@ -3364,7 +3373,7 @@ let rec is_nonexpansive ~pure exp =
     begin match p, args with
     | { Primitive.prim_name = ("%raise" | "%reraise" | "%raise_notrace"
                               | "%identity") },
-      [Nolabel, Arg e] ->
+      [Nolabel, Arg (Targ_exp e)] ->
         not pure && is_nonexpansive ~pure e
     | _ ->
         false
@@ -3431,7 +3440,7 @@ and is_nonexpansive_opt ~pure = function
 
 and is_nonexpansive_arg ~pure = function
   | Omitted () -> true
-  | Arg e -> is_nonexpansive ~pure e
+  | Arg (Targ_exp e) -> is_nonexpansive ~pure e
 
 let maybe_expansive e = not (is_nonexpansive ~pure:false e)
 let is_nonexpansive ?(pure = false) e = is_nonexpansive ~pure e
@@ -6314,7 +6323,7 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
             let ty =
               option_none env (instance (tpoly_get_mono ty_arg)) sarg.pexp_loc
             in
-            make_args ((l, Arg ty) :: args) ty_fun
+            make_args ((l, Arg (Targ_exp ty)) :: args) ty_fun
         | Tarrow (l,_,ty_res',_) when l = Nolabel || !Clflags.classic ->
             List.rev args, ty_fun, no_labels ty_res'
         | Tvar _ ->  List.rev args, ty_fun, false
@@ -6364,7 +6373,7 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
           {texp with exp_type = ty_res; exp_desc =
            Texp_apply
              (texp,
-              args @ [Nolabel, Arg eta_var])}
+              args @ [Nolabel, Arg (Targ_exp eta_var)])}
         in
         let cases = [ case eta_pat e ] in
         let cases_loc = { texp.exp_loc with loc_ghost = true } in
@@ -6403,7 +6412,7 @@ and type_apply_arg env ~app_loc (lbl, arg) =
       let arg = type_expect env sarg (mk_expected ty_arg) in
       if is_optional lbl then
         unify_exp ~sexp:sarg env arg (type_option(newvar()));
-      (lbl, Arg arg)
+      (lbl, Arg (Targ_exp arg))
   | Arg (Known_arg { sarg; ty_arg; ty_arg0; wrapped_in_some }) ->
       let ty_arg', vars = tpoly_get_poly ty_arg in
       let arg =
@@ -6447,14 +6456,14 @@ and type_apply_arg env ~app_loc (lbl, arg) =
           {arg with exp_type = instance arg.exp_type}
         end
       in
-      (lbl, Arg arg)
+      (lbl, Arg (Targ_exp arg))
   | Arg (Typed_arg { targ }) ->
       (lbl, Arg targ)
   | Arg (Eliminated_optional_arg { ty_arg; _ }) ->
       let arg =
         option_none env (instance ty_arg) Location.none
       in
-      (lbl, Arg arg)
+      (lbl, Arg (Targ_exp arg))
   | Omitted _ as arg -> (lbl, arg)
 
 and type_application env app_loc funct sargs =
@@ -6481,7 +6490,7 @@ and type_application env app_loc funct sargs =
       in
       let exp = type_expect env sarg (mk_expected ty_param) in
       check_partial_application ~statement:false exp;
-      ([Nolabel, Arg exp], ty_ret)
+      ([Nolabel, Arg (Targ_exp exp)], ty_ret)
   | _ ->
       let ty = funct.exp_type in
       let ignore_labels =
