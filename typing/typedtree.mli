@@ -195,7 +195,7 @@ and expression_desc =
         Parameters' effects are run left-to-right when an n-ary function is
         saturated with n arguments.
     *)
-  | Texp_apply of expression * (arg_label * expression option) list
+  | Texp_apply of expression * (arg_label * argument option) list
         (** E0 ~l1:E1 ... ~ln:En
 
             The expression can be None if the expression is abstracted over
@@ -286,6 +286,9 @@ and expression_desc =
   | Texp_extension_constructor of Longident.t loc * Path.t
   | Texp_open of open_declaration * expression
         (** let open[!] M in e *)
+
+and argument =
+    Targ_exp of expression
 
 and meth =
     Tmeth_name of string

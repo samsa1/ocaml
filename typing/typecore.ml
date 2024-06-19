@@ -2594,7 +2594,7 @@ let rec is_nonexpansive exp =
       List.for_all (fun vb -> is_nonexpansive vb.vb_expr) pat_exp_list &&
       is_nonexpansive body
   | Texp_apply(e, (_,None)::el) ->
-      is_nonexpansive e && List.for_all is_nonexpansive_opt (List.map snd el)
+      is_nonexpansive e && List.for_all is_nonexpansive_aopt (List.map snd el)
   | Texp_match(e, cases, _, _) ->
      (* Not sure this is necessary, if [e] is nonexpansive then we shouldn't
          care if there are exception patterns. But the previous version enforced
@@ -2665,7 +2665,7 @@ let rec is_nonexpansive exp =
              Val_prim {Primitive.prim_name =
                          ("%raise" | "%reraise" | "%raise_notrace")}}) },
       [Nolabel, Some e]) ->
-     is_nonexpansive e
+     is_nonexpansive_arg e
   | Texp_array (_ :: _)
   | Texp_apply _
   | Texp_try _
@@ -2718,6 +2718,13 @@ and is_nonexpansive_mod mexp =
 and is_nonexpansive_opt = function
   | None -> true
   | Some e -> is_nonexpansive e
+
+and is_nonexpansive_arg = function
+  | Targ_exp e -> is_nonexpansive e
+
+and is_nonexpansive_aopt = function
+  | None -> true
+  | Some (Targ_exp e) -> is_nonexpansive e
 
 let maybe_expansive e = not (is_nonexpansive e)
 
@@ -5356,7 +5363,7 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
         match get_desc (expand_head env ty_fun) with
         | Tarrow (l,ty_arg,ty_fun,_) when is_optional l ->
             let ty = option_none env (instance ty_arg) sarg.pexp_loc in
-            make_args ((l, Some ty) :: args) ty_fun
+            make_args ((l, Some (Targ_exp ty)) :: args) ty_fun
         | Tarrow (l,_,ty_res',_) when l = Nolabel || !Clflags.classic ->
             List.rev args, ty_fun, no_labels ty_res'
         | Tvar _ ->  List.rev args, ty_fun, false
@@ -5406,7 +5413,7 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
           {texp with exp_type = ty_res; exp_desc =
            Texp_apply
              (texp,
-              args @ [Nolabel, Some eta_var])}
+              args @ [Nolabel, Some (Targ_exp eta_var)])}
         in
         let cases = [ case eta_pat e ] in
         let cases_loc = { texp.exp_loc with loc_ghost = true } in
@@ -5502,7 +5509,7 @@ and type_application env funct sargs =
       let arg = type_expect env sarg (mk_expected ty_arg) in
       if is_optional lbl then
         unify_exp env arg (type_option(newvar()));
-      arg
+      Targ_exp arg
     in
     (ty_res, (lbl, Some (arg, Some sarg.pexp_loc)) :: typed_args)
   in
@@ -5562,13 +5569,13 @@ and type_application env funct sargs =
         and optional = is_optional l in
         let use_arg sarg l' =
           if not optional || is_optional l' then
-            (fun () -> type_argument env sarg ty ty0)
+            (fun () -> Targ_exp (type_argument env sarg ty ty0))
           else begin
             may_warn sarg.pexp_loc
               (not_principal "using an optional argument here");
-            (fun () -> option_some env (type_argument env sarg
+            (fun () -> Targ_exp (option_some env (type_argument env sarg
                                           (extract_option_type env ty)
-                                          (extract_option_type env ty0)))
+                                          (extract_option_type env ty0))))
           end
         in
         let eliminate_optional_arg () =
@@ -5576,7 +5583,7 @@ and type_application env funct sargs =
             (Warnings.Non_principal_labels "eliminated optional argument");
           eliminated_optional_arguments :=
             (l,ty,lv) :: !eliminated_optional_arguments;
-          (fun () -> option_none env (instance ty) Location.none)
+          (fun () -> Targ_exp (option_none env (instance ty) Location.none))
         in
         let remaining_sargs, arg =
           if ignore_labels then begin
@@ -5717,6 +5724,10 @@ and type_application env funct sargs =
                   Option.value ~default:t0
                       (instance_funct ~id_in:(Ident.of_unscoped id0)
                                       ~p_out:path ~fixed:false t0) in
+<<<<<<< HEAD
+=======
+              let arg = Some ((fun () -> Targ_exp texp), Some sarg.pexp_loc) in
+>>>>>>> cf51a84d17 (Added indirection in type tree)
               type_args ((l, arg)::args) ty_res ty_res0 remaining_sargs
             with Not_found ->
               try
@@ -5778,7 +5789,7 @@ and type_application env funct sargs =
         filter_arrow env (instance funct.exp_type) Nolabel in
       let exp = type_expect env sarg (mk_expected ty_arg) in
       check_partial_application ~statement:false exp;
-      ([Nolabel, Some exp], ty_res)
+      ([Nolabel, Some Targ_exp exp], ty_res)
   | _ ->
       let ty = funct.exp_type in
       type_args [] ty (instance ty) sargs
