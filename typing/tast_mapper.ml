@@ -21,6 +21,7 @@ open Typedtree
 
 type mapper =
   {
+    arg : mapper -> argument -> argument;
     attribute : mapper -> attribute -> attribute;
     attributes : mapper -> attributes -> attributes;
     binding_op: mapper -> binding_op -> binding_op;
@@ -360,7 +361,7 @@ let expr sub x =
     | Texp_apply (exp, list) ->
         Texp_apply (
           sub.expr sub exp,
-          List.map (tuple2 id (Option.map (sub.expr sub))) list
+          List.map (tuple2 id (Option.map (sub.arg sub))) list
         )
     | Texp_match (exp, cases, eff_cases, p) ->
         Texp_match (
@@ -508,6 +509,9 @@ let binding_op sub x =
   let bop_loc = sub.location sub x.bop_loc in
   let bop_op_name = map_loc sub x.bop_op_name in
   { x with bop_loc; bop_op_name; bop_exp = sub.expr sub x.bop_exp }
+
+let arg sub = function
+    Targ_exp e -> Targ_exp (sub.expr sub e)
 
 let signature sub x =
   let sig_final_env = sub.env sub x.sig_final_env in
@@ -868,6 +872,7 @@ let env _sub x = x
 
 let default =
   {
+    arg;
     attribute;
     attributes;
     binding_op;

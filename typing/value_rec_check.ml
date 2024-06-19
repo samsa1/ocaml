@@ -119,7 +119,7 @@ let is_ref : Types.value_description -> bool = function
 
 (* See the note on abstracted arguments in the documentation for
     Typedtree.Texp_apply *)
-let is_abstracted_arg : arg_label * expression option -> bool = function
+let is_abstracted_arg : arg_label * argument option -> bool = function
   | (_, None) -> true
   | (_, Some _) -> false
 
@@ -639,7 +639,7 @@ let rec expression : Typedtree.expression -> term_judg =
         ------------------
         G |- ref e: m
       *)
-      expression arg << Guard
+      argument arg << Guard
     | Texp_apply (e, args)  ->
         (* [args] may contain omitted arguments, corresponding to labels in
            the function's type that were not passed in the actual application.
@@ -666,8 +666,8 @@ let rec expression : Typedtree.expression -> term_judg =
           | _ :: _ -> Dereference
         in
         join [expression e << function_mode;
-              list expression applied << Dereference;
-              list expression delayed << Guard]
+              list argument applied << Dereference;
+              list argument delayed << Guard]
     | Texp_tuple exprs ->
       list expression exprs << Guard
     | Texp_array exprs ->
@@ -974,6 +974,9 @@ and function_body body =
 and binding_op : Typedtree.binding_op -> term_judg =
   fun bop ->
     join [path bop.bop_op_path; expression bop.bop_exp]
+
+and argument = function
+    Targ_exp e -> expression e
 
 and class_structure : Typedtree.class_structure -> term_judg =
   fun cs -> list class_field cs.cstr_fields
