@@ -198,8 +198,8 @@ let kind_and_message = function
          Pstr_eval
            ({pexp_desc=Pexp_apply
                  ({pexp_desc=Pexp_ident{txt=Longident.Lident id}},
-                  [Nolabel,{pexp_desc=Pexp_constant
-                                {pconst_desc=Pconst_string(s,_,_); _}}])
+                  [Nolabel,Parg_exp {pexp_desc=Pexp_constant
+                                      {pconst_desc=Pconst_string(s,_,_); _}}])
             },_)}] ->
       Some (id, s)
   | PStr[

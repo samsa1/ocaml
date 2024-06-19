@@ -164,7 +164,7 @@ let mkuminus ~sloc ~oploc name arg =
     Pexp_constant({pconst_desc = Pconst_float (f, m); pconst_loc=_}), [] ->
       Pexp_constant(mkconst ~loc:sloc (Pconst_float(neg_string f, m)))
   | _ ->
-      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, arg])
+      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, Parg_exp arg])
 
 let mkuplus ~sloc ~oploc name arg =
   let desc = arg.pexp_desc in
@@ -177,7 +177,7 @@ let mkuplus ~sloc ~oploc name arg =
     [] ->
       Pexp_constant(mkconst ~loc:sloc desc)
   | _ ->
-      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, arg])
+      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, Parg_exp arg])
 
 let mk_attr ~loc name payload =
   Builtin_attributes.(register_attr Parser name);
@@ -389,8 +389,9 @@ let mk_indexop_expr array_indexing_operator ~loc
   let fn = array_indexing_operator.name loc dot ~assign paren n in
   let set_arg = match set_expr with
     | None -> []
-    | Some expr -> [Nolabel, expr] in
-  let args = (Nolabel,array) :: index @ set_arg in
+    | Some expr -> [Nolabel, Parg_exp expr] in
+  let index = List.map (fun (l, e) -> (l, Parg_exp e)) index in
+  let args = (Nolabel, Parg_exp array) :: index @ set_arg in
   mkexp ~loc (Pexp_apply(ghexp ~loc (Pexp_ident fn), args))
 
 let indexop_unclosed_error loc_s s loc_e =
@@ -2486,7 +2487,7 @@ fun_expr:
       { unclosed "do" $loc($1) "done" $loc($2) }
 ;
 %inline expr_:
-  | simple_expr nonempty_llist(labeled_simple_expr)
+  | simple_expr nonempty_llist(labeled_simple_arg)
       { Pexp_apply($1, $2) }
   | expr_comma_list %prec below_COMMA
       { Pexp_tuple($1) }
@@ -2495,7 +2496,7 @@ fun_expr:
   | name_tag simple_expr %prec below_HASH
       { Pexp_variant($1, Some $2) }
   | e1 = fun_expr op = op(infix_operator) e2 = expr
-      { mkinfix e1 op e2 }
+      { mkinfix (Parg_exp e1) op (Parg_exp e2) }
   | subtractive expr %prec prec_unary_minus
       { mkuminus ~sloc:$sloc ~oploc:$loc($1) $1 $2 }
   | additive expr %prec prec_unary_plus
@@ -2551,9 +2552,9 @@ simple_expr:
   | name_tag %prec prec_constant_constructor
       { Pexp_variant($1, None) }
   | op(PREFIXOP) simple_expr
-      { Pexp_apply($1, [Nolabel,$2]) }
+      { Pexp_apply($1, [Nolabel,Parg_exp $2]) }
   | op(BANG {"!"}) simple_expr
-      { Pexp_apply($1, [Nolabel,$2]) }
+      { Pexp_apply($1, [Nolabel,Parg_exp $2]) }
   | LBRACELESS object_expr_content GREATERRBRACE
       { Pexp_override $2 }
   | LBRACELESS object_expr_content error
@@ -2572,7 +2573,7 @@ simple_expr:
   | simple_expr HASH mkrhs(label)
       { Pexp_send($1, $3) }
   | simple_expr op(HASHOP) simple_expr
-      { mkinfix $1 $2 $3 }
+      { mkinfix (Parg_exp $1) $2 (Parg_exp $3) }
   | extension
       { Pexp_extension $1 }
   | od=open_dot_declaration DOT mkrhs(LPAREN RPAREN {Lident "()"})
@@ -2645,6 +2646,10 @@ labeled_simple_expr:
         (Optional label, mkexpvar ~loc label) }
   | OPTLABEL simple_expr %prec below_HASH
       { (Optional $1, $2) }
+;
+labeled_simple_arg:
+    labeled_simple_expr
+      { let (l, e) = $1 in (l, Parg_exp e) }
 ;
 %inline lident_list:
   xs = mkrhs(LIDENT)+

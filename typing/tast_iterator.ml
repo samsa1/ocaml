@@ -18,6 +18,7 @@ open Typedtree
 
 type iterator =
   {
+    arg: iterator -> argument -> unit;
     attribute: iterator -> attribute -> unit;
     attributes: iterator -> attributes -> unit;
     binding_op: iterator -> binding_op -> unit;
@@ -308,7 +309,7 @@ let expr sub {exp_loc; exp_extra; exp_desc; exp_env; exp_attributes; _} =
       function_body sub body
   | Texp_apply (exp, list) ->
       sub.expr sub exp;
-      List.iter (fun (_, o) -> Option.iter (sub.expr sub) o) list
+      List.iter (fun (_, o) -> Option.iter (sub.arg sub) o) list
   | Texp_match (exp, cases, effs, _) ->
       sub.expr sub exp;
       List.iter (sub.case sub) cases;
@@ -389,6 +390,9 @@ let binding_op sub {bop_loc; bop_op_name; bop_exp; _} =
   sub.location sub bop_loc;
   iter_loc sub bop_op_name;
   sub.expr sub bop_exp
+
+let arg sub = function
+    Targ_exp e -> sub.expr sub e
 
 let signature sub {sig_items; sig_final_env; _} =
   sub.env sub sig_final_env;
@@ -650,6 +654,7 @@ let item_declaration _sub _ = ()
 
 let default_iterator =
   {
+    arg;
     attribute;
     attributes;
     binding_op;

@@ -103,7 +103,7 @@ and expression_desc =
   | Texp_constant of constant
   | Texp_let of rec_flag * value_binding list * expression
   | Texp_function of function_param list * function_body
-  | Texp_apply of expression * (arg_label * expression option) list
+  | Texp_apply of expression * (arg_label * argument option) list
   | Texp_match of expression * computation case list * value case list * partial
   | Texp_try of expression * value case list * value case list
   | Texp_tuple of expression list
@@ -200,6 +200,9 @@ and binding_op =
     bop_exp : expression;
     bop_loc : Location.t;
   }
+
+and argument =
+    Targ_exp of expression
 
 (* Value expressions for the class language *)
 

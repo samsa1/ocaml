@@ -30,6 +30,7 @@ open Location
 module String = Misc.Stdlib.String
 
 type mapper = {
+  arg: mapper -> argument -> argument;
   attribute: mapper -> attribute -> attribute;
   attributes: mapper -> attribute list -> attribute list;
   binding_op: mapper -> binding_op -> binding_op;
@@ -450,7 +451,7 @@ module E = struct
         (map_opt (map_constraint sub) c)
         (map_function_body sub b)
     | Pexp_apply (e, l) ->
-        apply ~loc ~attrs (sub.expr sub e) (List.map (map_snd (sub.expr sub)) l)
+        apply ~loc ~attrs (sub.expr sub e) (List.map (map_snd (sub.arg sub)) l)
     | Pexp_match (e, pel) ->
         match_ ~loc ~attrs (sub.expr sub e) (sub.cases sub pel)
     | Pexp_try (e, pel) -> try_ ~loc ~attrs (sub.expr sub e) (sub.cases sub pel)
@@ -521,6 +522,9 @@ module E = struct
     let exp = sub.expr sub pbop_exp in
     let loc = sub.location sub pbop_loc in
     binding_op op pat exp loc
+
+  let map_arg sub = function
+      Parg_exp e -> Parg_exp (sub.expr sub e)
 
 end
 
@@ -675,6 +679,7 @@ let default_mapper =
     pat = P.map;
     expr = E.map;
     binding_op = E.map_binding_op;
+    arg = E.map_arg;
 
     module_declaration =
       (fun this {pmd_name; pmd_type; pmd_attributes; pmd_loc} ->

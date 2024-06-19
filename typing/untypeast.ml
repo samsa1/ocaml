@@ -448,7 +448,8 @@ let expression sub exp =
           List.fold_right (fun (label, expo) list ->
               match expo with
                 None -> list
-              | Some exp -> (label, sub.expr sub exp) :: list
+              | Some (Targ_exp exp) ->
+                  (label, Parg_exp (sub.expr sub exp)) :: list
           ) list [])
     | Texp_match (exp, cases, eff_cases, _) ->
       let merged_cases = List.map (sub.case sub) cases

@@ -119,7 +119,7 @@ let is_ref : Types.value_description -> bool = function
 
 (* See the note on abstracted arguments in the documentation for
     Typedtree.Texp_apply *)
-let is_abstracted_arg : arg_label * expression option -> bool = function
+let is_abstracted_arg : arg_label * argument option -> bool = function
   | (_, None) -> true
   | (_, Some _) -> false
 
@@ -632,7 +632,7 @@ let rec expression : Typedtree.expression -> term_judg =
       path pth << Dereference
     | Texp_instvar (self_path, pth, _inst_var) ->
         join [path self_path << Dereference; path pth]
-    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, [_, Some arg])
+    | Texp_apply ({exp_desc = Texp_ident (_, _, vd)}, [_, Some (Targ_exp arg)])
       when is_ref vd ->
       (*
         G |- e: m[Guard]
@@ -653,7 +653,7 @@ let rec expression : Typedtree.expression -> term_judg =
         let rec split_args ~has_omitted_arg = function
           | [] -> [], []
           | (_, None) :: rest -> split_args ~has_omitted_arg:true rest
-          | (_, Some arg) :: rest ->
+          | (_, Some (Targ_exp arg)) :: rest ->
             let applied, delayed = split_args ~has_omitted_arg rest in
             if has_omitted_arg
             then applied, arg :: delayed
