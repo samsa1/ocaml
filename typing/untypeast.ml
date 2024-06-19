@@ -455,7 +455,7 @@ let expression sub exp =
           List.fold_right (fun (label, arg) list ->
               match arg with
               | Omitted () -> list
-              | Arg exp -> (label, sub.expr sub exp) :: list
+              | Arg (Targ_exp exp) -> (label, sub.expr sub exp) :: list
           ) list [])
     | Texp_match (exp, cases, eff_cases, _) ->
       let merged_cases = List.map (sub.case sub) cases

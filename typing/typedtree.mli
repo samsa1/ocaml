@@ -299,6 +299,9 @@ and expression_desc =
   | Texp_extension_constructor of Longident.t loc * Path.t
   | Texp_struct_item of structure_item * expression
 
+and argument =
+    Targ_exp of expression
+
 and meth =
     Tmeth_name of string
   | Tmeth_val of Ident.t
@@ -380,7 +383,9 @@ and ('a, 'b) arg_or_omitted =
   | Arg of 'a
   | Omitted of 'b
 
-and apply_arg = (expression, unit) arg_or_omitted
+and apply_arg = (argument, unit) arg_or_omitted
+
+and apply_arg_exp = (expression, unit) arg_or_omitted
 
 (* Value expressions for the class language *)
 
@@ -399,7 +404,7 @@ and class_expr_desc =
   | Tcl_fun of
       arg_label * pattern * (Ident.t * expression) list
       * class_expr * partial
-  | Tcl_apply of class_expr * (arg_label * apply_arg) list
+  | Tcl_apply of class_expr * (arg_label * apply_arg_exp) list
   | Tcl_let of rec_flag * value_binding list *
                   (Ident.t * expression) list * class_expr
   | Tcl_constraint of

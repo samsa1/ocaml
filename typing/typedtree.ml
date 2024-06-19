@@ -206,7 +206,12 @@ and ('a, 'b) arg_or_omitted =
   | Arg of 'a
   | Omitted of 'b
 
-and apply_arg = (expression, unit) arg_or_omitted
+and apply_arg = (argument, unit) arg_or_omitted
+
+and apply_arg_exp = (expression, unit) arg_or_omitted
+
+and argument =
+    Targ_exp of expression
 
 (* Value expressions for the class language *)
 
@@ -225,7 +230,7 @@ and class_expr_desc =
   | Tcl_fun of
       arg_label * pattern * (Ident.t * expression) list
       * class_expr * partial
-  | Tcl_apply of class_expr * (arg_label * apply_arg) list
+  | Tcl_apply of class_expr * (arg_label * apply_arg_exp) list
   | Tcl_let of rec_flag * value_binding list *
                   (Ident.t * expression) list * class_expr
   | Tcl_constraint of
