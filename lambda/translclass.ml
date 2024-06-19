@@ -437,7 +437,11 @@ let rec build_object_init ~scopes cl_table obj params inh_init obj_init cl =
       let (inh_init, obj_init) =
         build_object_init ~scopes cl_table obj params inh_init obj_init cl
       in
-      (inh_init, transl_apply ~scopes obj_init oexprs Loc_unknown)
+      let oargs =
+        List.map (fun (l, o) ->
+            (l, Typedtree.map_apply_arg (fun e -> Targ_exp e) o)) oexprs
+      in
+      (inh_init, transl_apply ~scopes obj_init oargs Loc_unknown)
   | Tcl_let (rec_flag, defs, vals, cl) ->
       (* See comment on the [Tcl_fun] case for the meaning of [vals] *)
       let (inh_init, obj_init) =
@@ -757,7 +761,11 @@ let rec transl_class_rebind ~scopes obj_init cl vf =
   | Tcl_apply (cl, oexprs) ->
       let path, path_lam, obj_init =
         transl_class_rebind ~scopes obj_init cl vf in
-      (path, path_lam, transl_apply ~scopes obj_init oexprs Loc_unknown)
+      let oargs =
+        List.map (fun (l, o) ->
+          (l, Typedtree.map_apply_arg (fun e -> Targ_exp e) o)) oexprs
+      in
+      (path, path_lam, transl_apply ~scopes obj_init oargs Loc_unknown)
   | Tcl_let (rec_flag, defs, _vals, cl) ->
       let path, path_lam, obj_init =
         transl_class_rebind ~scopes obj_init cl vf in

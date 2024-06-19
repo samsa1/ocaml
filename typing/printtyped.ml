@@ -683,7 +683,7 @@ and class_expr i ppf x =
   | Tcl_apply (ce, l) ->
       line i ppf "Tcl_apply\n";
       class_expr i ppf ce;
-      list i label_x_apply_arg ppf l;
+      list i label_x_apply_arg_exp ppf l;
   | Tcl_let (rf, l1, l2, ce) ->
       line i ppf "Tcl_let %a\n" fmt_rec_flag rf;
       list i (value_binding rf) ppf l1;
@@ -1035,7 +1035,12 @@ and record_field i ppf = function
   | _, Kept _ ->
       line i ppf "<kept>"
 
-and label_x_apply_arg i ppf (l, e) =
+and label_x_apply_arg i ppf (l, a) =
+  match a with
+  | Omitted () -> label_x_apply_arg_exp i ppf (l, Omitted ())
+  | Arg (Targ_exp e) -> label_x_apply_arg_exp i ppf (l, Arg e)
+
+and label_x_apply_arg_exp i ppf (l, e) =
   line i ppf "<arg>\n";
   arg_label (i+1) ppf l;
   (match e with Omitted () -> () | Arg e -> expression (i+1) ppf e)
