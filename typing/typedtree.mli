@@ -195,7 +195,7 @@ and expression_desc =
         Parameters' effects are run left-to-right when an n-ary function is
         saturated with n arguments.
     *)
-  | Texp_apply of expression * (arg_label * argument option) list
+  | Texp_apply of expression * (arg_label * expression option) list
         (** E0 ~l1:E1 ... ~ln:En
 
             The expression can be None if the expression is abstracted over
@@ -363,9 +363,6 @@ and binding_op =
     bop_exp : expression;
     bop_loc : Location.t;
   }
-
-and argument =
-  | Targ_exp of expression
 
 (* Value expressions for the class language *)
 

@@ -356,7 +356,7 @@ and expression i ppf x =
   | Texp_apply (e, l) ->
       line i ppf "Texp_apply\n";
       expression i ppf e;
-      list i label_x_argument ppf l;
+      list i label_x_expression ppf l;
   | Texp_match (e, l1, l2, partial) ->
       line i ppf "Texp_match%a\n" fmt_partiality partial;
       expression i ppf e;
@@ -981,11 +981,6 @@ and record_field i ppf = function
       expression (i+1) ppf e;
   | _, Kept _ ->
       line i ppf "<kept>"
-
-and label_x_argument i ppf (l, a) =
-  match a with
-  | None -> label_x_expression i ppf (l, None)
-  | Some (Targ_exp e) -> label_x_expression i ppf (l, Some e)
 
 and label_x_expression i ppf (l, e) =
   line i ppf "<arg>\n";

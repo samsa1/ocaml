@@ -212,7 +212,7 @@ let rec add_expr bv exp =
       add_opt add_constraint bv constraint_;
       add_function_body bv body
   | Pexp_apply(e, el) ->
-      add_expr bv e; List.iter (fun (_,a) -> add_arg bv a) el
+      add_expr bv e; List.iter (fun (_,e) -> add_expr bv e) el
   | Pexp_match(e, pel) -> add_expr bv e; add_cases bv pel
   | Pexp_try(e, pel) -> add_expr bv e; add_cases bv pel
   | Pexp_tuple el -> List.iter (add_expr bv) el
@@ -324,9 +324,6 @@ and add_bindings recf bv pel =
 and add_binding_op bv bv' pbop =
   add_expr bv pbop.pbop_exp;
   add_pattern bv' pbop.pbop_pat
-
-and add_arg bv = function
-    Parg_exp e -> add_expr bv e
 
 and add_modtype bv mty =
   match mty.pmty_desc with

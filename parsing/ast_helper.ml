@@ -242,8 +242,6 @@ module Exp = struct
       pbop_exp = exp;
       pbop_loc = loc;
     }
-
-  let earg e = Parg_exp e
 end
 
 module Mty = struct

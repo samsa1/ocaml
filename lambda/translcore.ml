@@ -173,11 +173,6 @@ let transl_ident loc env ty path desc =
       transl_value_path loc env path
   |  _ -> fatal_error "Translcore.transl_exp: bad Texp_ident"
 
-let rec has_n_eargs arity args =
-  arity = 0 && match args with
-  | (_, Some (Targ_exp _)) :: tl -> has_n_eargs (arity - 1) tl
-  | _ -> false
-
 let rec transl_exp ~scopes e =
   transl_exp1 ~scopes ~in_new_scope:false e
 
@@ -216,10 +211,11 @@ and transl_exp0 ~in_new_scope ~scopes e =
       transl_function ~scopes e params body
   | Texp_apply({ exp_desc = Texp_ident(path, _, {val_kind = Val_prim p});
                 exp_type = prim_type } as funct, oargs)
-    when has_n_eargs p.prim_arity oargs ->
+    when List.length oargs >= p.prim_arity
+    && List.for_all (fun (_, arg) -> arg <> None) oargs ->
       let argl, extra_args = cut p.prim_arity oargs in
       let arg_exps =
-         List.map (function _, Some (Targ_exp x) -> x | _ -> assert false) argl
+         List.map (function _, Some x -> x | _ -> assert false) argl
       in
       let args = transl_list ~scopes arg_exps in
       let prim_exp = if extra_args = [] then Some e else None in
@@ -592,9 +588,6 @@ and transl_exp0 ~in_new_scope ~scopes e =
                !transl_module ~scopes Tcoerce_none None od.open_expr, body)
       end
 
-and transl_arg = function
-    Targ_exp e -> transl_exp e
-
 and pure_module m =
   match m.mod_desc with
     Tmod_ident _ -> Alias
@@ -746,7 +739,7 @@ and transl_apply ~scopes
         lapply lam (List.rev_map fst args)
   in
   (build_apply lam [] (List.map (fun (l, x) ->
-                                   Option.map (transl_arg ~scopes) x,
+                                   Option.map (transl_exp ~scopes) x,
                                    Btype.is_optional l)
                                 sargs)
      : Lambda.lambda)

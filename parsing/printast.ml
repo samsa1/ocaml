@@ -286,7 +286,7 @@ and expression i ppf x =
   | Pexp_apply (e, l) ->
       line i ppf "Pexp_apply\n";
       expression i ppf e;
-      list i label_x_argument ppf l;
+      list i label_x_expression ppf l;
   | Pexp_match (e, l) ->
       line i ppf "Pexp_match\n";
       expression i ppf e;
@@ -987,10 +987,6 @@ and string_x_expression i ppf (s, e) =
 and longident_x_expression i ppf (li, e) =
   line i ppf "%a\n" fmt_longident_loc li;
   expression (i+1) ppf e;
-
-and label_x_argument i ppf (l, a) =
-  match a with
-  | Parg_exp e -> label_x_expression i ppf (l, e)
 
 and label_x_expression i ppf (l,e) =
   line i ppf "<arg>\n";

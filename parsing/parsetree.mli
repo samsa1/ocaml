@@ -321,7 +321,7 @@ and expression_desc =
       A function must have parameters. [Pexp_function (params, _, body)] must
       have non-empty [params] or a [Pfunction_cases _] body.
   *)
-  | Pexp_apply of expression * (arg_label * argument) list
+  | Pexp_apply of expression * (arg_label * expression) list
       (** [Pexp_apply(E0, [(l1, E1) ; ... ; (ln, En)])]
             represents [E0 ~l1:E1 ... ~ln:En]
 
@@ -440,10 +440,6 @@ and binding_op =
     pbop_exp : expression;
     pbop_loc : Location.t;
   }
-
-and argument =
-  | Parg_exp of expression
-  (** An expression as argument *)
 
 and function_param_desc =
   | Pparam_val of arg_label * expression option * pattern
