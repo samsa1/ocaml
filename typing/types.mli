@@ -138,13 +138,23 @@ type type_desc =
   | Tpackage of package
   (** Type of a first-class module (a.k.a package). *)
 
-  | Tfunctor of arg_label * Ident.Unscoped.t * package * type_expr
+  | Tfunctor of
+      arg_label * Ident.Unscoped.t * (bool * core_functor_param) * type_expr
   (** Type of a dependent arrow *)
 
 (** [package] corresponds to the type of a first-class module *)
 and package =
   { pack_path : Path.t;
     pack_constraints : (string list * type_expr) list }
+
+and core_functor_param =
+  | Cfp_module of package
+  (** Module argument :
+    false, Cfp_module pack -> (module _ : pack) -> _
+    true, Cfm_module pack -> {_ : pack} -> _
+  *)
+  | Cfp_type
+  (** Type argument (module (type _)) or {type _}*)
 
 (** See also documentation for [row_more], which enumerates how these
     constructors arise. *)

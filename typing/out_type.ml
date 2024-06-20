@@ -1115,7 +1115,7 @@ let rec tree_of_typexp mode ty =
             else Otyp_stuff "<hidden>"
           else tree_of_typexp mode ty1 in
         Otyp_arrow (lab, t1, tree_of_typexp mode ty2)
-    | Tfunctor (l, id, pack, ty) ->
+    | Tfunctor (l, id, (b, Cfp_module pack), ty) ->
         let lab =
           if !print_labels || is_optional l then l else Nolabel
         in
@@ -1127,7 +1127,18 @@ let rec tree_of_typexp mode ty =
         in
         let ty = wrap_env fenv (tree_of_typexp mode) ty in
         Otyp_functor (lab, Oide_ident { printed_name = Ident.Unscoped.name id },
-                      tree_of_package mode pack, ty)
+                      (b, Ocfp_mod (tree_of_package mode pack)), ty)
+    | Tfunctor (l, id, (b, Cfp_type), ty) ->
+      let lab =
+        if !print_labels || is_optional l then l else Nolabel
+      in
+      let fenv env =
+        let decl = Ctype.new_local_type Definition in
+        Env.add_type ~check:true (Ident.of_unscoped id) decl env
+      in
+      let ty = wrap_env fenv (tree_of_typexp mode) ty in
+      Otyp_functor (lab, Oide_ident { printed_name = Ident.Unscoped.name id },
+            (b, Ocfp_typ), ty)
     | Ttuple tyl ->
         Otyp_tuple (tree_of_labeled_typlist mode tyl)
     | Tconstr(p, tyl, _abbrev) ->

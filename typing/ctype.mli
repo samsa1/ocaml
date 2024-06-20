@@ -335,7 +335,7 @@ val filter_arrow: Env.t -> type_expr -> arg_label -> param_hole:bool ->
            later by a [Tpoly _].
            Raises [Filter_arrow_failed] instead of [Unify]. *)
 val filter_functor:
-        Env.t -> type_expr -> arg_label ->
+        Env.t -> type_expr -> arg_label -> bool ->
         (Ident.Unscoped.t * package * type_expr) option
         (* A special case of unification with [{M:P} -> 'a]
            Raises [Filter_arrow_failed] instead of [Unify].

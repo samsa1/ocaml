@@ -28,6 +28,7 @@ open Parsetree
 (** {1 A generic Parsetree iterator} *)
 
 type iterator = {
+  arg: iterator -> argument -> unit;
   attribute: iterator -> attribute -> unit;
   attributes: iterator -> attribute list -> unit;
   binding_op: iterator -> binding_op -> unit;

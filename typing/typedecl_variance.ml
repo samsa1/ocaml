@@ -68,12 +68,16 @@ let compute_variance env visited vari ty =
       Tarrow (_, ty1, ty2, _) ->
         compute_variance_rec env (Variance.conjugate vari) ty1;
         compute_same ty2
-    | Tfunctor (_, id, pack, ty) ->
+    | Tfunctor (_, id, (_, Cfp_module pack), ty) ->
       let env' =
           Env.add_module (Ident.of_unscoped id) Mp_present IILocal
             (Mty_ident pack.pack_path) env in
       compute_variance_rec env (Variance.conjugate vari)
           (Ctype.newty (Tpackage pack));
+      compute_variance_rec env' vari ty
+    | Tfunctor (_, id, (_, Cfp_type), ty) ->
+      let decl = Ctype.new_local_type Definition in
+      let env' = Env.add_type ~check:true (Ident.of_unscoped id) decl env in
       compute_variance_rec env' vari ty
     | Ttuple tl ->
         List.iter (fun (_,t) -> compute_same t) tl

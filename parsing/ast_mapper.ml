@@ -30,6 +30,7 @@ open Location
 module String = Misc.Stdlib.String
 
 type mapper = {
+  arg: mapper -> argument -> argument;
   attribute: mapper -> attribute -> attribute;
   attributes: mapper -> attribute list -> attribute list;
   binding_op: mapper -> binding_op -> binding_op;
@@ -197,9 +198,9 @@ module T = struct
     | Ptyp_open (mod_ident, t) ->
         open_ ~loc ~attrs (map_loc_lid sub mod_ident) (sub.typ sub t)
     | Ptyp_extension x -> extension ~loc ~attrs (sub.extension sub x)
-    | Ptyp_functor (lab, s, ptyp, t) ->
+    | Ptyp_functor (lab, s, (c, param), t) ->
         functor_ ~loc ~attrs lab (map_loc map_string sub s)
-          (sub.package_type sub ptyp) (sub.typ sub t)
+          (c, map_opt (sub.package_type sub) param) (sub.typ sub t)
 
   let map_type_declaration sub
       {ptype_name; ptype_params; ptype_constraints;
@@ -455,6 +456,9 @@ module E = struct
             (lab,
              map_opt (sub.expr sub) def,
              sub.pat sub p)
+      | Pparam_module (lab, n, opty) ->
+          Pparam_module (lab, map_loc map_string sub n,
+            map_opt (sub.package_type sub) opty)
       | Pparam_newtype ty ->
           Pparam_newtype (map_loc map_string sub ty)
     in
@@ -491,7 +495,7 @@ module E = struct
         (map_opt (map_constraint sub) c)
         (map_function_body sub b)
     | Pexp_apply (e, l) ->
-        apply ~loc ~attrs (sub.expr sub e) (List.map (map_snd (sub.expr sub)) l)
+        apply ~loc ~attrs (sub.expr sub e) (List.map (map_snd (sub.arg sub)) l)
     | Pexp_match (e, pel) ->
         match_ ~loc ~attrs (sub.expr sub e) (sub.cases sub pel)
     | Pexp_try (e, pel) -> try_ ~loc ~attrs (sub.expr sub e) (sub.cases sub pel)
@@ -559,6 +563,11 @@ module E = struct
     let exp = sub.expr sub pbop_exp in
     let loc = sub.location sub pbop_loc in
     binding_op op pat exp loc
+
+  let map_arg sub = function
+    | Parg_exp e -> Parg_exp (sub.expr sub e)
+    | Parg_mod m -> Parg_mod (sub.module_expr sub m)
+    | Parg_typ t -> Parg_typ (sub.typ sub t)
 
 end
 
@@ -722,6 +731,7 @@ let default_mapper =
     pat = P.map;
     expr = E.map;
     binding_op = E.map_binding_op;
+    arg = E.map_arg;
 
     module_declaration =
       (fun this {pmd_name; pmd_impl; pmd_type; pmd_attributes; pmd_loc} ->

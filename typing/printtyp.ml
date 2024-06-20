@@ -156,7 +156,6 @@ let class_declaration = Fmt.compat1 class_declaration
 let class_type = Fmt.compat class_type
 let cltype_declaration = Fmt.compat1 cltype_declaration
 
-
 (* Print a signature body (used by -i when compiling a .ml) *)
 let printed_signature sourcefile ppf sg =
   (* we are tracking any collision event for warning 63 *)

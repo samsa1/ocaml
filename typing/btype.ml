@@ -361,11 +361,13 @@ let fold_type_expr f init ty =
   | Tpackage pack ->
       List.fold_left
         (fun result (_n, ty) -> f result ty) init pack.pack_constraints
-  | Tfunctor (_, _, pack, ty) ->
+  | Tfunctor (_, _, (_, Cfp_module pack), ty) ->
       let res =
         List.fold_left (fun result (_n, ty) -> f result ty) init
           pack.pack_constraints in
       f res ty
+  | Tfunctor (_, _, _, ty) ->
+      f init ty
 
 let iter_type_expr f ty =
   fold_type_expr (fun () v -> f v) () ty
@@ -511,7 +513,7 @@ let type_iterators mark =
     match get_desc ty with
       Tconstr (p, _, _)
     | Tobject (_, {contents=Some (p, _)})
-    | Tfunctor (_, _, {pack_path = p}, _)
+    | Tfunctor (_, _, (_, Cfp_module {pack_path = p}), _)
     | Tpackage {pack_path = p} ->
         it.it_path p
     | Tvariant row ->

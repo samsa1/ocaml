@@ -25,6 +25,7 @@ open Parsetree
 open Location
 
 type iterator = {
+  arg: iterator -> argument -> unit;
   attribute: iterator -> attribute -> unit;
   attributes: iterator -> attribute list -> unit;
   binding_op: iterator -> binding_op -> unit;
@@ -164,9 +165,9 @@ module T = struct
         iter_loc_lid sub mod_ident;
         sub.typ sub t
     | Ptyp_extension x -> sub.extension sub x
-    | Ptyp_functor (_lab, s, ptyp, t2) ->
+    | Ptyp_functor (_lab, s, (_c, ptyp), t2) ->
       iter_loc iter_string sub s;
-      sub.package_type sub ptyp;
+      iter_opt (sub.package_type sub) ptyp;
       sub.typ sub t2
 
   let iter_type_declaration sub
@@ -401,6 +402,9 @@ module E = struct
     | Pparam_val (_lab, def, p) ->
         iter_opt (sub.expr sub) def;
         sub.pat sub p
+    | Pparam_module (_lab, n, optyp) ->
+        iter_loc iter_string sub n;
+        iter_opt (sub.package_type sub) optyp
     | Pparam_newtype ty ->
         iter_loc iter_string sub ty
 
@@ -435,7 +439,7 @@ module E = struct
         iter_opt (iter_constraint sub) constraint_;
         iter_body sub body
     | Pexp_apply (e, l) ->
-        sub.expr sub e; List.iter (iter_snd (sub.expr sub)) l
+        sub.expr sub e; List.iter (iter_snd (sub.arg sub)) l
     | Pexp_match (e, pel) ->
         sub.expr sub e; sub.cases sub pel
     | Pexp_try (e, pel) -> sub.expr sub e; sub.cases sub pel
@@ -497,6 +501,11 @@ module E = struct
     sub.pat sub pbop_pat;
     sub.expr sub pbop_exp;
     sub.location sub pbop_loc
+
+  let iter_arg sub = function
+    | Parg_exp e -> sub.expr sub e
+    | Parg_mod m -> sub.module_expr sub m
+    | Parg_typ t -> sub.typ sub t
 
 end
 
@@ -644,6 +653,7 @@ let default_iterator =
     pat = P.iter;
     expr = E.iter;
     binding_op = E.iter_binding_op;
+    arg = E.iter_arg;
 
     module_declaration =
       (fun this {pmd_name; pmd_type; pmd_attributes; pmd_loc} ->

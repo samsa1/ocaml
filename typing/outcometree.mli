@@ -83,7 +83,12 @@ type out_type =
   | Otyp_module of out_package
   | Otyp_attribute of out_type * out_attribute
   | Otyp_external of string
-  | Otyp_functor of Asttypes.arg_label * out_ident * out_package * out_type
+  | Otyp_functor of Asttypes.arg_label * out_ident
+                    * (bool * c_functor_param) * out_type
+
+and c_functor_param =
+  | Ocfp_mod of out_package
+  | Ocfp_typ
 
 and out_row =
   | Orow_closed

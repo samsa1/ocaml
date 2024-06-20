@@ -45,11 +45,16 @@ and type_desc =
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of package
-  | Tfunctor of arg_label * Ident.Unscoped.t * package * type_expr
+  | Tfunctor of
+        arg_label * Ident.Unscoped.t * (bool * core_functor_param) * type_expr
 
 and package =
     { pack_path : Path.t;
       pack_constraints : (string list * type_expr) list }
+
+and core_functor_param =
+  | Cfp_module of package
+  | Cfp_type
 
 and row_desc =
     { row_fields: (label * row_field) list;
