@@ -16,7 +16,8 @@ let empty_type loc = H.Str.type_ ~loc Asttypes.Nonrecursive []
 let empty_poly_binder loc = H.Typ.(poly ~loc [] (any ~loc ()))
 let tfunctor_opt_arg loc =
   H.Typ.(functor_ ~loc (Optional "lbl") (Location.mkloc "M" loc)
-    (package_type (Location.mkloc (Longident.Lident "S") loc) []) (any ()))
+    (false, Some (package_type (Location.mkloc (Longident.Lident "S") loc) []))
+    (any ()))
 let functor_id loc = Location.mkloc (Longident.(
   Lapply (Kmod, Location.mknoloc (Lident "F"),  Location.mknoloc (Lident "X")))) loc
 let complex_record loc =

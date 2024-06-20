@@ -179,14 +179,9 @@ let transl_ident loc env ty path desc =
       transl_value_path loc env path
   |  _ -> fatal_error "Translcore.transl_exp: bad Texp_ident"
 
-let is_omitted = function
-  | Arg _ -> false
-  | Omitted () -> true
-
-(* let rec has_n_eargs arity oargs =
-  arity = 0 && match oargs with
-  | (_, Some (Targ_exp _)) :: tl -> has_n_eargs (arity - 1) tl
-  | _ -> false *)
+let is_exp_arg = function
+  | Arg (Targ_exp _) -> true
+  | _ -> false
 
 let rec transl_exp ~scopes e =
   transl_exp1 ~scopes ~in_new_scope:false e
@@ -227,10 +222,11 @@ and transl_exp0 ~in_new_scope ~scopes e =
   | Texp_apply({ exp_desc = Texp_ident(path, _, {val_kind = Val_prim p});
                 exp_type = prim_type } as funct, oargs)
     when List.length oargs >= p.prim_arity
-    && List.for_all (fun (_, arg) -> not (is_omitted arg)) oargs ->
+    && List.for_all (fun (_, arg) -> is_exp_arg arg) oargs ->
       let argl, extra_args = cut p.prim_arity oargs in
       let arg_exps =
-         List.map (function _, Arg (Targ_exp x) -> x | _, Omitted () -> assert false) argl
+         List.map (function _, Arg (Targ_exp x) -> x
+                          | _, _ -> assert false) argl
       in
       let args = transl_list ~scopes arg_exps in
       let prim_exp = if extra_args = [] then Some e else None in
@@ -571,8 +567,10 @@ and transl_exp0 ~in_new_scope ~scopes e =
   | Texp_struct_item (si, e) ->
       !transl_struct_item ~scopes [] None si (fun _ -> transl_exp ~scopes e)
 
-and transl_arg = function
-    Targ_exp e -> transl_exp e
+and transl_arg ~scopes = function
+    Targ_exp e -> transl_exp ~scopes e
+  | Targ_mod m -> !transl_module ~scopes Tcoerce_none None m
+  | Targ_typ _ -> lambda_unit
 
 and pure_module m =
   match m.mod_desc with

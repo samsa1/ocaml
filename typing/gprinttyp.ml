@@ -685,11 +685,15 @@ module Digraph = struct
     | Types.Tvar name -> mk "%a" Pp.pretty_var name
     | Types.Tarrow(l,t1,t2,_) ->
        mk "→%a" Pp.exponent_of_label l |> numbered [t1; t2]
-    | Types.Tfunctor(l,us,{pack_path; pack_constraints},t2) ->
-        mk "→%a (%s : %a)" Pp.exponent_of_label l
+    | Types.Tfunctor(l,us,(b, Cfp_module {pack_path; pack_constraints}),t2) ->
+        mk "%b→%a (%s : %a)" b Pp.exponent_of_label l
                     (Ident.Unscoped.name us)
                     pp_path pack_path
           |> package_constraints params id pack_constraints
+          |> numbered [t2]
+    | Types.Tfunctor(l,us,(b, Cfp_type),t2) ->
+        mk "%b→%a %s" b Pp.exponent_of_label l
+                    (Ident.Unscoped.name us)
           |> numbered [t2]
     | Types.Ttuple tl ->
         mk "*" |> labeled_edges params id tl

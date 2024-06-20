@@ -259,7 +259,7 @@ val instance_funct:
     not occur in the type. *)
 
 val instance_funct_nondep :
-        Env.t -> arg_label -> tfunctor -> module_type -> type_expr
+        Env.t -> arg_label -> bool -> tfunctor -> module_type -> type_expr
 (** Tries to use the module argument actual signature to remove the depencies
     that might occur in the return type of a module-dependent function. *)
 
@@ -358,7 +358,7 @@ val filter_arrow: Env.t -> in_apply:bool -> type_expr -> arg_label ->
            expected type in the error message if filter_arrow fails.
            Returns a result instead of raising [Unify]. *)
 val filter_functor:
-        Env.t -> type_expr -> arg_label ->
+        Env.t -> type_expr -> arg_label -> bool ->
         ((Ident.Unscoped.t * package * type_expr) option,
          filter_arrow_failure) result
         (* A special case of unification with [{M:P} -> 'a]
@@ -384,6 +384,8 @@ type arrow_arg =
   | Arg_module of Ident.Unscoped.t * package
     (** A module dependent parameter. Consisting of a dependent module name
         and a package type for the module. *)
+  | Arg_type of Ident.Unscoped.t
+    (** A type parameter. *)
 
 (** The return type of an arrow. *)
 type arrow_ret =
@@ -597,5 +599,5 @@ val set_modtype_of_package :
 (* Raises [Incompatible] *)
 val mcomp : Env.t -> type_expr -> type_expr -> unit
 
-val open_tfunctor : Env.t -> loc:Location.t -> Ident.Unscoped.t -> package ->
-        type_expr -> Env.t * type_expr
+val open_tfunctor : Env.t -> loc:Location.t -> Ident.Unscoped.t ->
+        core_functor_param -> type_expr -> Env.t * type_expr

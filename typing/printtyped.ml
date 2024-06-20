@@ -243,11 +243,17 @@ let rec core_type i ppf x =
   | Ttyp_open (path, _mod_ident, t) ->
       line i ppf "Ttyp_open %a\n" fmt_path path;
       core_type i ppf t
-  | Ttyp_functor (lab, id, { tpt_path = s; tpt_constraints = l}, ct) ->
-      line i ppf "Ttyp_functor\n";
+  | Ttyp_functor (lab, id, (c, Some { tpt_path = s; tpt_constraints = l}), ct)
+    ->
+      line i ppf "Ttyp_functor %b\n" c;
       arg_label i ppf lab;
       line i ppf "module \"%a\" : %a" fmt_ident id.txt fmt_path s;
       list i package_with ppf l;
+      core_type i ppf ct
+  | Ttyp_functor (lab, id, (c, None), ct) ->
+      line i ppf "Ttyp_functor %b\n" c;
+      arg_label i ppf lab;
+      line i ppf "type \"%a\"" fmt_ident id.txt;
       core_type i ppf ct
 
 and labeled_core_type i ppf (l, t) =
@@ -1039,6 +1045,14 @@ and label_x_apply_arg i ppf (l, a) =
   match a with
   | Omitted () -> label_x_apply_arg_exp i ppf (l, Omitted ())
   | Arg (Targ_exp e) -> label_x_apply_arg_exp i ppf (l, Arg e)
+  | Arg (Targ_mod m) ->
+    line i ppf "<marg>\n";
+    arg_label (i+1) ppf l;
+    module_expr (i+1) ppf m
+  | Arg (Targ_typ t) ->
+    line i ppf "<targ>\n";
+    arg_label (i+1) ppf l;
+    core_type (i+1) ppf t
 
 and label_x_apply_arg_exp i ppf (l, e) =
   line i ppf "<arg>\n";

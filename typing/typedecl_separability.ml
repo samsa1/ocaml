@@ -429,15 +429,21 @@ let check_type
           context ++ check_type env (Hyps.guard hyps) ty Deepsep in
         List.fold_left on_subtype empty tys
     (* "Deeply separable" case for the Tfunctor to update the environment. *)
-    | (Tfunctor (_, id_us, pack, ty), Deepsep) ->
+    | (Tfunctor (_, id_us, (_, param), ty), Deepsep) ->
         let env' =
-          let mty = Ctype.modtype_of_package env Location.none pack in
-          Env.add_module (Ident.of_unscoped id_us) Mp_present IILocal mty env
+          match param with
+          | Cfp_module pack ->
+            let mty = Ctype.modtype_of_package env Location.none pack in
+            Env.add_module (Ident.of_unscoped id_us) Mp_present IILocal mty env
+          | Cfp_type -> assert false (* TODO *)
         in
         let on_subtype context ty =
           context ++ check_type env (Hyps.guard hyps) ty Deepsep in
-        List.fold_left on_subtype empty (List.map snd pack.pack_constraints)
-          ++ check_type env' (Hyps.guard hyps) ty Deepsep;
+        begin match param with
+          | Cfp_module pack ->
+            List.fold_left on_subtype empty (List.map snd pack.pack_constraints)
+          | Cfp_type -> empty
+        end ++ check_type env' (Hyps.guard hyps) ty Deepsep;
     (* Polymorphic type, and corresponding polymorphic variable.
 
        In theory, [Tpoly] (forall alpha. tau) would add a new variable

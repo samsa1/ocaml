@@ -734,14 +734,14 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
       ctyp (Ttyp_open (path, mod_ident, cty)) cty.ctyp_type
   | Ptyp_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
-  | Ptyp_functor (lbl, name, ptyp, st) ->
+  | Ptyp_functor (lbl, name, (c, optyp), st) ->
     begin match lbl with
       | Optional l ->
-        raise (Error (ptyp.ppt_loc, env, Functor_optional_param l));
+        raise (Error (name.loc, env, Functor_optional_param l));
       | Nolabel | Labelled _ -> ()
     end;
-    let pack, mty, ptys =
-      transl_package env ~policy ~row_context ComputeMType ptyp in
+    let opack =
+      Option.map (transl_package env ~policy ~row_context ComputeMType) optyp in
     let t = newvar () in
     let ident = Ident.Unscoped.create name.txt in
     let scoped_ident, cty, ty =
@@ -749,25 +749,42 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
         let scoped_ident =
           Ident.create_scoped ~scope:(Ctype.get_current_level()) name.txt
         in
-        let env = Env.add_module scoped_ident Mp_present IILocal mty env in
+        let env, arg =
+          match opack with
+          | Some (pack, mty, _) ->
+            Env.add_module scoped_ident Mp_present IILocal mty env,
+            Cfp_module pack
+          | None ->
+            let decl = new_local_type Definition in
+            Env.add_type ~check:true scoped_ident decl env,
+            Cfp_type
+        in
         let cty = transl_type env ~policy ~row_context st in
         let ctyp_type =
           instance_funct ~p_out:(Pident (Ident.of_unscoped ident))
                          ~id_in:scoped_ident ~fixed:false cty.ctyp_type
         in
-        let ty = newty (Tfunctor (lbl, ident, pack, ctyp_type)) in
+        let ty =
+            newty (Tfunctor (lbl, ident, (c, arg), ctyp_type))
+        in
         (* Here we reduce the level of [cty] before leaving the local level *)
         let _ = try unify env ty t with Unify trace ->
-          raise (Error (loc, env, Type_mismatch trace))
+          raise (Error(loc, env, Type_mismatch trace))
         in
         scoped_ident, cty, ty
       end in
-    ctyp (Ttyp_functor (lbl, {txt = scoped_ident; loc = name.loc}, {
+    let arg = match opack, optyp with
+      | Some (pack, _, ptys), Some ptyp ->
+        Some {
                 tpt_path = pack.pack_path;
                 tpt_type = pack;
                 tpt_constraints = ptys;
                 tpt_txt = ptyp.ppt_path;
-                }, cty)) ty
+                }
+      | _, _ -> None
+    in
+    ctyp (Ttyp_functor (lbl, {txt = scoped_ident; loc = name.loc},
+               (c, arg), cty)) ty
 
 and transl_fields env ~policy ~row_context o fields =
   (* Using a reference to a map rather than a hash table gives us

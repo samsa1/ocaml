@@ -173,6 +173,14 @@ and rewrite_cases iflag l =
 and rewrite_labelexp_list iflag l =
   rewrite_exp_list iflag (List.map snd l)
 
+and rewrite_arg_list iflag l =
+  let aux = function
+  | Parg_exp e -> rewrite_exp iflag e
+  | Parg_mod m -> rewrite_mod iflag m
+  | Parg_typ _ -> ()
+  in
+  List.iter aux l
+
 and rewrite_exp_list iflag l =
   List.iter (rewrite_exp iflag) l
 
@@ -217,7 +225,7 @@ and rw_exp iflag sexp =
 
   | Pexp_apply(sfunct, sargs) ->
     rewrite_exp iflag sfunct;
-    rewrite_exp_list iflag (List.map snd sargs)
+    rewrite_arg_list iflag (List.map snd sargs)
 
   | Pexp_tuple sexpl ->
     List.iter (fun (_, e) -> rewrite_exp iflag e) sexpl

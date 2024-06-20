@@ -82,10 +82,10 @@ and raw_type_desc ppf = function
       fprintf ppf "@[<hov1>Tarrow(\"%s\",@,%a,@,%a,@,%s)@]"
         (string_of_label l) raw_type t1 raw_type t2
         (if is_commu_ok c then "Cok" else "Cunknown")
-  | Tfunctor (l, id, {pack_path; pack_constraints}, t2) ->
-    fprintf ppf "@[<hov1>Tfunctor(\"%s\",@,%s,@,(%a,@,%a),@,%a)@]"
+  | Tfunctor(l,id,cfp,t2) ->
+    fprintf ppf "@[<hov1>Tfunctor(\"%s\",@,%s,@,%a,@,%a)@]"
       (string_of_label l) (Ident.Unscoped.name id)
-      path pack_path raw_lid_type_list pack_constraints raw_type t2
+      core_functor_param cfp raw_type t2
   | Ttuple tl ->
       fprintf ppf "@[<1>Ttuple@,%a@]" labeled_type_list tl
   | Tconstr (p, tl, abbrev) ->
@@ -154,6 +154,14 @@ and raw_field ppf rf =
           match e with None -> fprintf ppf " RFnone"
           | Some f -> fprintf ppf "@,@[<1>(%a)@]" raw_field f))
     rf
+
+and core_functor_param ppf (b, param) =
+  let aux ppf = function
+  | Cfp_module {pack_path; pack_constraints} ->
+      fprintf ppf "%a,@,%a" path pack_path raw_lid_type_list pack_constraints
+  | Cfp_type -> fprintf ppf "type"
+  in
+  fprintf ppf "@[(%b,@,%a)@]" b aux param
 
 let type_expr ppf t =
   visited := []; kind_vars := []; kind_count := 0;
