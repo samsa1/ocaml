@@ -278,9 +278,11 @@ let fold_type_expr ?(allow_tsubst=false) f init ty =
     List.fold_left f result tyl
   | Tpackage (_, fl)  ->
     List.fold_left (fun result (_n, ty) -> f result ty) init fl
-  | Tfunctor (_, _, (_, fl), ty) ->
+  | Tfunctor (_, _, (_, Cfp_module (_, fl)), ty) ->
       let res = List.fold_left (fun result (_n, ty) -> f result ty) init fl in
       f res ty
+  | Tfunctor (_, _, _, ty) ->
+      f init ty
 
 let iter_type_expr ?(allow_tsubst=false) f ty =
   fold_type_expr ~allow_tsubst (fun () v -> f v) () ty
@@ -426,7 +428,7 @@ let type_iterators mark =
     match get_desc ty with
       Tconstr (p, _, _)
     | Tobject (_, {contents=Some (p, _)})
-    | Tfunctor (_, _, (p, _), _)
+    | Tfunctor (_, _, (_, Cfp_module (p, _)), _)
     | Tpackage (p, _) ->
         it.it_path p
     | Tvariant row ->

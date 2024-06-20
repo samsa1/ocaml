@@ -303,21 +303,30 @@ and print_out_type_1 ppf =
       pp_print_space ppf ();
       print_out_type_1 ppf ty2;
       pp_close_box ppf ()
-  | Otyp_functor (lab, id, (p, fl), ty) ->
+  | Otyp_functor (lab, id, (b, param), ty) ->
+      let aux = function
+        | Ocfp_mod (p, fl) ->
+          print_ident ppf id;
+          pp_print_string ppf " : ";
+          print_ident ppf p;
+          let first = ref true in
+          List.iter
+            (fun (s, t) ->
+              let sep = if !first then (first := false; "with") else "and" in
+              fprintf ppf " %s type %s = %a" sep s print_out_type t
+            )
+            fl
+        | Ocfp_typ ->
+          if not b then pp_print_char ppf '(';
+          pp_print_string ppf "type ";
+          print_ident ppf id;
+          if not b then pp_print_char ppf ')';
+      in
       pp_open_box ppf 0;
       print_arg_label ppf lab;
-      pp_print_string ppf "(module ";
-      print_ident ppf id;
-      pp_print_string ppf " : ";
-      print_ident ppf p;
-      let first = ref true in
-      List.iter
-        (fun (s, t) ->
-          let sep = if !first then (first := false; "with") else "and" in
-          fprintf ppf " %s type %s = %a" sep s print_out_type t
-        )
-        fl;
-      pp_print_string ppf ") ->";
+      pp_print_string ppf (if b then "{" else "(module ");
+      aux param;
+      pp_print_string ppf (if b then "} ->" else ") ->");
       pp_print_space  ppf ();
       print_out_type_1 ppf ty;
       pp_close_box ppf ()

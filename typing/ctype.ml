@@ -278,6 +278,7 @@ module Pattern_env : sig
   val enter_type: scope:int -> label -> type_declaration -> t -> Ident.t
   val add_local_constraint: Path.t -> type_declaration -> t -> unit
   val with_mty: t -> Ident.unscoped -> module_type -> (unit -> 'a) -> 'a
+  val with_typ: t -> Ident.unscoped -> type_declaration -> (unit -> 'a) -> 'a
   val set_env: t -> Env.t -> unit
 end = struct
   type envop =
@@ -330,6 +331,20 @@ end = struct
     penv.env <- env;
     Misc.try_finally ~always:clean f
 
+  let with_typ penv id decl f =
+    let old_ope_list = penv.op_list in
+    penv.op_list <- [];
+    let last_env = penv.env in
+    let clean () =
+      penv.env <- last_env;
+      let ops = penv.op_list in
+      penv.op_list <- old_ope_list;
+      List.fold_right (fun op () -> do_op penv op) ops ()
+    in
+    let env = Env.add_type ~check:true (Ident.of_unscoped id) decl last_env in
+    penv.env <- env;
+    Misc.try_finally ~always:clean f
+
   let set_env penv env =
     penv.env <- env
 end
@@ -376,6 +391,15 @@ let with_mty uenv id mty f =
                                                    Mp_present mty exp.env})
   | Pattern {penv} ->
       Pattern_env.with_mty penv id mty (fun () -> f uenv)
+
+
+let with_typ uenv id decl f =
+  match uenv with
+  | Expression exp ->
+      f (Expression {exp with env = Env.add_type (Ident.of_unscoped id)
+                                                  ~check:true decl exp.env})
+  | Pattern {penv} ->
+      Pattern_env.with_typ penv id decl (fun () -> f uenv)
 
 let in_pattern_mode = function
   | Expression _ -> false
@@ -810,7 +834,7 @@ let rec generalize_spine ty =
       set_level ty generic_level;
       memo := Mnil;
       List.iter generalize_spine tyl
-  | Tfunctor (_, _, (_, fl), ty') ->
+  | Tfunctor (_, _, (_, Cfp_module (_, fl)), ty') ->
       set_level ty generic_level;
       List.iter (fun (_n, ty) -> generalize_spine ty) fl;
       generalize_spine ty'
@@ -842,6 +866,29 @@ let rec normalize_package_path env p =
           normalize_package_path env (Path.Pdot (p1', s))
       | _ -> p
 
+let new_local_type ?(loc = Location.none) ?manifest_and_scope origin =
+  let manifest, expansion_scope =
+    match manifest_and_scope with
+      None -> None, Btype.lowest_level
+    | Some (ty, scope) -> Some ty, scope
+  in
+  {
+    type_params = [];
+    type_arity = 0;
+    type_kind = Type_abstract origin;
+    type_private = Public;
+    type_manifest = manifest;
+    type_variance = [];
+    type_separability = [];
+    type_is_newtype = true;
+    type_expansion_scope = expansion_scope;
+    type_loc = loc;
+    type_attributes = [];
+    type_immediate = Unknown;
+    type_unboxed_default = false;
+    type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+  }
+
 let rec check_scope_escape mark env level ty =
   let orig_level = get_level ty in
   if try_mark_node mark ty then begin
@@ -860,15 +907,21 @@ let rec check_scope_escape mark env level ty =
         if Path.same p p' then raise_escape_exn (Module_type p);
         check_scope_escape mark env level
           (newty2 ~level:orig_level (Tpackage (p', fl)))
-    | Tfunctor (lbl, id, (p, fl), t) when level < Path.scope p ->
+    | Tfunctor (lbl, id, (c, Cfp_module (p, fl)), t)
+      when level < Path.scope p ->
         let p' = normalize_package_path env p in
         if Path.same p p' then raise_escape_exn (Module_type p);
+        let param = (c, Cfp_module (p', fl)) in
         check_scope_escape mark env level
-          (newty2 ~level:orig_level (Tfunctor (lbl, id, (p', fl), t)))
-    | Tfunctor (_, id, (p, fl), t) ->
+          (newty2 ~level:orig_level (Tfunctor (lbl, id, param, t)))
+    | Tfunctor (_, id, (_, Cfp_module (p, fl)), t) ->
         List.iter (fun (_, t) -> check_scope_escape mark env level t) fl;
         let mty = !modtype_of_package env Location.none p fl in
         let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
+        check_scope_escape mark env level t
+    | Tfunctor (_, id, (_, Cfp_type), t) ->
+        let decl = new_local_type Definition in
+        let env = Env.add_type ~check:true (Ident.of_unscoped id) decl env in
         check_scope_escape mark env level t
     | _ ->
         iter_type_expr (check_scope_escape mark env level) ty
@@ -953,15 +1006,22 @@ let rec update_level env level expand ty =
         end;
         set_level ty level;
         iter_type_expr (update_level env level expand) ty
-    | Tfunctor (lbl, id, (p, fl), t) when level < Path.scope p ->
+    | Tfunctor (lbl, id, (c, Cfp_module (p, fl)), t)
+      when level < Path.scope p ->
         let p' = normalize_package_path env p in
         if Path.same p p' then raise_escape_exn (Module_type p);
-        set_type_desc ty (Tfunctor (lbl, id, (p', fl), t));
+        let param = (c, Cfp_module (p', fl)) in
+        set_type_desc ty (Tfunctor (lbl, id, param, t));
         update_level env level expand ty
-    | Tfunctor (_, id, (p, fl), t) ->
+    | Tfunctor (_, id, (_, Cfp_module (p, fl)), t) ->
         List.iter (fun (_, t) -> update_level env level expand t) fl;
         let mty = !modtype_of_package env Location.none p fl in
         let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
+        set_level ty level;
+        update_level env level expand t
+    | Tfunctor (_, id, (_, Cfp_type), t) ->
+        let decl = new_local_type Definition in
+        let env = Env.add_type ~check:true (Ident.of_unscoped id) decl env in
         set_level ty level;
         update_level env level expand t
     | Tfield(lab, _, ty1, _)
@@ -1180,7 +1240,7 @@ let compute_id_from_map id_map ty =
   TypeHash.iter (fun ty inv ->
     match get_desc ty with
     | Tconstr (p, _, _) | Tobject (_, {contents = Some (p, _)})
-    | Tfunctor (_, _, (p, _), _) | Tpackage (p, _)
+    | Tfunctor (_, _, (_, Cfp_module (p, _)), _) | Tpackage (p, _)
       when path_contains_one p ->
         add_all_parents id_map inv
     | _ -> ()) inverted;
@@ -1349,9 +1409,14 @@ let rec copy ?partial ?keep_names ?(id_map=[]) ?(closed=always_true)
       | Tobject (ty, {contents = Some (p, tl)}) ->
           let p = Path.subst id_map p in
           Tobject (copy ty, ref (Some (p, List.map copy tl)))
-      | Tfunctor (lbl, id, (p, fl), ty) ->
-          let fl = List.map (fun (li, ty) -> (li, copy ty)) fl in
-          let p = Path.subst id_map p in
+      | Tfunctor (lbl, id, (c, param), ty) ->
+          let param =
+            match param with
+            | Cfp_module (p, fl) ->
+              let fl = List.map (fun (li, ty) -> (li, copy ty)) fl in
+              Cfp_module (Path.subst id_map p, fl)
+            | Cfp_type -> Cfp_type
+          in
           let id' = Ident.refresh id in
           let p_id' = Path.Pident (Ident.of_unscoped id') in
           let id = Ident.of_unscoped id in
@@ -1359,7 +1424,7 @@ let rec copy ?partial ?keep_names ?(id_map=[]) ?(closed=always_true)
                 :: List.filter (fun (i, _) -> not (Ident.same i id)) id_map in
           let closed = compute_id_from_map id_map ty in
           let ty = copy' id_map closed ty in
-          Tfunctor(lbl, id', (p, fl), ty)
+          Tfunctor(lbl, id', (c, param), ty)
       | Tpackage (p, fl) ->
           let p = Path.subst id_map p in
           let fl = List.map (fun (li, ty) -> (li, copy ty)) fl in
@@ -1405,29 +1470,6 @@ let get_new_abstract_name env s =
   in
   let index = Misc.find_first_mono check in
   name index
-
-let new_local_type ?(loc = Location.none) ?manifest_and_scope origin =
-  let manifest, expansion_scope =
-    match manifest_and_scope with
-      None -> None, Btype.lowest_level
-    | Some (ty, scope) -> Some ty, scope
-  in
-  {
-    type_params = [];
-    type_arity = 0;
-    type_kind = Type_abstract origin;
-    type_private = Public;
-    type_manifest = manifest;
-    type_variance = [];
-    type_separability = [];
-    type_is_newtype = true;
-    type_expansion_scope = expansion_scope;
-    type_loc = loc;
-    type_attributes = [];
-    type_immediate = Unknown;
-    type_unboxed_default = false;
-    type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-  }
 
 let existential_name name_counter ty =
   let name =
@@ -1617,7 +1659,14 @@ let copy_sep ~copy_scope ~fixed ~(visited : type_expr TypeHash.t) ~id_map sch =
         | Tobject (ty, {contents = Some (p, tl)}) ->
             let p = Path.subst id_map p in
             Tobject (copy_shared ty, ref (Some (p, List.map copy_shared tl)))
-        | Tfunctor (lbl, id, (p, fl), ty) ->
+        | Tfunctor (lbl, id, (c, param), ty) ->
+            let param =
+              match param with
+              | Cfp_module (p, fl) ->
+                let fl = List.map (fun (li, ty) -> (li, copy_shared ty)) fl in
+                Cfp_module (Path.subst id_map p, fl)
+              | Cfp_type -> Cfp_type
+            in
             let id' = Ident.refresh id in
             let ty =
               let p_id' = Path.Pident (Ident.of_unscoped id') in
@@ -1628,9 +1677,7 @@ let copy_sep ~copy_scope ~fixed ~(visited : type_expr TypeHash.t) ~id_map sch =
               let closed = compute_id_from_map id_map ty in
               copy_rec ~may_share:true ~closed ~id_map ty
             in
-            let fl =
-              List.map (fun (n, ty) -> (n, copy_shared ty)) fl
-            in Tfunctor (lbl, id', (Path.subst id_map p, fl), ty)
+            Tfunctor (lbl, id', (c, param), ty)
         | desc -> copy_type_desc copy_shared desc
       in
       Transient_expr.set_stub_desc t desc';
@@ -2091,14 +2138,18 @@ let rec local_non_recursive_abbrev ~allow_rec strict visited env p ty =
         end
     | Tobject _ | Tvariant _ when not strict ->
         ()
-    | Tfunctor (_, id, (p', fl), t) ->
+    | Tfunctor (_, id, (_, Cfp_module (p', fl)), t) ->
       (* if Path.same p p' then raise Occur; *)
       let visited = get_id ty :: visited in
       List.iter (fun (_, ty) ->
           local_non_recursive_abbrev ~allow_rec strict visited env p ty) fl;
       let mty = !modtype_of_package env Location.none p' fl in
       let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
-      (* we don't need to update id_pairs because the scope is never used *)
+      local_non_recursive_abbrev ~allow_rec strict visited env p t
+    | Tfunctor (_, id, (_, Cfp_type), t) ->
+      let visited = get_id ty :: visited in
+      let decl = new_local_type Definition in
+      let env = Env.add_type ~check:true (Ident.of_unscoped id) decl env in
       local_non_recursive_abbrev ~allow_rec strict visited env p t
     | _ ->
         if strict || not allow_rec then (* PR#7374 *)
@@ -2245,14 +2296,14 @@ let occur_univar_or_unscoped ?(inj_only=false) ?(check_unscoped=true) env ty =
           | None ->
               List.iter (fun (_, t) -> occur_rec env bound_uv bound_id t) fl
           end
-      | Tfunctor (l, id, (p, fl), ty) -> begin
+      | Tfunctor (l, id, (c, Cfp_module (p, fl)), ty) -> begin
           let id_escape =
               if check_unscoped then has_unbounded bound_id p else None
           in match id_escape with
             Some i ->
               let p' = normalize_package_path env p in
               if Path.same p p' then raise_escape_exn (Module i);
-              set_type_desc ty (Tfunctor (l, id, (p', fl), ty));
+              set_type_desc ty (Tfunctor (l, id, (c, Cfp_module (p', fl)), ty));
               occur_desc env bound_uv bound_id ty
           | None ->
               List.iter (fun (_, t) -> occur_rec env bound_uv bound_id t) fl;
@@ -2261,6 +2312,10 @@ let occur_univar_or_unscoped ?(inj_only=false) ?(check_unscoped=true) env ty =
                                        Mp_present mty env in
               occur_rec env bound_uv (Ident.UnscopedSet.add id bound_id) ty
           end
+      | Tfunctor (_, id, (_, Cfp_type), ty) ->
+          let decl = new_local_type Definition in
+          let env = Env.add_type ~check:true (Ident.of_unscoped id) decl env in
+          occur_rec env bound_uv (Ident.UnscopedSet.add id bound_id) ty
       | _ -> iter_type_expr (occur_rec env bound_uv bound_id) ty
   in
   occur_rec env TypeSet.empty Ident.UnscopedSet.empty ty
@@ -2395,12 +2450,12 @@ let identifier_escape env idl ty =
             in
             iter_type_expr (occur idl) (newty (Tvariant row))
           end
-      | Tfunctor (l, id, (p, fl), t) ->
+      | Tfunctor (l, id, (c, Cfp_module (p, fl)), t) ->
           begin match path_contains_one idl p with
           | Some i ->
               let p' = normalize_package_path env p in
               if Path.same p p' then raise_escape_exn (Module i);
-              set_type_desc ty (Tfunctor (l, id, (p', fl), ty));
+              set_type_desc ty (Tfunctor (l, id, (c, Cfp_module (p', fl)), ty));
               occur ~ignore_mark:true idl ty
           | None ->
               List.iter (fun (_, t) -> occur idl t) fl;
@@ -2410,6 +2465,11 @@ let identifier_escape env idl ty =
               then ()
               else occur idl' t
           end
+      | Tfunctor (_, id, (_, Cfp_type), t) ->
+          let idl = List.filter (fun i -> not (Ident.same_unscoped i id)) idl in
+          if idl = []
+          then ()
+          else occur idl t
       | _ -> iter_type_expr (occur idl) ty
     end
   in
@@ -2706,14 +2766,19 @@ let rec mcomp type_pairs env t1 t2 =
                 raise Incompatible
             with Not_found -> ()
             end
-        | (Tfunctor (l1, _, (_p1, _), t1), Tfunctor (l2, _, (_p2, _), t2))
-          when compatible_labels ~in_pattern_mode:true l1 l2 ->
+        | (Tfunctor (l1, _, (c1, Cfp_type), t1),
+           Tfunctor (l2, _, (c2, Cfp_type), t2))
+        | (Tfunctor (l1, _, (c1, Cfp_module _), t1),
+           Tfunctor (l2, _, (c2, Cfp_module _), t2))
+          when c1 = c2 && compatible_labels ~in_pattern_mode:true l1 l2 ->
             mcomp type_pairs env t1 t2
-        | (Tfunctor (l1, _, (p1, fl1), u1), Tarrow (l2, t2, u2, _))
+        | (Tfunctor (l1, _, (false, Cfp_module (p1, fl1)), u1),
+           Tarrow (l2, t2, u2, _))
           when compatible_labels ~in_pattern_mode:true l1 l2 ->
             mcomp type_pairs env (newty (Tpackage (p1, fl1))) t2;
             mcomp type_pairs env u1 u2
-        | (Tarrow (l1, t1, u1, _), Tfunctor (l2, _, (p2, fl2), u2))
+        | (Tarrow (l1, t1, u1, _),
+           Tfunctor (l2, _, (false, Cfp_module (p2, fl2)), u2))
           when compatible_labels ~in_pattern_mode:true l1 l2 ->
             mcomp type_pairs env t1 (newty (Tpackage (p2, fl2)));
             mcomp type_pairs env u1 u2
@@ -3192,8 +3257,20 @@ and unify3 uenv t1 t1' t2 t2' =
           | false, false -> link_commu ~inside:c1 c2
           | true, true -> ()
           end
-      | (Tfunctor (l1, id1, (p1, fl1), ty1), Tfunctor (l2, id2, (p2, fl2), ty2))
-        when compatible_labels ~in_pattern_mode:(in_pattern_mode uenv) l1 l2 ->
+      | (Tfunctor (l1, id1, (c1, Cfp_type), ty1),
+         Tfunctor (l2, id2, (c2, Cfp_type), ty2))
+        when c1 = c2
+        && compatible_labels ~in_pattern_mode:(in_pattern_mode uenv) l1 l2 ->
+            let env = get_env uenv in
+            let decl = new_local_type Definition in
+            enter_functor_for Unify env id1 (newty d1) id2 t2'
+              (fun () -> with_typ uenv id1 decl
+                            (fun uenv -> Ident.link_unscoped id1 id2;
+                                         unify uenv ty1 ty2))
+      | (Tfunctor (l1, id1, (c1, Cfp_module (p1, fl1)), ty1),
+         Tfunctor (l2, id2, (c2, Cfp_module (p2, fl2)), ty2))
+        when c1 = c2
+        && compatible_labels ~in_pattern_mode:(in_pattern_mode uenv) l1 l2 ->
             let fcm1 = newty (Tpackage (p1, fl1)) in
             let fcm2 = newty (Tpackage (p2, fl2)) in
             unify uenv fcm1 fcm2;
@@ -3205,7 +3282,8 @@ and unify3 uenv t1 t1' t2 t2' =
                           (* (fun uenv -> with_mty uenv id2 mty2 *)
                             (fun uenv -> Ident.link_unscoped id1 id2;
                                          unify uenv ty1 ty2))
-      | (Tfunctor (l1, id1, (p1, fl1), u1), Tarrow (l2, t2, u2, c2))
+      | (Tfunctor (l1, id1, (false, Cfp_module (p1, fl1)), u1),
+         Tarrow (l2, t2, u2, c2))
         when compatible_labels ~in_pattern_mode:(in_pattern_mode uenv) l1 l2 ->
             unify uenv (newty (Tpackage (p1, fl1))) t2;
             let env = get_env uenv in
@@ -3215,7 +3293,8 @@ and unify3 uenv t1 t1' t2 t2' =
                 [id1] u1;
             unify uenv u1 u2;
             if not (is_commu_ok c2) then set_commu_ok c2
-      | (Tarrow (l1, t1, u1, c1), Tfunctor (l2, id2, (p2, fl2), u2))
+      | (Tarrow (l1, t1, u1, c1),
+         Tfunctor (l2, id2, (false, Cfp_module (p2, fl2)), u2))
         when compatible_labels ~in_pattern_mode:(in_pattern_mode uenv) l1 l2 ->
             unify uenv t1 (newty (Tpackage (p2, fl2)));
             let env = get_env uenv in
@@ -3712,7 +3791,7 @@ let enforce_current_level env ty = unify_var env (newvar ()) ty
 
 let unify_to_arrow env ty =
   match get_desc ty with
-  | Tfunctor (l, id, (p, fl), t) ->
+  | Tfunctor (l, id, (false, Cfp_module (p, fl)), t) ->
     let snap = Btype.snapshot () in
     let pck_ty = newty2 ~level:(get_level ty) (Tpackage (p, fl)) in
     begin try
@@ -3790,14 +3869,14 @@ let filter_arrow env t l =
   | _ ->
       raise (Filter_arrow_failed Not_a_function)
 
-let filter_functor env t l =
+let filter_functor env t l b =
   let t =
     try expand_head_trace env t
     with Unify_trace _trace ->
       assert false (* TODO *)
   in
   match get_desc t with
-  | Tfunctor (l', id, (p, fl), ct) ->
+  | Tfunctor (l', id, (b', Cfp_module (p, fl)), ct) when b = b' ->
     if l = l'
     then Some (id, (p, fl), ct)
     else raise (Filter_arrow_failed
@@ -4227,9 +4306,19 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
                 when compatible_labels ~in_pattern_mode:false l1 l2 ->
               moregen inst_nongen type_pairs env t1 t2;
               moregen inst_nongen type_pairs env u1 u2
-          | (Tfunctor (l1, id1, (p1, fl1), t1),
-              Tfunctor (l2, id2, (p2, fl2), t2))
-                when compatible_labels ~in_pattern_mode:false l1 l2 ->
+          | (Tfunctor (l1, id1, (c1, Cfp_type), t1),
+             Tfunctor (l2, id2, (c2, Cfp_type), t2))
+            when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
+              let decl = new_local_type Definition in
+              let new_env =
+                  Env.add_type ~check:true (Ident.of_unscoped id1) decl env in
+              let new_env =
+                Env.add_type ~check:true (Ident.of_unscoped id2) decl new_env in
+              enter_functor_for Moregen env id1 t1' id2 t2'
+                  (fun () -> moregen inst_nongen type_pairs new_env t1 t2)
+          | (Tfunctor (l1, id1, (c1, Cfp_module (p1, fl1)), t1),
+             Tfunctor (l2, id2, (c2, Cfp_module (p2, fl2)), t2))
+            when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
               let fcm1 = newty (Tpackage (p1, fl1)) in
               let fcm2 = newty (Tpackage (p2, fl2)) in
               moregen inst_nongen type_pairs env fcm1 fcm2;
@@ -4242,7 +4331,7 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
               enter_functor_for Moregen env id1 t1' id2 t2'
                   (fun () -> moregen inst_nongen type_pairs new_env t1 t2)
           | Tarrow (l1, t1, u1, _),
-              Tfunctor (l2, id2, (p2, fl2), u2) when l1 = l2
+              Tfunctor (l2, id2, (false, Cfp_module (p2, fl2)), u2) when l1 = l2
             || !Clflags.classic && not (is_optional l1 || is_optional l2) ->
                 let t2 = newty (Tpackage (p2, fl2)) in
                 let mty = !modtype_of_package env Location.none p2 fl2 in
@@ -4251,7 +4340,7 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
                 identifier_escape_for Moregen env' [id2] u2;
                 moregen inst_nongen type_pairs env t1 t2;
                 moregen inst_nongen type_pairs env u1 u2
-          | Tfunctor (l1, id1, (p1, fl1), u1),
+          | Tfunctor (l1, id1, (false, Cfp_module (p1, fl1)), u1),
               Tarrow (l2, t2, u2, _) when l1 = l2
             || !Clflags.classic && not (is_optional l1 || is_optional l2) ->
                 let t1 = newty (Tpackage (p1, fl1)) in
@@ -4613,9 +4702,19 @@ let rec eqtype rename type_pairs subst env t1 t2 =
                 when compatible_labels ~in_pattern_mode:false l1 l2 ->
               eqtype rename type_pairs subst env t1 t2;
               eqtype rename type_pairs subst env u1 u2;
-          | (Tfunctor (l1, id1, (p1, fl1), t1),
-              Tfunctor (l2, id2, (p2, fl2), t2))
-                when compatible_labels ~in_pattern_mode:false l1 l2 ->
+          | (Tfunctor (l1, id1, (c1, Cfp_type), t1),
+             Tfunctor (l2, id2, (c2, Cfp_type), t2))
+            when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
+              let decl = new_local_type Definition in
+              let new_env = Env.add_type ~check:true (Ident.of_unscoped id1)
+                                           decl env in
+              let new_env = Env.add_type ~check:true (Ident.of_unscoped id2)
+                                           decl new_env in
+              enter_functor_for Equality env id1 t1' id2 t2'
+                  (fun () -> eqtype rename type_pairs subst new_env t1 t2)
+          | (Tfunctor (l1, id1, (c1, Cfp_module (p1, fl1)), t1),
+             Tfunctor (l2, id2, (c2, Cfp_module (p2, fl2)), t2))
+            when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
               let fcm1 = newty (Tpackage (p1, fl1)) in
               let fcm2 = newty (Tpackage (p2, fl2)) in
               eqtype rename type_pairs subst env fcm1 fcm2;
@@ -4627,7 +4726,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
                                            Mp_present mty2 new_env in
               enter_functor_for Equality env id1 t1' id2 t2'
                   (fun () -> eqtype rename type_pairs subst new_env t1 t2)
-          | (Tfunctor (l1, id1, (p1, fl1), u1),
+          | (Tfunctor (l1, id1, (false, Cfp_module (p1, fl1)), u1),
               Tarrow (l2, t2, u2, _)) when (l1 = l2
             || !Clflags.classic && not (is_optional l1 || is_optional l2)) ->
               let t1 = newty (Tpackage (p1, fl1)) in
@@ -4638,7 +4737,8 @@ let rec eqtype rename type_pairs subst env t1 t2 =
               identifier_escape_for Equality env' [id1] u1;
               eqtype rename type_pairs subst env u1 u2
           | (Tarrow (l1, t1, u1, _),
-              Tfunctor (l2, id2, (p2, fl2), u2)) when (l1 = l2
+             Tfunctor (l2, id2, (false, Cfp_module (p2, fl2)), u2))
+            when (l1 = l2
             || !Clflags.classic && not (is_optional l1 || is_optional l2)) ->
               let t2 = newty (Tpackage (p2, fl2)) in
               eqtype rename type_pairs subst env t1 t2;
@@ -5189,7 +5289,7 @@ let rec build_subtype env (visited : transient_expr list)
       if c > Unchanged
       then (newty (Tarrow(l, t1', t2', commu_ok)), c)
       else (t, Unchanged)
-  | Tfunctor (l, us, (p, fl), ty) ->
+  | Tfunctor (l, us, (b, Cfp_module (p, fl)), ty) ->
       let tt = Transient_expr.repr t in
       if memq_warn tt visited then (t, Unchanged) else
       let visited = tt :: visited in
@@ -5203,8 +5303,24 @@ let rec build_subtype env (visited : transient_expr list)
                                       copy ~id_map ~closed copy_scope ty) in
       let (ty, c) = build_subtype env visited loops posi level ty in
       if c > Unchanged
-      then (newty (Tfunctor (l, us', (p, fl), ty)), c)
+      then (newty (Tfunctor (l, us', (b, Cfp_module (p, fl)), ty)), c)
       else (t, Unchanged)
+  | Tfunctor (l, us, (b, Cfp_type), ty) ->
+    let tt = Transient_expr.repr t in
+    if memq_warn tt visited then (t, Unchanged) else
+    let visited = tt :: visited in
+    let decl = new_local_type Definition in
+    let env = Env.add_type ~check:true (Ident.of_unscoped us) decl env in
+    let us' = Ident.refresh us in
+    let id_map = [(Ident.of_unscoped us,
+                   Path.Pident (Ident.of_unscoped us'))] in
+    let closed = compute_id_from_map id_map ty in
+    let ty = For_copy.with_scope (fun copy_scope ->
+                                    copy ~id_map ~closed copy_scope ty) in
+    let (ty, c) = build_subtype env visited loops posi level ty in
+    if c > Unchanged
+    then (newty (Tfunctor (l, us', (b, Cfp_type), ty)), c)
+    else (t, Unchanged)
   | Ttuple tlist ->
       let tt = Transient_expr.repr t in
       if memq_warn tt visited then (t, Unchanged) else
@@ -5404,8 +5520,37 @@ let rec subtype_rec env trace t1 t2 cstrs =
           (Subtype.Diff {got = u1; expected = u2} :: trace)
           u1 u2
           cstrs
-    | (Tfunctor (l1, id1, (p1, fl1), u1), Tfunctor (l2, id2, (p2, fl2), u2))
-      when compatible_labels ~in_pattern_mode:false l1 l2 ->
+    | (Tfunctor (l1, id1, (c1, Cfp_type), u1),
+       Tfunctor (l2, id2, (c2, Cfp_type), u2))
+      when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
+        begin try
+          (* FIXME : here we don't unify id1 with id2 because this would break
+            the invariant of unicity of unscoped binding.
+            However this leads to unifying u1 with u2 when their environnement
+            are different.
+          *)
+          let id_map = [(Ident.of_unscoped id2,
+                         Path.Pident (Ident.of_unscoped id1))] in
+          let closed = compute_id_from_map id_map u2 in
+          let u2 = For_copy.with_scope (fun copy_scope ->
+                                          copy ~id_map ~closed copy_scope u2) in
+          let decl = new_local_type Definition in
+          let new_env = Env.add_type ~check:true (Ident.of_unscoped id1)
+                                        decl env in
+          let new_env = Env.add_type ~check:true (Ident.of_unscoped id2)
+                                        decl new_env in
+          enter_functor env id1 t1 id2 t2
+            (fun () -> subtype_rec
+                new_env
+                (Subtype.Diff {got = u1; expected = u2} :: trace)
+                u1 u2
+                cstrs)
+        with Escape _ ->
+          ((env, Ident.get_id_pairs ()), trace, t1, t2, !univar_pairs)::cstrs
+        end
+    | (Tfunctor (l1, id1, (c1, Cfp_module (p1, fl1)), u1),
+       Tfunctor (l2, id2, (c2, Cfp_module (p2, fl2)), u2))
+      when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
         begin try
           (* FIXME : here we don't unify id1 with id2 because this would break
             the invariant of unicity of unscoped binding.
@@ -5441,7 +5586,8 @@ let rec subtype_rec env trace t1 t2 cstrs =
         with Escape _ ->
           ((env, Ident.get_id_pairs ()), trace, t1, t2, !univar_pairs)::cstrs
         end
-    | (Tfunctor (l1, id1, (p1, fl1), u1), Tarrow (l2, fcm2, u2, _))
+    | (Tfunctor (l1, id1, (false, Cfp_module (p1, fl1)), u1),
+       Tarrow (l2, fcm2, u2, _))
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
         begin try
           let fcm1 = newty (Tpackage (p1, fl1)) in
@@ -5464,7 +5610,8 @@ let rec subtype_rec env trace t1 t2 cstrs =
         with Escape _ ->
           ((env, Ident.get_id_pairs ()), trace, t1, t2, !univar_pairs)::cstrs
         end
-    | (Tarrow (l1, fcm1, u1, _),  Tfunctor (l2, id2, (p2, fl2), u2))
+    | (Tarrow (l1, fcm1, u1, _),
+       Tfunctor (l2, id2, (false, Cfp_module (p2, fl2)), u2))
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
         begin try
           let fcm2 = newty (Tpackage (p2, fl2)) in
@@ -6004,7 +6151,7 @@ let rec nondep_type_rec ?(expand_private=false) env id_map ids ty =
             let nondep_field_rec (n, ty) = (n, nondep_trec ty) in
             Tpackage (Path.subst id_map p', List.map nondep_field_rec fl)
           end
-      | Tfunctor (l, us, (p, fl), t) ->
+      | Tfunctor (l, us, (c, Cfp_module (p, fl)), t) ->
           let p', opt =
               if Path.exists_free ids p
               then let p' = normalize_package_path env p in
@@ -6025,8 +6172,18 @@ let rec nondep_type_rec ?(expand_private=false) env id_map ids ty =
             let id_map = (us_id, Path.Pident (Ident.of_unscoped us'))
                               :: id_map in
             let t' = nondep_type_rec env id_map ids' t in
-            Tfunctor (l, us', (p', fl'), t')
+            Tfunctor (l, us', (c, Cfp_module (p', fl')), t')
           end
+      | Tfunctor (l, us, (c, Cfp_type), t) ->
+          let us_id = Ident.of_unscoped us in
+          let ids' = List.filter (fun i -> not (Ident.same i us_id)) ids in
+          let us' = Ident.refresh us in
+          let id_map = List.filter (fun (i, _) -> not (Ident.same i us_id))
+                                        id_map in
+          let id_map = (us_id, Path.Pident (Ident.of_unscoped us'))
+                            :: id_map in
+          let t' = nondep_type_rec env id_map ids' t in
+          Tfunctor (l, us', (c, Cfp_type), t')
       | Tobject (t1, name) ->
           Tobject (nondep_trec t1,
                  ref (match !name with

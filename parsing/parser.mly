@@ -144,7 +144,7 @@ let ghstr ~loc d = Str.mk ~loc:(ghost_loc loc) d
 let ghsig ~loc d = Sig.mk ~loc:(ghost_loc loc) d
 
 let mkinfix arg1 op arg2 =
-  Pexp_apply(op, [Nolabel, arg1; Nolabel, arg2])
+  Pexp_apply(op, [Nolabel, Parg_exp arg1; Nolabel, Parg_exp arg2])
 
 let neg_string f =
   if String.length f > 0 && f.[0] = '-'
@@ -164,7 +164,7 @@ let mkuminus ~sloc ~oploc name arg =
     Pexp_constant({pconst_desc = Pconst_float (f, m); pconst_loc=_}), [] ->
       Pexp_constant(mkconst ~loc:sloc (Pconst_float(neg_string f, m)))
   | _ ->
-      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, arg])
+      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, Parg_exp arg])
 
 let mkuplus ~sloc ~oploc name arg =
   let desc = arg.pexp_desc in
@@ -177,7 +177,7 @@ let mkuplus ~sloc ~oploc name arg =
     [] ->
       Pexp_constant(mkconst ~loc:sloc desc)
   | _ ->
-      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, arg])
+      Pexp_apply(mkoperator ~loc:oploc ("~" ^ name), [Nolabel, Parg_exp arg])
 
 let mk_attr ~loc name payload =
   Builtin_attributes.(register_attr Parser name);
@@ -391,6 +391,7 @@ let mk_indexop_expr array_indexing_operator ~loc
     | None -> []
     | Some expr -> [Nolabel, expr] in
   let args = (Nolabel,array) :: index @ set_arg in
+  let args = List.map (fun (l, e) -> (l, Parg_exp e)) args in
   mkexp ~loc (Pexp_apply(ghexp ~loc (Pexp_ident fn), args))
 
 let indexop_unclosed_error loc_s s loc_e =
@@ -612,12 +613,12 @@ let all_params_as_newtypes =
   let is_newtype { pparam_desc; _ } =
     match pparam_desc with
     | Pparam_newtype _ -> true
-    | Pparam_val _ -> false
+    | Pparam_val _ | Pparam_module _ -> false
   in
   let as_newtype { pparam_desc; pparam_loc } =
     match pparam_desc with
     | Pparam_newtype x -> Some (x, pparam_loc)
-    | Pparam_val _ -> None
+    | Pparam_val _ | Pparam_module _ -> None
   in
   fun params ->
     if List.for_all is_newtype params
@@ -973,6 +974,7 @@ The precedences must be listed from low to high.
 %inline mkrhs(symb): symb
     { mkrhs $1 $sloc }
 ;
+%inline paren(symb): LPAREN symb RPAREN { $2 }
 
 %inline text_str(symb): symb
   { text_str $startpos @ [$1] }
@@ -2486,7 +2488,7 @@ fun_expr:
       { unclosed "do" $loc($1) "done" $loc($2) }
 ;
 %inline expr_:
-  | simple_expr nonempty_llist(labeled_simple_expr)
+  | simple_expr nonempty_llist(labeled_simple_arg)
       { Pexp_apply($1, $2) }
   | expr_comma_list %prec below_COMMA
       { Pexp_tuple($1) }
@@ -2551,9 +2553,9 @@ simple_expr:
   | name_tag %prec prec_constant_constructor
       { Pexp_variant($1, None) }
   | op(PREFIXOP) simple_expr
-      { Pexp_apply($1, [Nolabel,$2]) }
+      { Pexp_apply($1, [Nolabel,Parg_exp $2]) }
   | op(BANG {"!"}) simple_expr
-      { Pexp_apply($1, [Nolabel,$2]) }
+      { Pexp_apply($1, [Nolabel,Parg_exp $2]) }
   | LBRACELESS object_expr_content GREATERRBRACE
       { Pexp_override $2 }
   | LBRACELESS object_expr_content error
@@ -2628,6 +2630,9 @@ simple_expr:
   | mod_longident DOT
     LPAREN MODULE ext_attributes module_expr COLON error
       { unclosed "(" $loc($3) ")" $loc($8) }
+;
+labeled_simple_arg:
+  | labeled_simple_expr { let (l, e) = $1 in (l, Parg_exp e) }
 ;
 labeled_simple_expr:
     simple_expr %prec below_HASH
@@ -2796,6 +2801,21 @@ fun_param_as_list:
       { let a, b, c = $1 in
         [ { pparam_loc = make_loc $sloc; pparam_desc = Pparam_val (a, b, c) } ]
       }
+  | label_for_mparam LBRACE mkrhs(UIDENT) COLON mty = module_type RBRACE
+      { let (lid, cstrs, _attrs2) = package_type_of_module_type mty in
+        [{pparam_loc = make_loc $sloc;
+          pparam_desc = Pparam_module ($1, $3, Some (lid, cstrs))}]
+      }
+  | label_for_mparam LBRACE mkrhs(UIDENT) RBRACE
+      { [{pparam_loc = make_loc $sloc;
+          pparam_desc = Pparam_module ($1, $3, None)}]
+      }
+;
+%inline label_for_mparam:
+  | QUESTION      { Optional "" }
+  | l = OPTLABEL  { Optional l }
+  | l = LABEL     { Labelled l }
+  |               { Nolabel }
 ;
 fun_params:
   | nonempty_concat(fun_param_as_list) { $1 }
@@ -3508,23 +3528,44 @@ function_type:
       codomain = function_type
         { Ptyp_arrow(label, domain, codomain) })
     { $1 }
-  | label = arg_label_no_opt
-    LPAREN
-      MODULE attrs1 = ext_attributes id = mkrhs(UIDENT) COLON
-      mty = module_type
-    RPAREN
+  | arg = dependent_domain
     MINUSGREATER
     codomain = function_type
-      { let (lid, cstrs, attrs2) = package_type_of_module_type mty in
+      { let (lbl, id, (attrs1, attrs2), param) = arg in
         wrap_typ_attrs ~loc:$sloc
           (mktyp ~loc:$sloc ~attrs:attrs2
-            (Ptyp_functor(label, id, (lid, cstrs), codomain))) attrs1 }
+            (Ptyp_functor(lbl, id, param, codomain))) attrs1 }
+;
+%inline dependent_domain:
+  | label = arg_label_no_opt
+    LPAREN MODULE pb = pack_bind(paren(type_param)) RPAREN
+      { let (id, (attrs1, attrs2), mty) = pb in
+        (label, id, (attrs1, attrs2), (false, mty)) }
+  | label = arg_label_or_question
+    LBRACE pb = pack_bind(type_param) RBRACE
+      { let (id, (attrs1, attrs2), mty) = pb in
+        (label, id, (attrs1, attrs2), (false, mty)) }
+;
+%inline pack_bind(X):
+    attrs1 = ext_attributes id = mkrhs(UIDENT) COLON mty = module_type
+      { let (lid, cstrs, attrs2) = package_type_of_module_type mty in
+        let mty' = Some (lid, cstrs) in
+        (id, (attrs1, attrs2), mty')
+      }
+  | attrs1 = ext_attributes x = X { (x, (attrs1, []), None) }
+;
+type_param:
+    TYPE id = mkrhs(LIDENT) { id }
+;
+%inline arg_label_or_question:
+  | label = arg_label { label }
+  | QUESTION          { Optional ""}
 ;
 %inline arg_label:
   | label = optlabel
       { Optional label }
   | arg_label_no_opt { $1 }
-
+;
 %inline arg_label_no_opt:
   | label = LIDENT COLON
       { Labelled label }

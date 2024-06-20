@@ -45,8 +45,17 @@ and type_desc =
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * (Longident.t * type_expr) list
-  | Tfunctor of arg_label * Ident.unscoped
-                * (Path.t * (Longident.t * type_expr) list) * type_expr
+  | Tfunctor of arg_label * Ident.unscoped *
+            (bool * core_functor_param) * type_expr
+
+and core_functor_param =
+  | Cfp_module of Path.t * (Longident.t * type_expr) list
+  (** Module argument :
+    false, Cfp_module (p, fl) -> (module _ : p with fl) -> _
+    true, Cfm_module (p, fl) -> {p with fl} -> _
+  *)
+  | Cfp_type
+  (** Type argument (module (type _)) or {type _}*)
 
 and row_desc =
     { row_fields: (label * row_field) list;

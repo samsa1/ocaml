@@ -93,6 +93,10 @@ let handle_extension ext =
   | _ ->
     ()
 
+let add_opt add_fn bv = function
+    None -> ()
+  | Some x -> add_fn bv x
+
 let rec add_type bv ty =
   match ty.ptyp_desc with
     Ptyp_any -> ()
@@ -119,15 +123,13 @@ let rec add_type bv ty =
     let bv = open_module bv mod_ident.txt in
     add_type bv t
   | Ptyp_extension e -> handle_extension e
-  | Ptyp_functor (_, _, pt, t2) -> add_package_type bv pt; add_type bv t2
+  | Ptyp_functor (_, _, (_, pt), t2) ->
+    add_opt add_package_type bv pt;
+    add_type bv t2
 
 and add_package_type bv (lid, l) =
   add bv lid;
   List.iter (add_type bv) (List.map (fun (_, e) -> e) l)
-
-let add_opt add_fn bv = function
-    None -> ()
-  | Some x -> add_fn bv x
 
 let add_constructor_arguments bv = function
   | Pcstr_tuple l -> List.iter (add_type bv) l
@@ -212,7 +214,7 @@ let rec add_expr bv exp =
       add_opt add_constraint bv constraint_;
       add_function_body bv body
   | Pexp_apply(e, el) ->
-      add_expr bv e; List.iter (fun (_,e) -> add_expr bv e) el
+      add_expr bv e; List.iter (fun (_,a) -> add_arg bv a) el
   | Pexp_match(e, pel) -> add_expr bv e; add_cases bv pel
   | Pexp_try(e, pel) -> add_expr bv e; add_cases bv pel
   | Pexp_tuple el -> List.iter (add_expr bv) el
@@ -274,11 +276,19 @@ let rec add_expr bv exp =
   | Pexp_extension e -> handle_extension e
   | Pexp_unreachable -> ()
 
+and add_arg bv = function
+  | Parg_exp e -> add_expr bv e
+  | Parg_mod m -> add_module_expr bv m
+  | Parg_typ t -> add_type bv t
+
 and add_function_param bv param =
   match param.pparam_desc with
   | Pparam_val (_, opte, pat) ->
       add_opt add_expr bv opte;
       add_pattern bv pat
+  | Pparam_module (_, _, pty) ->
+      add_opt add_package_type bv pty;
+      bv
   | Pparam_newtype _ -> bv
 
 and add_function_body bv body =

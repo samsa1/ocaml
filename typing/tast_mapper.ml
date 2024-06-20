@@ -512,6 +512,8 @@ let binding_op sub x =
 
 let arg sub = function
     Targ_exp e -> Targ_exp (sub.expr sub e)
+  | Targ_mod m -> Targ_mod (sub.module_expr sub m)
+  | Targ_typ t -> Targ_typ (sub.typ sub t)
 
 let signature sub x =
   let sig_final_env = sub.env sub x.sig_final_env in
@@ -788,9 +790,10 @@ let typ sub x =
         Ttyp_package (sub.package_type sub pack)
     | Ttyp_open (path, mod_ident, t) ->
         Ttyp_open (path, map_loc sub mod_ident, sub.typ sub t)
-    | Ttyp_functor (label, id, pack, t) ->
+    | Ttyp_functor (label, id, (c, pack), t) ->
         Ttyp_functor (label, map_loc sub id,
-                      sub.package_type sub pack, sub.typ sub t)
+                      (c, Option.map (sub.package_type sub) pack),
+                      sub.typ sub t)
   in
   let ctyp_attributes = sub.attributes sub x.ctyp_attributes in
   {x with ctyp_loc; ctyp_desc; ctyp_env; ctyp_attributes}

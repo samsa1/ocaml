@@ -132,10 +132,18 @@ type type_desc =
   | Tpackage of Path.t * (Longident.t * type_expr) list
   (** Type of a first-class module (a.k.a package). *)
 
-  | Tfunctor of arg_label * Ident.unscoped
-                * (Path.t * (Longident.t * type_expr) list) * type_expr
+  | Tfunctor of arg_label * Ident.unscoped *
+            (bool * core_functor_param) * type_expr
   (** Type of a dependant arrow *)
 
+and core_functor_param =
+  | Cfp_module of Path.t * (Longident.t * type_expr) list
+  (** Module argument :
+    false, Cfp_module (p, fl) -> (module _ : p with fl) -> _
+    true, Cfm_module (p, fl) -> {p with fl} -> _
+  *)
+  | Cfp_type
+  (** Type argument (module (type _)) or {type _}*)
 
 and fixed_explanation =
   | Univar of type_expr (** The row type was bound to an univar *)

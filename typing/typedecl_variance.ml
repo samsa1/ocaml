@@ -64,12 +64,15 @@ let compute_variance env visited vari ty =
       Tarrow (_, ty1, ty2, _) ->
         compute_variance_rec env (Variance.conjugate vari) ty1;
         compute_same ty2
-    | Tfunctor (_, id, (p, fl), ty) ->
-      let ident =
-          Ident.create_scoped ~scope:(get_level ty) (Ident.name_unscoped id) in
-      let env' = Env.add_module ident Mp_present (Mty_ident p) env in
+    | Tfunctor (_, id, (_, Cfp_module (p, fl)), ty) ->
+      let env' =
+          Env.add_module (Ident.of_unscoped id) Mp_present (Mty_ident p) env in
       let v = Variance.(compose vari full) in (* TODO : check here *)
       List.iter (fun (_, ty) -> compute_variance_rec env v ty) fl;
+      compute_variance_rec env' vari ty
+    | Tfunctor (_, id, (_, Cfp_type), ty) ->
+      let decl = Ctype.new_local_type Definition in
+      let env' = Env.add_type ~check:true (Ident.of_unscoped id) decl env in
       compute_variance_rec env' vari ty
     | Ttuple tl ->
         List.iter compute_same tl

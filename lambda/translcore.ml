@@ -173,11 +173,6 @@ let transl_ident loc env ty path desc =
       transl_value_path loc env path
   |  _ -> fatal_error "Translcore.transl_exp: bad Texp_ident"
 
-(* let rec has_n_eargs arity oargs =
-  arity = 0 && match oargs with
-  | (_, Some (Targ_exp _)) :: tl -> has_n_eargs (arity - 1) tl
-  | _ -> false *)
-
 let rec transl_exp ~scopes e =
   transl_exp1 ~scopes ~in_new_scope:false e
 
@@ -593,8 +588,10 @@ and transl_exp0 ~in_new_scope ~scopes e =
                !transl_module ~scopes Tcoerce_none None od.open_expr, body)
       end
 
-and transl_arg = function
-    Targ_exp e -> transl_exp e
+and transl_arg ~scopes = function
+    Targ_exp e -> transl_exp ~scopes e
+  | Targ_mod m -> !transl_module ~scopes Tcoerce_none None m
+  | Targ_typ _ -> lambda_unit
 
 and pure_module m =
   match m.mod_desc with

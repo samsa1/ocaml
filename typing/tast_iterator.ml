@@ -393,6 +393,8 @@ let binding_op sub {bop_loc; bop_op_name; bop_exp; _} =
 
 let arg sub = function
     Targ_exp e -> sub.expr sub e
+  | Targ_mod m -> sub.module_expr sub m
+  | Targ_typ t -> sub.typ sub t
 
 let signature sub {sig_items; sig_final_env; _} =
   sub.env sub sig_final_env;
@@ -595,8 +597,8 @@ let typ sub {ctyp_loc; ctyp_desc; ctyp_env; ctyp_attributes; _} =
   | Ttyp_open (_, mod_ident, t) ->
       iter_loc sub mod_ident;
       sub.typ sub t
-  | Ttyp_functor (_, _, pack, ct) ->
-      sub.package_type sub pack;
+  | Ttyp_functor (_, _, (_, pack), ct) ->
+      Option.iter (sub.package_type sub) pack;
       sub.typ sub ct
 
 let class_structure sub {cstr_self; cstr_fields; _} =

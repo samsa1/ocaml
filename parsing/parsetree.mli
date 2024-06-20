@@ -173,8 +173,13 @@ and core_type_desc =
   | Ptyp_package of package_type  (** [(module S)]. *)
   | Ptyp_open of Longident.t loc * core_type (** [M.(T)] *)
   | Ptyp_extension of extension  (** [[%id]]. *)
-  | Ptyp_functor of arg_label * string loc * package_type * core_type
-        (** [(module M : S) -> ...] : dependant arrow *)
+  | Ptyp_functor of arg_label * string loc * (bool * package_type option) * core_type
+        (** [(module M : S) -> ...] : dependant arrow
+            (false, Some S) -> [(module _ : S) -> _]
+            (true,  Some S) -> [{_ : S} -> _]
+            (false, None)   -> [(module (type _)) -> _]
+            (true,  None)   -> [{type _} -> _]
+        *)
 
 
 and package_type = Longident.t loc * (Longident.t loc * core_type) list
@@ -321,7 +326,7 @@ and expression_desc =
       A function must have parameters. [Pexp_function (params, _, body)] must
       have non-empty [params] or a [Pfunction_cases _] body.
   *)
-  | Pexp_apply of expression * (arg_label * expression) list
+  | Pexp_apply of expression * (arg_label * argument) list
       (** [Pexp_apply(E0, [(l1, E1) ; ... ; (ln, En)])]
             represents [E0 ~l1:E1 ... ~ln:En]
 
@@ -441,6 +446,11 @@ and binding_op =
     pbop_loc : Location.t;
   }
 
+and argument =
+    Parg_exp of expression
+  | Parg_mod of module_expr
+  | Parg_typ of core_type
+
 and function_param_desc =
   | Pparam_val of arg_label * expression option * pattern
   (** [Pparam_val (lbl, exp0, P)] represents the parameter:
@@ -460,6 +470,8 @@ and function_param_desc =
       Note: If [E0] is provided, only
       {{!Asttypes.arg_label.Optional}[Optional]} is allowed.
   *)
+  | Pparam_module of arg_label * string loc * package_type option
+  (** Corresponds to {M : S} or ?{M : S}, can also be ?{M} or {M} *)
   | Pparam_newtype of string loc
   (** [Pparam_newtype x] represents the parameter [(type x)].
       [x] carries the location of the identifier, whereas the [pparam_loc]

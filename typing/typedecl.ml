@@ -562,11 +562,17 @@ let rec check_constraints_rec env loc visited ty =
           raise (Error(loc, Constraint_failed (env, err)))
       end;
       List.iter (check_constraints_rec env loc visited) args
-  | Tfunctor (_, id, (p, fl), ty) ->
-      List.iter (fun (_, t) -> check_constraints_rec env loc visited t) fl;
-      let mty = !Ctype.modtype_of_package env loc p fl in
+  | Tfunctor (_, id, (_, param), ty) ->
       let id' = Ident.create_local (Ident.name_unscoped id) in
-      let env = Env.add_module id' Mp_present mty env in
+      let env = match param with
+        | Cfp_module (p, fl) ->
+          List.iter (fun (_, t) -> check_constraints_rec env loc visited t) fl;
+          let mty = !Ctype.modtype_of_package env loc p fl in
+          Env.add_module id' Mp_present mty env
+        | Cfp_type ->
+          let decl = Ctype.new_local_type Definition in
+          Env.add_type ~check:true id' decl env    
+      in
       let ty = Option.value ~default:ty
           (Ctype.instance_funct ~id_in:(Ident.of_unscoped id)
               ~p_out:(Pident id') ~fixed:false ty) in

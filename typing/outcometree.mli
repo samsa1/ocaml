@@ -82,7 +82,11 @@ type out_type =
   | Otyp_module of out_ident * (string * out_type) list
   | Otyp_attribute of out_type * out_attribute
   | Otyp_functor of Asttypes.arg_label * out_ident
-                    * (out_ident * (string * out_type) list) * out_type
+                    * (bool * c_functor_param) * out_type
+
+and c_functor_param =
+  | Ocfp_mod of (out_ident * (string * out_type) list)
+  | Ocfp_typ
 
 and out_constructor = {
   ocstr_name: string;

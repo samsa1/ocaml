@@ -188,11 +188,16 @@ let rec core_type i ppf x =
   | Ptyp_extension (s, arg) ->
       line i ppf "Ptyp_extension \"%s\"\n" s.txt;
       payload i ppf arg
-  | Ptyp_functor (label, name, (li, l), ct2) ->
-      line i ppf "Ptyp_functor\n";
+  | Ptyp_functor (label, name, (c, Some (li, l)), ct2) ->
+      line i ppf "Ptyp_functor %b\n" c;
       arg_label i ppf label;
       line i ppf "\"%s\" : %a\n" name.txt fmt_longident_loc li;
       list i package_with ppf l;
+      core_type i ppf ct2
+  | Ptyp_functor (label, name, (c, None), ct2) ->
+      line i ppf "Ptyp_functor %b\n" c;
+      arg_label i ppf label;
+      line i ppf "type_arg \"%s\"\n" name.txt;
       core_type i ppf ct2
 
 and package_with i ppf (s, t) =
@@ -286,7 +291,7 @@ and expression i ppf x =
   | Pexp_apply (e, l) ->
       line i ppf "Pexp_apply\n";
       expression i ppf e;
-      list i label_x_expression ppf l;
+      list i label_x_argument ppf l;
   | Pexp_match (e, l) ->
       line i ppf "Pexp_match\n";
       expression i ppf e;
@@ -407,6 +412,15 @@ and function_param i ppf { pparam_desc = desc; pparam_loc = loc } =
       arg_label (i+1) ppf l;
       option (i+1) expression ppf eo;
       pattern (i+1) ppf p
+  | Pparam_module (l, n, Some (li, cstrs)) ->
+      line i ppf "Param_module\n";
+      arg_label (i+1) ppf l;
+      line (i+1) ppf "Some \"%s\" : %a\n" n.txt fmt_longident_loc li;
+      list (i+2) package_with ppf cstrs;
+  | Pparam_module (l, n, None) ->
+      line i ppf "Param_module\n";
+      arg_label (i+1) ppf l;
+      line (i+1) ppf "None of \"%s\"" n.txt;
   | Pparam_newtype ty ->
       line i ppf "Pparam_newtype \"%s\" %a\n" ty.txt fmt_location loc
 
@@ -987,6 +1001,18 @@ and string_x_expression i ppf (s, e) =
 and longident_x_expression i ppf (li, e) =
   line i ppf "%a\n" fmt_longident_loc li;
   expression (i+1) ppf e;
+
+and label_x_argument i ppf (l, a) =
+  match a with
+  | Parg_exp e -> label_x_expression i ppf (l, e)
+  | Parg_mod m ->
+    line i ppf "<marg>\n";
+    arg_label i ppf l;
+    module_expr (i+1) ppf m;
+  | Parg_typ t ->
+    line i ppf "<targ>\n";
+    arg_label i ppf l;
+    core_type (i+1) ppf t;
 
 and label_x_expression i ppf (l,e) =
   line i ppf "<arg>\n";

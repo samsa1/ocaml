@@ -977,6 +977,8 @@ and binding_op : Typedtree.binding_op -> term_judg =
 
 and argument = function
     Targ_exp e -> expression e
+  | Targ_mod m -> modexp m
+  | Targ_typ _ -> empty
 
 and class_structure : Typedtree.class_structure -> term_judg =
   fun cs -> list class_field cs.cstr_fields
