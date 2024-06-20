@@ -335,7 +335,7 @@ val filter_arrow: Env.t -> type_expr -> arg_label -> param_hole:bool ->
            later by a [Tpoly _].
            Raises [Filter_arrow_failed] instead of [Unify]. *)
 val filter_functor:
-        Env.t -> type_expr -> arg_label ->
+        Env.t -> type_expr -> arg_label -> bool ->
         (Ident.Unscoped.t * package * type_expr) option
         (* A special case of unification with [{M:P} -> 'a]
            Raises [Filter_arrow_failed] instead of [Unify].
@@ -476,8 +476,8 @@ val close_class_signature : Env.t -> class_signature -> bool
 exception Nondep_cannot_erase of Ident.t
 
 val identifier_escape :
-        arg_label -> package -> Env.t -> Ident.Unscoped.t -> module_type ->
-        type_expr -> unit
+        arg_label -> bool -> package -> Env.t -> Ident.Unscoped.t ->
+        module_type -> type_expr -> unit
 val nondep_type: Env.t -> Ident.t list -> type_expr -> type_expr
         (* Return a type equivalent to the given type but without
            references to any of the given identifiers.

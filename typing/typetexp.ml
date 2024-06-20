@@ -732,7 +732,7 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
       ctyp (Ttyp_open (path, mod_ident, cty)) cty.ctyp_type
   | Ptyp_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
-  | Ptyp_functor (lbl, name, ptyp, st) ->
+  | Ptyp_functor (lbl, name, (c, Some ptyp), st) ->
     let pack, mty, ptys =
       transl_package env ~policy ~row_context ComputeMType ptyp in
     let t = newvar () in
@@ -748,19 +748,42 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
           instance_funct ~p_out:(Pident (Ident.of_unscoped ident))
                          ~id_in:scoped_ident ~fixed:false cty.ctyp_type
         in
-        let ty = newty (Tfunctor (lbl, ident, pack, ctyp_type)) in
+        let ty =
+            newty (Tfunctor (lbl, ident, (c, Cfp_module pack), ctyp_type))
+        in
         (* Here we reduce the level of [cty] before leaving the local level *)
         let _ = try unify env ty t with Unify trace ->
-          raise (Error (loc, env, Type_mismatch trace))
+          raise (Error(loc, env, Type_mismatch trace))
         in
         scoped_ident, cty, ty
       end in
-    ctyp (Ttyp_functor (lbl, {txt = scoped_ident; loc = name.loc}, {
+    ctyp (Ttyp_functor (lbl, {txt = scoped_ident; loc = name.loc},
+               (c, Some {
                 tpt_path = pack.pack_path;
                 tpt_type = pack;
                 tpt_constraints = ptys;
                 tpt_txt = ptyp.ppt_path;
-                }, cty)) ty
+                }), cty)) ty
+  | Ptyp_functor (lbl, name, (c, None), st) ->
+    let scoped_ident, cty =
+      with_local_level begin fun () ->
+        let scoped_ident =
+          Ident.create_scoped ~scope:(Ctype.get_current_level()) name.txt
+        in
+        let decl = new_local_type Definition in
+        let env = Env.add_type ~check:true scoped_ident decl env in
+        scoped_ident, transl_type env ~policy ~row_context st
+      end in
+    let ident = Ident.Unscoped.create name.txt in
+    let ctyp_type =
+        instance_funct ~p_out:(Pident (Ident.of_unscoped ident))
+                          ~id_in:scoped_ident ~fixed:false cty.ctyp_type
+    in
+    let ty =
+        newty (Tfunctor (lbl, ident, (c, Cfp_type), ctyp_type))
+    in
+    ctyp (Ttyp_functor (lbl, {txt = scoped_ident; loc = name.loc},
+                        (c, None), cty)) ty
 
 and transl_fields env ~policy ~row_context o fields =
   (* Using a reference to a map rather than a hash table gives us

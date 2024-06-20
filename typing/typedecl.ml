@@ -566,11 +566,20 @@ let rec check_constraints_rec env loc visited ty =
           raise (Error(loc, Constraint_failed (env, err)))
       end;
       List.iter (check_constraints_rec env loc visited) args
-  | Tfunctor (_, us, pack, ty) ->
-      List.iter (fun (_, t) -> check_constraints_rec env loc visited t)
-        pack.pack_constraints;
-      let (env, ty) =
-        Ctype.open_tfunctor env ~loc us pack ty in
+  | Tfunctor (_, us, (_, param), ty) ->
+      let id = Ident.(create_scoped ~scope:lowest_scope (Unscoped.name us)) in
+      let env = match param with
+        | Cfp_module pack ->
+          List.iter (fun (_, t) -> check_constraints_rec env loc visited t)
+            pack.pack_constraints;
+          let mty = Ctype.modtype_of_package env loc pack in
+          Env.add_module id Mp_present IILocal mty env
+        | Cfp_type ->
+          let decl = Ctype.new_local_type Definition in
+          Env.add_type ~check:true id decl env
+      in
+      let ty = Ctype.instance_funct ~id_in:(Ident.of_unscoped us)
+                  ~p_out:(Pident id) ~fixed:false ty in
       check_constraints_rec env loc visited ty
   | Tpoly (ty, tl) ->
       let ty = Ctype.instance_poly tl ty in

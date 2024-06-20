@@ -72,7 +72,7 @@ let iterator =
     | Ptyp_tuple ([] | [_]) -> invalid_tuple loc
     | Ptyp_package ptyp ->
       List.iter (fun (id, _) -> simple_longident id) ptyp.ppt_constraints
-    | Ptyp_functor  (l, _, ptyp, _) ->
+    | Ptyp_functor  (l, _, (_, Some ptyp), _) ->
       not_optional_label loc l;
       List.iter (fun (id, _) -> simple_longident id) ptyp.ppt_constraints
     | Ptyp_poly([],_) -> empty_poly_binder loc
@@ -122,7 +122,7 @@ let iterator =
           List.for_all
             (function
               | { pparam_desc = Pparam_newtype _ } -> true
-              | { pparam_desc = Pparam_val _ } -> false)
+              | { pparam_desc = Pparam_val _ | Pparam_module _ } -> false)
             params
         then function_without_value_parameters loc
     | Pexp_struct_item ({pstr_desc = Pstr_extension _ |

@@ -216,15 +216,20 @@ let apply_type_function params args body =
           in
           Transient_expr.set_stub_desc t desc';
           t
-      | Tfunctor (l, id, {pack_path; pack_constraints}, t2) ->
+      | Tfunctor (l, id, (c, param), t2) ->
           let t = newgenstub ~scope:(get_scope ty) in
           For_copy.redirect_desc copy_scope ty (Tsubst (t, None));
-          let pack' = {
-            pack_path;
-            pack_constraints =
-              List.map (fun (l, t) -> (l, copy t)) pack_constraints
-          } in
-          let desc' = Tfunctor (l, id, pack', copy t2) in
+          let param' =
+            match param with
+            | Cfp_module {pack_path; pack_constraints} ->
+              Cfp_module {
+                pack_path;
+                pack_constraints =
+                  List.map (fun (l, t) -> (l, copy t)) pack_constraints
+              }
+            | Cfp_type -> Cfp_type
+          in
+          let desc' = Tfunctor (l, id, (c, param'), copy t2) in
           Transient_expr.set_stub_desc t desc';
           t
       | (Tvar _ | Tarrow _ | Ttuple _ | Tfield _ | Tnil | Tlink _ | Tunivar _
@@ -289,11 +294,17 @@ let rec typexp copy_scope s ty =
          end
       | Tpackage pack ->
           Tpackage (package copy_scope s pack)
-      | Tfunctor(lbl, us, pack, ty) ->
+      | Tfunctor(lbl, us, (b, Cfp_module pack), ty) ->
           let us' = Ident.Unscoped.refresh us in
           let s' = add_module (Ident.of_unscoped us)
                               (Pident (Ident.of_unscoped us')) s in
-          Tfunctor(lbl, us', package copy_scope s pack, typexp copy_scope s' ty)
+          let pack = package copy_scope s pack in
+          Tfunctor(lbl, us', (b, Cfp_module pack), typexp copy_scope s' ty)
+      | Tfunctor(lbl, us, (b, Cfp_type), ty) ->
+          let us' = Ident.Unscoped.refresh us in
+          let s' = add_type (Ident.of_unscoped us)
+                              (Pident (Ident.of_unscoped us')) s in
+          Tfunctor(lbl, us', (b, Cfp_type), typexp copy_scope s' ty)
       | Tobject (t1, name) ->
           let t1' = typexp copy_scope s t1 in
           let name' =

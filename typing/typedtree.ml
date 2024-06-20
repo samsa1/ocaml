@@ -212,6 +212,8 @@ and apply_arg_exp = (expression, unit) arg_or_omitted
 
 and argument =
     Targ_exp of expression
+  | Targ_mod of module_expr
+  | Targ_typ of core_type
 
 (* Value expressions for the class language *)
 
@@ -507,7 +509,8 @@ and core_type_desc =
   | Ttyp_poly of string list * core_type
   | Ttyp_package of package_type
   | Ttyp_open of Path.t * Longident.t loc * core_type
-  | Ttyp_functor of arg_label * Ident.t loc * package_type * core_type
+  | Ttyp_functor of arg_label * Ident.t loc * (bool * package_type option)
+                                            * core_type
 
 and package_type = {
   tpt_path : Path.t;

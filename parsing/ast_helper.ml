@@ -126,8 +126,11 @@ module Typ = struct
             Ptyp_open (mod_ident, loop core_type)
         | Ptyp_extension (s, arg) ->
             Ptyp_extension (s, arg)
-        | Ptyp_functor (label, name, ptyp, codomain) ->
-            Ptyp_functor (label, name, loop_package_type ptyp, loop codomain)
+        | Ptyp_functor (label, name, (c, optyp), codomain) ->
+            Ptyp_functor
+              (label, name,
+               (c, Option.map loop_package_type optyp),
+               loop codomain)
       in
       {t with ptyp_desc = desc}
     and loop_row_field field =
