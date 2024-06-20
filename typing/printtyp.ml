@@ -1161,7 +1161,7 @@ let rec tree_of_typexp mode ty =
     | Tpackage (p, fl) ->
         let fl = tree_of_pack_fields mode fl in
         Otyp_module (tree_of_path (Some Module_type) p, fl)
-    | Tfunctor (l, id, (p, fl), ty) ->
+    | Tfunctor (l, id, (b, Cfp_module (p, fl)), ty) ->
       let lab =
         if !print_labels || is_optional l then l else Nolabel
       in
@@ -1172,7 +1172,18 @@ let rec tree_of_typexp mode ty =
       let ty = wrap_env fenv (tree_of_typexp mode) ty in
       let fl = tree_of_pack_fields mode fl in
       Otyp_functor (lab, Oide_ident { printed_name = Ident.name_unscoped id },
-                    (tree_of_path (Some Module_type) p, fl), ty)
+            (b, Ocfp_mod (tree_of_path (Some Module_type) p, fl)), ty)
+    | Tfunctor (l, id, (b, Cfp_type), ty) ->
+      let lab =
+        if !print_labels || is_optional l then l else Nolabel
+      in
+      let fenv env =
+        let decl = Ctype.new_local_type Definition in
+        Env.add_type ~check:true (Ident.of_unscoped id) decl env
+      in
+      let ty = wrap_env fenv (tree_of_typexp mode) ty in
+      Otyp_functor (lab, Oide_ident { printed_name = Ident.name_unscoped id },
+            (b, Ocfp_typ), ty)
   in
   if List.memq px !delayed then delayed := List.filter ((!=) px) !delayed;
   alias_nongen_row mode px ty;

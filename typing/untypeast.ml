@@ -23,6 +23,7 @@ open Ast_helper
 module T = Typedtree
 
 type mapper = {
+  arg: mapper -> T.argument -> argument;
   attribute: mapper -> T.attribute -> attribute;
   attributes: mapper -> T.attribute list -> attribute list;
   binding_op: mapper -> T.binding_op -> T.pattern -> binding_op;
@@ -448,7 +449,7 @@ let expression sub exp =
           List.fold_right (fun (label, expo) list ->
               match expo with
                 None -> list
-              | Some (Targ_exp exp) -> (label, sub.expr sub exp) :: list
+              | Some a -> (label, (sub.arg sub a)) :: list
           ) list [])
     | Texp_match (exp, cases, eff_cases, _) ->
       let merged_cases = List.map (sub.case sub) cases
@@ -561,6 +562,11 @@ let expression sub exp =
   in
   List.fold_right (exp_extra sub) exp.exp_extra
     (Exp.mk ~loc ~attrs desc)
+
+let arg sub = function
+  | Targ_exp e -> Parg_exp (sub.expr sub e)
+  | Targ_mod m -> Parg_mod (sub.module_expr sub m)
+  | Targ_typ t -> Parg_typ (sub.typ sub t)
 
 let binding_op sub bop pat =
   let pbop_op = bop.bop_op_name in
@@ -823,9 +829,10 @@ let core_type sub ct =
         Ptyp_poly (list, sub.typ sub ct)
     | Ttyp_package pack -> Ptyp_package (sub.package_type sub pack)
     | Ttyp_open (_path, mod_ident, t) -> Ptyp_open (mod_ident, sub.typ sub t)
-    | Ttyp_functor (label, name, pack, ct) ->
+    | Ttyp_functor (label, name, (c, pack_opt), ct) ->
         let name = Location.mkloc (Ident.name name.txt) name.loc in
-        Ptyp_functor (label, name, sub.package_type sub pack, sub.typ sub ct)
+        let param = (c, Option.map (sub.package_type sub) pack_opt) in
+        Ptyp_functor (label, name, param, sub.typ sub ct)
   in
   Typ.mk ~loc ~attrs desc
 
@@ -909,6 +916,7 @@ let location _sub l = l
 
 let default_mapper =
   {
+    arg = arg;
     attribute = attribute;
     attributes = attributes;
     binding_op = binding_op;

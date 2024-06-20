@@ -125,11 +125,14 @@ module Typ = struct
             Ptyp_open (mod_ident, loop core_type)
         | Ptyp_extension (s, arg) ->
             Ptyp_extension (s, arg)
-        | Ptyp_functor (label, name, (longident, lst), codomain) ->
+        | Ptyp_functor (label, name, (c, Some (lid, lst)), codomain) ->
             Ptyp_functor
               (label, name,
-               (longident, List.map (fun (n, typ) -> (n, loop typ)) lst),
+               (c, Some (lid, List.map (fun (n, typ) -> (n, loop typ)) lst)),
                loop codomain)
+        | Ptyp_functor (label, name, (c, None), codomain) ->
+            Ptyp_functor
+              (label, name, (c, None), loop codomain)
       in
       {t with ptyp_desc = desc}
     and loop_row_field field =
