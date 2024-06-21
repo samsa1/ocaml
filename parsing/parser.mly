@@ -613,12 +613,12 @@ let all_params_as_newtypes =
   let is_newtype { pparam_desc; _ } =
     match pparam_desc with
     | Pparam_newtype _ -> true
-    | Pparam_val _ | Pparam_module _ -> false
+    | Pparam_val _ | Pparam_type _ | Pparam_module _ -> false
   in
   let as_newtype { pparam_desc; pparam_loc } =
     match pparam_desc with
     | Pparam_newtype x -> Some (x, pparam_loc)
-    | Pparam_val _ | Pparam_module _ -> None
+    | Pparam_val _ | Pparam_type _ | Pparam_module _ -> None
   in
   fun params ->
     if List.for_all is_newtype params
@@ -1432,6 +1432,37 @@ module_expr:
         { Pmod_apply(me1, me2) }
     | (* Functor applied to unit. *)
       me = module_expr LPAREN RPAREN
+        { Pmod_apply_unit me }
+    | (* An extension. *)
+      ex = extension
+        { Pmod_extension ex }
+    )
+    { $1 }
+;
+module_expr_no_paren:
+  | STRUCT attrs = attributes s = structure END
+      { mkmod ~loc:$sloc ~attrs (Pmod_structure s) }
+  | STRUCT attributes structure error
+      { unclosed "struct" $loc($1) "end" $loc($4) }
+  | SIG error
+      { expecting $loc($1) "struct" }
+  | FUNCTOR attrs = attributes args = functor_args MINUSGREATER me = module_expr
+      { wrap_mod_attrs ~loc:$sloc attrs (
+          List.fold_left (fun acc (startpos, arg) ->
+            mkmod ~loc:(startpos, $endpos) (Pmod_functor (arg, acc))
+          ) me args
+        ) }
+  | me = module_expr_no_paren attr = attribute
+      { Mod.attr me attr }
+  | mkmod(
+      (* A module identifier. *)
+      x = mkrhs(mod_longident)
+        { Pmod_ident x }
+    | (* In a functor application, the actual argument must be parenthesized. *)
+      me1 = module_expr_no_paren me2 = paren_module_expr
+        { Pmod_apply(me1, me2) }
+    | (* Functor applied to unit. *)
+      me = module_expr_no_paren LPAREN RPAREN
         { Pmod_apply_unit me }
     | (* An extension. *)
       ex = extension
@@ -2632,7 +2663,12 @@ simple_expr:
       { unclosed "(" $loc($3) ")" $loc($8) }
 ;
 labeled_simple_arg:
-  | labeled_simple_expr { let (l, e) = $1 in (l, Parg_exp e) }
+  | labeled_simple_expr
+      { let (l, e) = $1 in (l, Parg_exp e) }
+  | labeled_simple(simple_mod)
+      { let (l, m) = $1 in (l, Parg_mod m) }
+  | labeled_simple(simple_type)
+      { let (l, (b, t)) = $1 in (l, Parg_typ (b, t)) }
 ;
 labeled_simple_expr:
     simple_expr %prec below_HASH
@@ -2650,6 +2686,20 @@ labeled_simple_expr:
         (Optional label, mkexpvar ~loc label) }
   | OPTLABEL simple_expr %prec below_HASH
       { (Optional $1, $2) }
+;
+labeled_simple(X):
+  | QUESTION X { (Optional "", $2) }
+  | LABEL X    { (Labelled $1, $2) }
+  | OPTLABEL X { (Optional $1, $2) }
+  | X          { (Nolabel, $1) }
+;
+simple_mod:
+  LBRACE m = module_expr_no_paren RBRACE { m }
+;
+simple_type:
+    LBRACE TYPE t = core_type RBRACE { (true, t) }
+  | LPAREN MODULE ext_attributes LPAREN TYPE t = core_type RPAREN RPAREN
+      { (false, t) }
 ;
 %inline lident_list:
   xs = mkrhs(LIDENT)+
@@ -2801,21 +2851,37 @@ fun_param_as_list:
       { let a, b, c = $1 in
         [ { pparam_loc = make_loc $sloc; pparam_desc = Pparam_val (a, b, c) } ]
       }
-  | label_for_mparam LBRACE mkrhs(UIDENT) COLON mty = module_type RBRACE
+  | l = label_type LPAREN MODULE
+                                  LPAREN TYPE t = mkrhs(LIDENT) RPAREN RPAREN
+      { [{pparam_loc = make_loc $sloc;
+          pparam_desc = Pparam_type (l t.txt, false, t)}]
+      }
+  | l = label_for_mparam LBRACE m = mkrhs(UIDENT) COLON mty = module_type RBRACE
       { let (lid, cstrs, _attrs2) = package_type_of_module_type mty in
         [{pparam_loc = make_loc $sloc;
-          pparam_desc = Pparam_module ($1, $3, Some (lid, cstrs))}]
+          pparam_desc = Pparam_module (l, m, Some (lid, cstrs))}]
       }
-  | label_for_mparam LBRACE mkrhs(UIDENT) RBRACE
+  | l = label_for_mparam LBRACE m = mkrhs(UIDENT) RBRACE
       { [{pparam_loc = make_loc $sloc;
-          pparam_desc = Pparam_module ($1, $3, None)}]
+          pparam_desc = Pparam_module (l, m, None)}]
+      }
+  | l = label_type LBRACE TYPE t = mkrhs(LIDENT) RBRACE
+      { [{pparam_loc = make_loc $sloc;
+          pparam_desc = Pparam_type (l t.txt, true, t)}]
       }
 ;
 %inline label_for_mparam:
-  | QUESTION      { Optional "" }
+  // | QUESTION      { Optional "" }
   | l = OPTLABEL  { Optional l }
   | l = LABEL     { Labelled l }
   |               { Nolabel }
+;
+%inline label_type:
+  | QUESTION      { fun l -> Optional l }
+  | TILDE         { fun l -> Labelled l }
+  | l = OPTLABEL  { fun _ -> Optional l}
+  | l = LABEL     { fun _ -> Labelled l}
+  |               { fun _ -> Nolabel }
 ;
 fun_params:
   | nonempty_concat(fun_param_as_list) { $1 }

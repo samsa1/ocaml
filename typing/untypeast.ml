@@ -566,7 +566,7 @@ let expression sub exp =
 let arg sub = function
   | Targ_exp e -> Parg_exp (sub.expr sub e)
   | Targ_mod m -> Parg_mod (sub.module_expr sub m)
-  | Targ_typ t -> Parg_typ (sub.typ sub t)
+  | Targ_typ (c, t) -> Parg_typ (c, sub.typ sub t)
 
 let binding_op sub bop pat =
   let pbop_op = bop.bop_op_name in

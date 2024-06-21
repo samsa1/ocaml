@@ -503,14 +503,14 @@ module type TBool = module type of MyBool
 
 let id_bool (module B : TBool) (x : B.t) = x
 
-let _ = id_bool (module MyBool) MyBool.false
+let _ = id_bool (module MyBool) MyBool.(false)
 
 [%%expect{|
 module MyBool : sig type t = bool = false | true val not : bool -> bool end
 module type TBool =
   sig type t = bool = false | true val not : bool -> bool end
 val id_bool : (module B : TBool) -> B.t -> B.t = <fun>
-- : MyBool.t = MyBool.false
+- : MyBool.t = MyBool.\#false
 |}]
 
 

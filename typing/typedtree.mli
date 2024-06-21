@@ -290,7 +290,7 @@ and expression_desc =
 and argument =
     Targ_exp of expression
   | Targ_mod of module_expr
-  | Targ_typ of core_type
+  | Targ_typ of bool * core_type
 
 and meth =
     Tmeth_name of string

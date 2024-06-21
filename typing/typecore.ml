@@ -2856,6 +2856,7 @@ and type_approx_function env params c body ~loc =
       type_approx_fun env label default pat
         (type_approx_function env params c body ~loc)
   | { pparam_desc = Pparam_module _} :: _
+  | { pparam_desc = Pparam_type _} :: _
   | { pparam_desc = Pparam_newtype _ } :: _ ->
       newvar ()
   | [] ->
@@ -4751,6 +4752,54 @@ and type_function
       with_explanation ty_fun.explanation (fun () ->
         unify_exp_types loc env exp_type (instance ty_expected));
       exp_type, params, body, newtype :: newtypes, contains_gadt
+  | { pparam_desc = Pparam_type (arg_label, c, name); pparam_loc } :: rest ->
+      let (s_ident, res_ty, params, body, newtypes, contains_gadt) =
+        with_local_level begin fun () ->
+          let decl = new_local_type ~loc Definition in
+          let scope = create_scope () in
+          let (id, new_env) = Env.enter_type ~scope name.txt decl env in
+          let exp_type, params, body, newtypes, contains_gadt =
+              type_function new_env rest body_constraint body (newvar ())
+                ~first:false ~in_function
+          in
+          (id, exp_type, params, body, newtypes, contains_gadt)
+      end in
+      let us = Ident.create_unscoped name.txt in
+      let exp_type =
+          let param = (c, Cfp_type) in
+          match instance_funct ~p_out:(Pident (Ident.of_unscoped us))
+                        ~id_in:s_ident ~fixed:false res_ty
+          with
+          | Some res_ty ->
+              Btype.newgenty (Tfunctor (arg_label, us, param, res_ty))
+          | None ->
+              Btype.newgenty (Tfunctor (arg_label, us, param, res_ty))
+      in
+      let _ =
+        try
+          unify env ty_expected exp_type
+        with Unify trace ->
+          raise (Error(loc, env, Expr_type_clash(trace, None, None)))
+      in    
+      let pattern = {
+        pat_desc = Tpat_any;
+        pat_loc = pparam_loc;
+        pat_extra = [];
+        pat_type = newvar ();
+        pat_env = env;
+        pat_attributes = [];
+      } in
+      let fp_kind = Tparam_pat pattern in
+      let param =
+        { fp_kind;
+          fp_arg_label = arg_label;
+          fp_param = s_ident; 
+          fp_partial = Total;
+          fp_newtypes = newtypes;
+          fp_loc = pparam_loc;
+        }
+      in    
+      exp_type, param :: params, body, [], contains_gadt
   | { pparam_desc = Pparam_module (arg_label, name, pack); pparam_loc }::rest ->
       let pack = match pack with
         | None -> None
@@ -5825,6 +5874,159 @@ and type_application env funct sargs =
           end;
           type_args args ty_fun ty_fun0 sargs
         end
+    | Tfunctor (l, id, (true, Cfp_module (p, fl)), t),
+      Tfunctor (_, id0, (true, Cfp_module (p0, fl0)), t0) ->
+        let name = label_name l
+        and optional = is_optional l in
+        may_warn funct.exp_loc
+            (not_principal "applying a dependent function");
+        let me_opt =
+          if ignore_labels then begin
+            (* No reordering is allowed, process arguments in order *)
+            match sargs with
+            | [] -> assert false
+            | (l', Parg_mod marg) :: remaining_sargs ->
+                if name = label_name l' || l' = Nolabel then
+                  Some (remaining_sargs, marg)
+                else
+                  if optional
+                  then None
+                  else
+                    raise(Error(marg.pmod_loc, env,
+                              Apply_wrong_label(l', ty_fun', optional)))
+            | _ :: _ -> assert false (* TODO *) (* Raise error msg *)
+          end else
+            (* Arguments can be commuted, try to fetch the argument
+              corresponding to the first parameter. *)
+            match extract_label name sargs with
+            | Some (l', Parg_mod marg, commuted, remaining_sargs) ->
+                if commuted then begin
+                  may_warn marg.pmod_loc
+                    (not_principal "commuting this argument")
+                end;
+                if is_optional l' then
+                  Location.prerr_warning marg.pmod_loc
+                    (Warnings.Nonoptional_label (Asttypes.string_of_label l));
+                Some (remaining_sargs, marg)
+            | Some _ -> assert false (* TODO *) (* Raise error msg *)
+            | None -> None
+        in
+        begin match me_opt with
+        | Some (remaining_sargs, marg) ->
+          let (modl, fl') = !type_package env marg p fl in
+          let texp =
+            {
+              exp_desc = Texp_pack modl;
+              exp_loc = marg.pmod_loc; exp_extra = [];
+              exp_type = newty (Tpackage (p, fl'));
+              exp_attributes = marg.pmod_attributes;
+              exp_env = env
+            }
+          in
+          unify_exp env texp (newty (Tpackage (p0, fl0)));
+          let me = match texp.exp_desc with
+              Texp_pack me -> me
+            | _ -> assert false
+          in
+          let rec extract_path m =
+            match m.mod_desc with
+            | Tmod_ident (p, _) -> p
+            | Tmod_apply (p1, p2, _) ->
+                Path.Papply(extract_path p1, extract_path p2)
+            | Tmod_constraint (p, _, _, _) ->
+                extract_path p
+            | _ ->
+                raise Not_found
+          in
+          begin
+            try
+              let path = extract_path me in
+              let ty_res =
+                  Option.value ~default:t
+                      (instance_funct ~id_in:(Ident.of_unscoped id)
+                                      ~p_out:path ~fixed:false t) in
+              let ty_res0 =
+                  Option.value ~default:t0
+                      (instance_funct ~id_in:(Ident.of_unscoped id0)
+                                      ~p_out:path ~fixed:false t0) in
+              let arg = Some ((fun () -> Targ_exp texp), Some marg.pmod_loc) in
+              type_args ((l, arg)::args) ty_res ty_res0 remaining_sargs
+            with Not_found ->
+              assert false (* TODO *)
+          end
+        | None ->
+          failwith "Modular implicits inference not implemented"
+        end
+    | Tfunctor (l, id, (c, Cfp_type), t), Tfunctor (_, id0, _, t0) ->
+      let name = label_name l
+      and optional = is_optional l in
+      may_warn funct.exp_loc
+          (not_principal "applying a dependent function");
+      let ty_opt =
+        if ignore_labels then begin
+          (* No reordering is allowed, process arguments in order *)
+          match sargs with
+          | [] -> assert false
+          | (l', Parg_typ (c', targ)) :: remaining_sargs when c = c' ->
+              if name = label_name l' || l' = Nolabel then
+                Some (remaining_sargs, targ)
+              else
+                if optional
+                then None
+                else
+                  raise(Error(targ.ptyp_loc, env,
+                            Apply_wrong_label(l', ty_fun', optional)))
+          | _ :: _ -> assert false (* TODO *) (* Raise error msg *)
+        end else
+          (* Arguments can be commuted, try to fetch the argument
+            corresponding to the first parameter. *)
+          match extract_label name sargs with
+          | Some (l', Parg_typ (c', targ), commuted, remaining_sargs)
+            when c = c' ->
+              if commuted then begin
+                may_warn targ.ptyp_loc
+                  (not_principal "commuting this argument")
+              end;
+              if is_optional l' then
+                Location.prerr_warning targ.ptyp_loc
+                  (Warnings.Nonoptional_label (Asttypes.string_of_label l));
+              Some (remaining_sargs, targ)
+          | Some (_, Parg_typ (c', _), _, _) ->
+              Format.printf "compare : %b %b\n%!" c c';
+              assert false
+          | Some _ -> assert false (* TODO *) (* Raise error msg *)
+          | None -> None
+      in
+      let targ, loc, remaining_sargs =
+        match ty_opt with
+        | Some (remaining_sargs, targ) ->
+            targ, Some targ.ptyp_loc, remaining_sargs
+        | None ->
+            let targ = {
+              ptyp_desc = Ptyp_any;
+              ptyp_loc = Location.none;
+              ptyp_loc_stack = [];
+              ptyp_attributes = [];
+            } in targ, None, sargs
+      in
+      let texp = Typetexp.transl_simple_type env ~closed:false targ in
+      let farg () = Targ_typ (c, texp) in
+      let ty = texp.ctyp_type in
+      let seen = Hashtbl.create 8 in
+      let rec replace i t =
+        if Hashtbl.mem seen (get_id t) then ()
+        else begin
+          Hashtbl.add seen (get_id t) ();
+          match get_desc t with
+          | Tconstr (Path.Pident id', _, _) when Ident.same i id' -> link_type t ty
+          | _ -> Btype.iter_type_expr (replace i) t
+        end
+      in
+      let t = Subst.type_expr Subst.identity t in  
+      replace (Ident.of_unscoped id) t;
+      let t0 = Subst.type_expr Subst.identity t0 in  
+      replace (Ident.of_unscoped id0) t0;
+      type_args ((l, Some (farg, loc))::args) t t0 remaining_sargs
     | Tarrow _, Tfunctor _ -> assert false
     | Tfunctor _, Tarrow _ -> assert false
     | _ ->

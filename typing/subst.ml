@@ -272,12 +272,18 @@ let rec typexp copy_scope s ty =
       | Tpackage(p, fl) ->
           Tpackage(modtype_path s p,
                     List.map (fun (n, ty) -> (n, typexp copy_scope s ty)) fl)
-      | Tfunctor(lbl, id, (b, Cfp_module (p, fl)), ty) ->
+      | Tfunctor(lbl, id, (c, Cfp_module (p, fl)), ty) ->
           let id' = Ident.refresh id in
           let fl = List.map (fun (n, ty) -> (n, typexp copy_scope s ty)) fl in
           let s' = add_module (Ident.of_unscoped id)
                               (Pident (Ident.of_unscoped id')) s in
-          let param = (b, Cfp_module (modtype_path s p, fl)) in
+          let param = (c, Cfp_module (modtype_path s p, fl)) in
+          Tfunctor(lbl, id', param, typexp copy_scope s' ty)
+      | Tfunctor(lbl, id, (c, Cfp_type), ty) ->
+          let id' = Ident.refresh id in
+          let s' = add_type (Ident.of_unscoped id)
+                              (Pident (Ident.of_unscoped id')) s in
+          let param = (c, Cfp_type) in
           Tfunctor(lbl, id', param, typexp copy_scope s' ty)
       | Tobject (t1, name) ->
           let t1' = typexp copy_scope s t1 in

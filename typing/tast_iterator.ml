@@ -394,7 +394,7 @@ let binding_op sub {bop_loc; bop_op_name; bop_exp; _} =
 let arg sub = function
     Targ_exp e -> sub.expr sub e
   | Targ_mod m -> sub.module_expr sub m
-  | Targ_typ t -> sub.typ sub t
+  | Targ_typ (_, t) -> sub.typ sub t
 
 let signature sub {sig_items; sig_final_env; _} =
   sub.env sub sig_final_env;
