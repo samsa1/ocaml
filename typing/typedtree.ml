@@ -213,7 +213,7 @@ and apply_arg_exp = (expression, unit) arg_or_omitted
 and argument =
     Targ_exp of expression
   | Targ_mod of module_expr
-  | Targ_typ of core_type
+  | Targ_typ of bool * core_type
 
 (* Value expressions for the class language *)
 

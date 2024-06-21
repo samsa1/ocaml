@@ -469,7 +469,7 @@ and binding_op =
 and argument =
     Parg_exp of expression
   | Parg_mod of module_expr
-  | Parg_typ of core_type
+  | Parg_typ of bool * core_type
 
 and function_param_desc =
   | Pparam_val of arg_label * expression option * pattern
@@ -492,6 +492,8 @@ and function_param_desc =
   *)
   | Pparam_module of arg_label * string loc * package_type option
   (** Corresponds to [{M : S}] or [?{M : S}], can also be [?{M}] or [{M}] *)
+  | Pparam_type of arg_label * bool * string loc
+  (** false -> [(module (type a))] or true -> [{type a}]*)
   | Pparam_newtype of string loc
   (** [Pparam_newtype x] represents the parameter [(type x)].
       [x] carries the location of the identifier, whereas the [pparam_loc]
