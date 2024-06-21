@@ -3164,7 +3164,7 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
 let arg_loc = function
   | Parg_exp sarg -> sarg.pexp_loc
   | Parg_mod mexp -> mexp.pmod_loc
-  | Parg_typ typ  -> typ.ptyp_loc
+  | Parg_typ (_, typ)  -> typ.ptyp_loc
 
 let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
   let warned = ref false in
@@ -3190,7 +3190,14 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
         Tfunctor (_, id0, (false, Cfp_module pack0), ty0) ->
           let tfun = { id; pack; ty} in
           let tfun0 = { id = id0; pack = pack0; ty = ty0} in
-          Some (l, `Functor (tfun, tfun0))
+          Some (l, `Functor (false, tfun, tfun0))
+      | Tfunctor (l, id, (true, Cfp_module pack), ty),
+        Tfunctor (_, id0, (true, Cfp_module pack0), ty0) ->
+          let tfun = { id; pack; ty} in
+          let tfun0 = { id = id0; pack = pack0; ty = ty0} in
+          Some (l, `Functor (true, tfun, tfun0))
+      | Tfunctor (l, id, (c, Cfp_type), t), Tfunctor (_, id0, _, t0) ->
+          Some (l, `Type (c, id, t, id0, t0))
       | _ -> None
     in
     match lopt with
@@ -3253,7 +3260,7 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                                         ~ty_arg ~ty_arg0 ~lv arg_opt
             in
             loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
-        | `Functor (tfun, tfun0) ->
+        | `Functor (false, tfun, tfun0) ->
           may_warn funct.exp_loc
               (not_principal "applying a dependent function");
           let (arg, ty_ret, ty_ret0) =
@@ -3282,6 +3289,97 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                     me_opt ty_fun' tfun.pack tfun0.pack
           in
           loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
+        | `Functor (true, tfun, tfun0) ->
+            may_warn funct.exp_loc
+                (not_principal "applying a dependent function");
+            let me_opt =
+              match arg_opt with
+              | Some (Parg_mod marg, _) ->
+                  Some marg
+              | Some _ -> assert false (* TODO *) (* Raise error message *)
+              | None -> None
+            in
+          let (arg, ty_ret, ty_ret0) =
+            match me_opt with
+            | Some me ->
+              let sarg =
+                { pexp_desc = Pexp_pack (me, None);
+                  pexp_loc = me.pmod_loc;
+                  pexp_loc_stack = [];
+                  pexp_attributes = [];
+                }
+              in
+              let modl, texp =
+                type_tfunctor_module_arg ~env ~sarg ~me ~optyp:None
+                  ~pack:tfun.pack ~pack0:tfun0.pack
+              in
+              let arg = Arg (Typed_arg {
+                  targ = Targ_exp texp;
+                  loc = Some me.pmod_loc
+                })
+              in
+              begin
+                match path_of_module modl with
+                | Some path ->
+                  let ty_res =
+                    with_level ~level:generic_level @@ fun () ->
+                      instance_funct ~id_in:(Ident.of_unscoped tfun.id)
+                                          ~p_out:path ~fixed:false tfun.ty in
+                  let ty_res0 =
+                      instance_funct ~id_in:(Ident.of_unscoped tfun0.id)
+                                          ~p_out:path ~fixed:false tfun0.ty in
+                  (arg, ty_res, ty_res0)
+                | None ->
+                  let me = remove_module_constraint modl in
+                  try
+                    identifier_escape l true tfun.pack  env tfun.id me.mod_type tfun.ty;
+                    identifier_escape l true tfun0.pack env tfun0.id me.mod_type tfun0.ty;
+                    (arg, tfun.ty, tfun0.ty)
+                  with Unify trace ->
+                    let loc = beginning_function_loc rev_args ~funct in
+                    raise (Error (loc, env,
+                                  Cannot_unify_tfunctor_to_tarrow trace))
+              end
+            | None -> failwith "Implicit inference not implemented"
+          in
+          loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
+        | `Type (c, id, t, id0, t0) ->
+            may_warn funct.exp_loc
+                (not_principal "applying a dependent function");
+            let targ, loc =
+              match arg_opt with
+              | Some (Parg_typ (c2, targ), _) when c = c2 ->
+                  targ, Some targ.ptyp_loc
+              | Some _ -> assert false (* TODO *) (* Raise error message *)
+              | None ->
+                  let targ = {
+                    ptyp_desc = Ptyp_any;
+                    ptyp_loc = Location.none;
+                    ptyp_loc_stack = [];
+                    ptyp_attributes = [];
+                  } in targ, None
+            in
+            let texp = Typetexp.transl_simple_type env ~closed:false targ in
+            let arg = Arg (Typed_arg {
+              targ = Targ_typ (c, texp);
+              loc;
+            }) in
+            let ty = texp.ctyp_type in
+            let seen = Hashtbl.create 8 in
+            let rec replace i t =
+              if Hashtbl.mem seen (get_id t) then ()
+              else begin
+                Hashtbl.add seen (get_id t) ();
+                match get_desc t with
+                | Tconstr (Path.Pident id', _, _) when Ident.same i id' -> link_type t ty
+                | _ -> Btype.iter_type_expr (replace i) t
+              end
+            in
+            let t = Subst.type_expr Subst.identity t in
+            replace (Ident.of_unscoped id) t;
+            let t0 = Subst.type_expr Subst.identity t0 in
+            replace (Ident.of_unscoped id0) t0;
+            loop visited t t0 ((l, arg):: rev_args) remaining_sargs
       end
   in
   loop TypeSet.empty ty_fun ty_fun0 [] sargs
@@ -3683,6 +3781,7 @@ and type_approx_function env params c body ty_expected ~in_function ~first =
       in
       type_approx_function env params c body ty_res ~in_function ~first:false
   | { pparam_desc = Pparam_module _} :: _
+  | { pparam_desc = Pparam_type _} :: _
   | { pparam_desc = Pparam_newtype _ } :: _ -> ()
   | [] ->
       (* In the [Pconstraint] case, we override the [ty_expected] that
@@ -5597,6 +5696,50 @@ and type_function
       with_explanation ty_fun.explanation (fun () ->
         unify_exp_types loc env exp_type (instance ty_expected));
       exp_type, params, body, newtype :: newtypes, contains_gadt
+  | { pparam_desc = Pparam_type (arg_label, c, name); pparam_loc } :: rest ->
+      let (s_ident, res_ty, params, body, newtypes, contains_gadt) =
+        with_local_level begin fun () ->
+          let decl = new_local_type ~loc Definition in
+          let scope = create_scope () in
+          let (id, new_env) = Env.enter_type ~scope name.txt decl env in
+          let exp_type, params, body, newtypes, contains_gadt =
+              type_function new_env rest body_constraint body (newvar ())
+                ~first:false ~in_function
+          in
+          (id, exp_type, params, body, newtypes, contains_gadt)
+      end in
+      let us = Ident.Unscoped.create name.txt in
+      let exp_type =
+          let param = (c, Cfp_type) in
+          let res_ty = instance_funct ~p_out:(Pident (Ident.of_unscoped us))
+                                      ~id_in:s_ident ~fixed:false res_ty in
+            Btype.newgenty (Tfunctor (arg_label, us, param, res_ty))
+      in
+      let _ =
+        try
+          unify env ty_expected exp_type
+        with Unify trace ->
+          raise (Error(loc, env, Expr_type_clash(trace, None, None)))
+      in
+      let pattern = {
+        pat_desc = Tpat_any;
+        pat_loc = pparam_loc;
+        pat_extra = [];
+        pat_type = newvar ();
+        pat_env = env;
+        pat_attributes = [];
+      } in
+      let fp_kind = Tparam_pat pattern in
+      let param =
+        { fp_kind;
+          fp_arg_label = arg_label;
+          fp_param = s_ident;
+          fp_partial = Total;
+          fp_newtypes = newtypes;
+          fp_loc = pparam_loc;
+        }
+      in
+      exp_type, { has_poly = false; param } :: params, body, [], contains_gadt
   | { pparam_desc = Pparam_module (arg_label, name, pack_param); pparam_loc }
       :: rest
     ->

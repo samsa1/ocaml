@@ -459,6 +459,8 @@ module E = struct
       | Pparam_module (lab, n, opty) ->
           Pparam_module (lab, map_loc map_string sub n,
             map_opt (sub.package_type sub) opty)
+      | Pparam_type (lbl, c, ty) ->
+        Pparam_type (lbl, c, map_loc map_string sub ty)
       | Pparam_newtype ty ->
           Pparam_newtype (map_loc map_string sub ty)
     in
@@ -567,7 +569,7 @@ module E = struct
   let map_arg sub = function
     | Parg_exp e -> Parg_exp (sub.expr sub e)
     | Parg_mod m -> Parg_mod (sub.module_expr sub m)
-    | Parg_typ t -> Parg_typ (sub.typ sub t)
+    | Parg_typ (c, t) -> Parg_typ (c, sub.typ sub t)
 
 end
 
