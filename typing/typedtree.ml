@@ -204,7 +204,7 @@ and binding_op =
 and argument =
     Targ_exp of expression
   | Targ_mod of module_expr
-  | Targ_typ of core_type
+  | Targ_typ of bool * core_type
 
 (* Value expressions for the class language *)
 

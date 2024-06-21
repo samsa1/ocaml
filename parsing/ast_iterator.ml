@@ -374,6 +374,7 @@ module E = struct
         List.iter (iter_tuple (iter_loc sub) (sub.typ sub)) l;
     | Pparam_module (_lab, n, None) ->
       iter_loc sub n;  
+    | Pparam_type (_, _, ty)
     | Pparam_newtype ty ->
         iter_loc sub ty
 
@@ -478,7 +479,7 @@ module E = struct
   let iter_arg sub = function
     | Parg_exp e -> sub.expr sub e
     | Parg_mod m -> sub.module_expr sub m
-    | Parg_typ t -> sub.typ sub t
+    | Parg_typ (_, t) -> sub.typ sub t
 
 end
 

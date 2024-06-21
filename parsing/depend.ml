@@ -279,7 +279,7 @@ let rec add_expr bv exp =
 and add_arg bv = function
   | Parg_exp e -> add_expr bv e
   | Parg_mod m -> add_module_expr bv m
-  | Parg_typ t -> add_type bv t
+  | Parg_typ (_, t) -> add_type bv t
 
 and add_function_param bv param =
   match param.pparam_desc with
@@ -289,7 +289,7 @@ and add_function_param bv param =
   | Pparam_module (_, _, pty) ->
       add_opt add_package_type bv pty;
       bv
-  | Pparam_newtype _ -> bv
+  | Pparam_type _ | Pparam_newtype _ -> bv
 
 and add_function_body bv body =
   match body with

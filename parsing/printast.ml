@@ -420,7 +420,11 @@ and function_param i ppf { pparam_desc = desc; pparam_loc = loc } =
   | Pparam_module (l, n, None) ->
       line i ppf "Param_module\n";
       arg_label (i+1) ppf l;
-      line (i+1) ppf "None of \"%s\"" n.txt;
+      line (i+1) ppf "None of \"%s\"\n" n.txt;
+  | Pparam_type (l, c, ty) ->
+      line i ppf "Param_type %b\n" c;
+      arg_label (i+1) ppf l;
+      line (i+1) ppf "\"%s\" %a\n" ty.txt fmt_location loc
   | Pparam_newtype ty ->
       line i ppf "Pparam_newtype \"%s\" %a\n" ty.txt fmt_location loc
 
@@ -1009,8 +1013,8 @@ and label_x_argument i ppf (l, a) =
     line i ppf "<marg>\n";
     arg_label i ppf l;
     module_expr (i+1) ppf m;
-  | Parg_typ t ->
-    line i ppf "<targ>\n";
+  | Parg_typ (c, t) ->
+    line i ppf "<targ> %b\n" c;
     arg_label i ppf l;
     core_type (i+1) ppf t;
 

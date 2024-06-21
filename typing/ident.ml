@@ -247,7 +247,7 @@ let print ~with_scope ppf =
         (if !Clflags.unique_ids then asprintf "/%i" n else "")
   | Unscoped us ->
       let { name; stamp = n } = get_desc us in
-      fprintf ppf "%s/%i" name n
+      fprintf ppf "u/%s/%i" name n
   | Scoped { name; stamp = n; scope } ->
       fprintf ppf "%s%s%s" name
         (if !Clflags.unique_ids then asprintf "/%i" n else "")

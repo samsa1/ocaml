@@ -424,6 +424,8 @@ module E = struct
                List.map (map_tuple (map_loc sub) (sub.typ sub)) l) 
           in
           Pparam_module (lab, map_loc sub n, map_opt aux pty)
+      | Pparam_type (lbl, c, ty) ->
+        Pparam_type (lbl, c, map_loc sub ty)
       | Pparam_newtype ty ->
           Pparam_newtype (map_loc sub ty)
     in
@@ -535,7 +537,7 @@ module E = struct
   let map_arg sub = function
     | Parg_exp e -> Parg_exp (sub.expr sub e)
     | Parg_mod m -> Parg_mod (sub.module_expr sub m)
-    | Parg_typ t -> Parg_typ (sub.typ sub t)
+    | Parg_typ (c, t) -> Parg_typ (c, sub.typ sub t)
 
 end
 

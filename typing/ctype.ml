@@ -1020,7 +1020,7 @@ let rec update_level env level expand ty =
     | Tfunctor (_, id, (_, Cfp_type), t) ->
         let decl = new_local_type Definition in
         let env = Env.add_type ~check:true (Ident.of_unscoped id) decl env in
-        set_level ty level;
+        set_level ();
         update_level env level expand t
     | Tfield(lab, _, ty1, _)
       when lab = dummy_method && level < get_scope ty1 ->
@@ -4239,7 +4239,15 @@ let rec copy_spine ~closed ~id_map copy_scope ty =
           Tpackage (Path.subst id_map path, fl)
       | Tconstr (path, tyl, _) ->
           Tconstr (Path.subst id_map path, List.map copy_rec tyl, ref Mnil)
-      | Tfunctor (lbl, us, (path, fl), ty2) ->
+      | Tfunctor (lbl, us, (c, Cfp_type), ty2) ->
+          let id = Ident.of_unscoped us in
+          let id_map = List.filter (fun (i, _) -> Ident.same i id) id_map in
+          let us' = Ident.refresh us in
+          let id_map = (id, Path.Pident (Ident.of_unscoped us)) :: id_map in
+          let closed = compute_id_from_map id_map ty2 in
+          Tfunctor (lbl, us', (c, Cfp_type),
+                    copy ~closed ~id_map copy_scope ty2)
+      | Tfunctor (lbl, us, (c, Cfp_module (path, fl)), ty2) ->
           let fl = List.map (fun (n, ty) -> n, copy_rec ty) fl in
           let path = Path.subst id_map path in
           let id = Ident.of_unscoped us in
@@ -4247,7 +4255,8 @@ let rec copy_spine ~closed ~id_map copy_scope ty =
           let us' = Ident.refresh us in
           let id_map = (id, Path.Pident (Ident.of_unscoped us)) :: id_map in
           let closed = compute_id_from_map id_map ty2 in
-          Tfunctor (lbl, us', (path, fl), copy ~closed ~id_map copy_scope ty2)
+          Tfunctor (lbl, us', (c, Cfp_module (path, fl)),
+                    copy ~closed ~id_map copy_scope ty2)
       | Tvariant row ->
           begin match row_name row with
           | Some (p, fl) ->

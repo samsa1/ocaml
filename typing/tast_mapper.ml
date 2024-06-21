@@ -513,7 +513,7 @@ let binding_op sub x =
 let arg sub = function
     Targ_exp e -> Targ_exp (sub.expr sub e)
   | Targ_mod m -> Targ_mod (sub.module_expr sub m)
-  | Targ_typ t -> Targ_typ (sub.typ sub t)
+  | Targ_typ (c, t) -> Targ_typ (c, sub.typ sub t)
 
 let signature sub x =
   let sig_final_env = sub.env sub x.sig_final_env in
