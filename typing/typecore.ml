@@ -5754,6 +5754,20 @@ and type_application env funct sargs =
         and optional = is_optional l in
         may_warn funct.exp_loc
             (not_principal "applying a dependent function");
+        let is_type_path t =
+          match t.ptyp_desc with
+          | Ptyp_constr (_, []) -> true
+          | _ -> false
+        in
+        let rec is_path me =
+          match me.pmod_desc with
+          | Pmod_ident _ -> true
+          | Pmod_constraint (me, _) -> is_path me
+          | Pmod_apply (me1, me2) -> is_path me1 && is_path me2
+          | Pmod_apply_type (me1, te2) -> is_path me1 && is_type_path te2
+          | Pmod_functor _ | Pmod_structure _ | Pmod_apply_unit _
+          | Pmod_unpack _ | Pmod_extension _ -> false
+        in
         let is_packing sarg =
           match sarg.pexp_desc with
           | Pexp_pack _
@@ -5838,11 +5852,18 @@ and type_application env funct sargs =
               Texp_pack {mod_desc = Tmod_constraint (me, _, _, _)} -> me
             | _ -> assert false
           in
+          let path_of_type typ =
+            match typ.ctyp_desc with
+            | Ttyp_constr (p, _, []) -> p
+            | _ -> raise Not_found
+          in
           let rec extract_path m =
             match m.mod_desc with
             | Tmod_ident (p, _) -> p
             | Tmod_apply (p1, p2, _) ->
                 Path.Papply(Longident.Kmod, extract_path p1, extract_path p2)
+            | Tmod_apply_type (p1, p2) ->
+                Path.Papply(Longident.Ktype, extract_path p1, path_of_type p2)
             | Tmod_constraint (p, _, _, _) ->
                 extract_path p
             | _ ->
@@ -5984,11 +6005,18 @@ and type_application env funct sargs =
               Texp_pack me -> me
             | _ -> assert false
           in
+          let path_of_type typ =
+            match typ.ctyp_desc with
+            | Ttyp_constr (p, _, []) -> p
+            | _ -> raise Not_found
+          in
           let rec extract_path m =
             match m.mod_desc with
             | Tmod_ident (p, _) -> p
             | Tmod_apply (p1, p2, _) ->
                 Path.Papply(Longident.Kmod, extract_path p1, extract_path p2)
+            | Tmod_apply_type (p1, p2) ->
+                Path.Papply(Longident.Ktype, extract_path p1, path_of_type p2)
             | Tmod_constraint (p, _, _, _) ->
                 extract_path p
             | _ ->
