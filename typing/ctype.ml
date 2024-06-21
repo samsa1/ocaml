@@ -5824,9 +5824,9 @@ let rec subtype_rec env trace t1 t2 constraints =
           (Subtype.Diff {got = u1; expected = u2} :: trace)
           u1 u2
           constraints
-    | (Tfunctor (l1, id1, (c1, Cfp_type), u1),
-       Tfunctor (l2, id2, (c2, Cfp_type), u2))
-      when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
+    | (Tfunctor (l1, id1, (_, Cfp_type), u1),
+       Tfunctor (l2, id2, (_, Cfp_type), u2))
+      when compatible_labels ~in_pattern_mode:false l1 l2 ->
         (* FIXME : here we don't unify id1 with id2 because this would break
           the invariant of unicity of unscoped binding.
           However this leads to unifying u1 with u2 when their environnement
@@ -5853,9 +5853,9 @@ let rec subtype_rec env trace t1 t2 constraints =
                 constraints)
         with Escape _ -> (env, trace, t1, t2, !univar_pairs)::constraints
         end
-    | (Tfunctor (l1, id1, (c1, Cfp_module pack1), u1),
-       Tfunctor (l2, id2, (c2, Cfp_module pack2), u2))
-      when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
+    | (Tfunctor (l1, id1, (_, Cfp_module pack1), u1),
+       Tfunctor (l2, id2, (_, Cfp_module pack2), u2))
+      when compatible_labels ~in_pattern_mode:false l1 l2 ->
         let fcm1 = newty (Tpackage pack1) in
         let fcm2 = newty (Tpackage pack2) in
         let constraints =
@@ -5870,7 +5870,7 @@ let rec subtype_rec env trace t1 t2 constraints =
               subtype_functor new_env trace ~id1 id2 pack2 u1 u2 constraints)
           with Escape _ -> (env, trace, t1, t2, !univar_pairs)::constraints
         end
-    | (Tfunctor (l1, id1, (false, Cfp_module pack1), u1),
+    | (Tfunctor (l1, id1, (_, Cfp_module pack1), u1),
        Tarrow (l2, fcm2, u2, _))
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
         let fcm1 = newmono (newty (Tpackage pack1)) in
@@ -5889,7 +5889,7 @@ let rec subtype_rec env trace t1 t2 constraints =
             (env, trace, t1, t2, !univar_pairs)::constraints
         end
     | (Tarrow (l1, fcm1, u1, _),
-       Tfunctor (l2, id2, (false, Cfp_module pack2), u2))
+       Tfunctor (l2, id2, (_, Cfp_module pack2), u2))
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
         let fcm2 = newmono (newty (Tpackage pack2)) in
         let constraints =

@@ -104,6 +104,16 @@ type existential_binding =
   | Bind_not_in_scope
   | Bind_non_locally_abstract
 
+type arg_type =
+  | AT_type of bool
+  | AT_expr
+  | AT_mod
+
+let arg_type = function
+  | Parg_exp _ -> AT_expr
+  | Parg_typ (c, _) -> AT_type c
+  | Parg_mod _ -> AT_mod
+
 type error =
   | Constructor_arity_mismatch of Longident.t * int * int
   | Label_mismatch of Longident.t * Errortrace.unification_error
@@ -214,6 +224,7 @@ type error =
   | Optional_poly_param of string
   | Cannot_unify_tfunctor_to_tarrow of Errortrace.unification_error
   | Cannot_commute_label of type_expr
+  | Apply_wrong_arg of arg_type * arg_type
 
 
 let not_principal fmt =
@@ -2989,7 +3000,8 @@ let extract_packing sarg =
   | Pexp_pack (me, optyp) -> Some (me, optyp)
   | _ -> None
 
-let collect_arrow_arg ~may_warn ~funct ~optional ~sargs ~ty_arg ~ty_arg0 ~lv
+let collect_arrow_arg ~may_warn ~funct ~rev_args ~optional ~env ~sargs
+    ~ty_arg ~ty_arg0 ~lv
   = function
   | Some (Parg_exp sarg, l') ->
       let wrapped_in_some = optional && not (is_optional l') in
@@ -2997,7 +3009,15 @@ let collect_arrow_arg ~may_warn ~funct ~optional ~sargs ~ty_arg ~ty_arg0 ~lv
         may_warn sarg.pexp_loc
           (not_principal "using an optional argument here");
       Arg (Known_arg { sarg; ty_arg; ty_arg0; wrapped_in_some })
-  | Some _ -> assert false (* TODO *) (* Raise error message *)
+  | Some (arg, _) ->
+      let previous_arg_loc = previous_arg_loc rev_args ~funct in
+      let loc = Location.{
+        loc_start = funct.exp_loc.loc_start;
+        loc_end = previous_arg_loc.loc_end;
+        loc_ghost = previous_arg_loc.loc_ghost
+                      && funct.exp_loc.loc_ghost
+      } in
+      raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
   | None ->
       if optional && List.mem_assoc Nolabel sargs then begin
         may_warn funct.exp_loc (Warnings.Non_principal_labels
@@ -3157,7 +3177,15 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
                     ~sarg pack pack
         in
         loop ty_res ((lbl, Arg arg) :: rev_args) rest
-    | _ -> assert false (* TODO *) (* Raise error message *)
+    | (_, arg) :: _ ->
+      let previous_arg_loc = previous_arg_loc rev_args ~funct in
+      let loc = Location.{
+        loc_start = funct.exp_loc.loc_start;
+        loc_end = previous_arg_loc.loc_end;
+        loc_ghost = previous_arg_loc.loc_ghost
+                      && funct.exp_loc.loc_ghost
+      } in
+      raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
   in
   loop ty_fun0 rev_args sargs
 
@@ -3256,8 +3284,8 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
         else
         match arrow_kind with
         | `Arrow (ty_arg, ty_ret, ty_arg0, ty_ret0) ->
-            let arg = collect_arrow_arg ~may_warn ~funct ~optional ~sargs
-                                        ~ty_arg ~ty_arg0 ~lv arg_opt
+            let arg = collect_arrow_arg ~may_warn ~funct ~rev_args ~optional
+                                        ~env ~sargs ~ty_arg ~ty_arg0 ~lv arg_opt
             in
             loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
         | `Functor (false, tfun, tfun0) ->
@@ -3268,7 +3296,15 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
               match arg_opt with
               | Some (Parg_exp sarg, _) ->
                   Some (extract_packing sarg, sarg)
-              | Some _ -> assert false (* TODO *) (* Raise error message *)
+              | Some (arg, _) ->
+                let previous_arg_loc = previous_arg_loc rev_args ~funct in
+                let loc = Location.{
+                  loc_start = funct.exp_loc.loc_start;
+                  loc_end = previous_arg_loc.loc_end;
+                  loc_ghost = previous_arg_loc.loc_ghost
+                                && funct.exp_loc.loc_ghost
+                } in
+                raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
               | None -> None
             in
             match me_opt with
@@ -3281,8 +3317,9 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                 unify_to_arrow env ty_fun0)
               with
               | (ty_arg, ty_ret), (ty_arg0, ty_ret0) ->
-                let arg = collect_arrow_arg ~may_warn ~funct ~optional ~sargs
-                                            ~ty_arg ~ty_arg0 ~lv arg_opt in
+                let arg = collect_arrow_arg ~may_warn ~funct ~rev_args ~optional
+                                        ~env ~sargs ~ty_arg ~ty_arg0 ~lv arg_opt
+                in
                 (arg, ty_ret, ty_ret0)
               | exception Unify trace ->
                 dependent_app_error_unknown_arg env trace ~rev_args ~funct
@@ -3296,7 +3333,15 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
               match arg_opt with
               | Some (Parg_mod marg, _) ->
                   Some marg
-              | Some _ -> assert false (* TODO *) (* Raise error message *)
+              | Some (arg, _) ->
+                  let previous_arg_loc = previous_arg_loc rev_args ~funct in
+                  let loc = Location.{
+                    loc_start = funct.exp_loc.loc_start;
+                    loc_end = previous_arg_loc.loc_end;
+                    loc_ghost = previous_arg_loc.loc_ghost
+                                  && funct.exp_loc.loc_ghost
+                  } in
+                  raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_mod)))
               | None -> None
             in
           let (arg, ty_ret, ty_ret0) =
@@ -3350,7 +3395,15 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
               match arg_opt with
               | Some (Parg_typ (c2, targ), _) when c = c2 ->
                   targ, Some targ.ptyp_loc
-              | Some _ -> assert false (* TODO *) (* Raise error message *)
+              | Some (arg, _) ->
+                let previous_arg_loc = previous_arg_loc rev_args ~funct in
+                let loc = Location.{
+                  loc_start = funct.exp_loc.loc_start;
+                  loc_end = previous_arg_loc.loc_end;
+                  loc_ghost = previous_arg_loc.loc_ghost
+                                && funct.exp_loc.loc_ghost
+                } in
+                raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_type c)))
               | None ->
                   let targ = {
                     ptyp_desc = Ptyp_any;
@@ -8287,6 +8340,18 @@ let report_error ~loc env = function
             Received an expression argument. \
              However, module arguments cannot be omitted.@]"
             (Style.as_inline_code Printtyp.type_expr) func_ty
+  | Apply_wrong_arg (got, expected) ->
+      let aux ppf = function
+        | AT_type true -> Format_doc.fprintf ppf "a compact type"
+        | AT_type false -> Format_doc.fprintf ppf "a expanded type"
+        | AT_mod -> Format_doc.fprintf ppf "a compact module"
+        | AT_expr -> Format_doc.fprintf ppf "an expression"
+        in
+      Location.errorf ~loc
+            "@[<v>@[<2>Applied %a argument@]@ \
+            but expected %a argument.@]"
+            aux got aux expected
+
 
 let report_error ~loc env err =
   Printtyp.wrap_printing_env ~error:true env
