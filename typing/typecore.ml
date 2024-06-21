@@ -101,6 +101,16 @@ type existential_binding =
   | Bind_not_in_scope
   | Bind_non_locally_abstract
 
+type arg_type =
+  | AT_type of bool
+  | AT_expr
+  | AT_mod
+
+let arg_type = function
+  | Parg_exp _ -> AT_expr
+  | Parg_typ (c, _) -> AT_type c
+  | Parg_mod _ -> AT_mod
+
 type error =
   | Constructor_arity_mismatch of Longident.t * int * int
   | Label_mismatch of Longident.t * Errortrace.unification_error
@@ -202,6 +212,7 @@ type error =
   | Expr_not_a_record_type of type_expr
   | Cannot_infer_functor_path of Errortrace.unification_error
   | Cannot_commute_label of type_expr
+  | Apply_wrong_arg of arg_type * arg_type
 
 
 let not_principal fmt =
@@ -5607,7 +5618,15 @@ and type_application env funct sargs =
         Targ_exp arg
       in
       (ty_res, (lbl, Some (arg, Some sarg.pexp_loc)) :: typed_args)
-    | _ -> assert false (* TODO *) (* Raise error message *)
+    | (_, arg) ->
+      let previous_arg_loc = previous_arg_loc typed_args in
+      let loc = Location.{
+        loc_start = funct.exp_loc.loc_start;
+        loc_end = previous_arg_loc.loc_end;
+        loc_ghost = previous_arg_loc.loc_ghost
+                      && funct.exp_loc.loc_ghost
+      } in
+      raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
   in
   let ignore_labels =
     !Clflags.classic ||
@@ -5700,7 +5719,15 @@ and type_application env funct sargs =
                 else
                   raise(Error(sarg.pexp_loc, env,
                               Apply_wrong_label(l', ty_fun', optional)))
-            | _ :: _ -> assert false (* TODO *) (* Raise error msg *)
+            | (_, arg) :: _ ->
+                let previous_arg_loc = previous_arg_loc args in
+                let loc = Location.{
+                  loc_start = funct.exp_loc.loc_start;
+                  loc_end = previous_arg_loc.loc_end;
+                  loc_ghost = previous_arg_loc.loc_ghost
+                                && funct.exp_loc.loc_ghost
+                } in
+                raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
           end else
             (* Arguments can be commuted, try to fetch the argument
                corresponding to the first parameter. *)
@@ -5714,7 +5741,15 @@ and type_application env funct sargs =
                   Location.prerr_warning sarg.pexp_loc
                     (Warnings.Nonoptional_label (Asttypes.string_of_label l));
                 remaining_sargs, Some (use_arg sarg l', Some sarg.pexp_loc)
-            | Some _ -> assert false (* TODO *) (* Raise error msg *)
+            | Some (_, arg, _, _) ->
+                let previous_arg_loc = previous_arg_loc args in
+                let loc = Location.{
+                  loc_start = funct.exp_loc.loc_start;
+                  loc_end = previous_arg_loc.loc_end;
+                  loc_ghost = previous_arg_loc.loc_ghost
+                                && funct.exp_loc.loc_ghost
+                } in
+                raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
             | None ->
                 sargs,
                 if optional && List.mem_assoc Nolabel sargs then
@@ -5762,7 +5797,15 @@ and type_application env funct sargs =
                 else
                   raise(Error(sarg.pexp_loc, env,
                               Apply_wrong_label(l', ty_fun', optional)))
-            | _ :: _ -> assert false (* TODO *) (* Raise error msg *)
+            | (_, arg) :: _ ->
+              let previous_arg_loc = previous_arg_loc args in
+              let loc = Location.{
+                loc_start = funct.exp_loc.loc_start;
+                loc_end = previous_arg_loc.loc_end;
+                loc_ghost = previous_arg_loc.loc_ghost
+                              && funct.exp_loc.loc_ghost
+              } in
+              raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
           end else
             (* Arguments can be commuted, try to fetch the argument
               corresponding to the first parameter. *)
@@ -5776,7 +5819,15 @@ and type_application env funct sargs =
                   Location.prerr_warning sarg.pexp_loc
                     (Warnings.Nonoptional_label (Asttypes.string_of_label l));
                 Some (remaining_sargs, is_packing sarg, sarg)
-            | Some _ -> assert false (* TODO *) (* Raise error msg *)
+            | Some (_, arg, _, _) ->
+                let previous_arg_loc = previous_arg_loc args in
+                let loc = Location.{
+                  loc_start = funct.exp_loc.loc_start;
+                  loc_end = previous_arg_loc.loc_end;
+                  loc_ghost = previous_arg_loc.loc_ghost
+                                && funct.exp_loc.loc_ghost
+                } in
+                raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_expr)))
             | None -> None
         in
         let unify_to_arrows handler =
@@ -5894,7 +5945,15 @@ and type_application env funct sargs =
                   else
                     raise(Error(marg.pmod_loc, env,
                               Apply_wrong_label(l', ty_fun', optional)))
-            | _ :: _ -> assert false (* TODO *) (* Raise error msg *)
+            | (_, arg) :: _ ->
+                let previous_arg_loc = previous_arg_loc args in
+                let loc = Location.{
+                  loc_start = funct.exp_loc.loc_start;
+                  loc_end = previous_arg_loc.loc_end;
+                  loc_ghost = previous_arg_loc.loc_ghost
+                                && funct.exp_loc.loc_ghost
+                } in
+                raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_mod)))
           end else
             (* Arguments can be commuted, try to fetch the argument
               corresponding to the first parameter. *)
@@ -5908,8 +5967,26 @@ and type_application env funct sargs =
                   Location.prerr_warning marg.pmod_loc
                     (Warnings.Nonoptional_label (Asttypes.string_of_label l));
                 Some (remaining_sargs, marg)
-            | Some _ -> assert false (* TODO *) (* Raise error msg *)
-            | None -> None
+            | Some (_, arg, _, _) ->
+                let previous_arg_loc = previous_arg_loc args in
+                let loc = Location.{
+                  loc_start = funct.exp_loc.loc_start;
+                  loc_end = previous_arg_loc.loc_end;
+                  loc_ghost = previous_arg_loc.loc_ghost
+                                && funct.exp_loc.loc_ghost
+                } in
+                raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_mod)))
+            | None ->
+                if optional
+                then None
+                else
+                  let ty_res =
+                    result_type
+                      (!omitted_parameters @ !eliminated_optional_arguments)
+                      ty_fun'
+                  in
+                  raise(Error(funct.exp_loc, env, Cannot_commute_label ty_res))
+
         in
         begin match me_opt with
         | Some (remaining_sargs, marg) ->
@@ -5952,7 +6029,7 @@ and type_application env funct sargs =
               let arg = Some ((fun () -> Targ_exp texp), Some marg.pmod_loc) in
               type_args ((l, arg)::args) ty_res ty_res0 remaining_sargs
             with Not_found ->
-              assert false (* TODO *)
+              failwith "NYI : Application of non-path module expression"
           end
         | None ->
           failwith "Modular implicits inference not implemented"
@@ -5976,7 +6053,15 @@ and type_application env funct sargs =
                 else
                   raise(Error(targ.ptyp_loc, env,
                             Apply_wrong_label(l', ty_fun', optional)))
-          | _ :: _ -> assert false (* TODO *) (* Raise error msg *)
+          | (_, arg) :: _ ->
+              let previous_arg_loc = previous_arg_loc args in
+              let loc = Location.{
+                loc_start = funct.exp_loc.loc_start;
+                loc_end = previous_arg_loc.loc_end;
+                loc_ghost = previous_arg_loc.loc_ghost
+                              && funct.exp_loc.loc_ghost
+              } in
+              raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_type c)))
         end else
           (* Arguments can be commuted, try to fetch the argument
             corresponding to the first parameter. *)
@@ -5991,10 +6076,15 @@ and type_application env funct sargs =
                 Location.prerr_warning targ.ptyp_loc
                   (Warnings.Nonoptional_label (Asttypes.string_of_label l));
               Some (remaining_sargs, targ)
-          | Some (_, Parg_typ (c', _), _, _) ->
-              Format.printf "compare : %b %b\n%!" c c';
-              assert false
-          | Some _ -> assert false (* TODO *) (* Raise error msg *)
+          | Some (_, arg, _, _) ->
+              let previous_arg_loc = previous_arg_loc args in
+              let loc = Location.{
+                loc_start = funct.exp_loc.loc_start;
+                loc_end = previous_arg_loc.loc_end;
+                loc_ghost = previous_arg_loc.loc_ghost
+                              && funct.exp_loc.loc_ghost
+              } in
+              raise(Error(loc, env, Apply_wrong_arg (arg_type arg, AT_type c)))
           | None -> None
       in
       let targ, loc, remaining_sargs =
@@ -7628,6 +7718,18 @@ let report_error ~loc env = function
             Received an expression argument. \
              However, module arguments cannot be omitted.@]"
             (Style.as_inline_code Printtyp.type_expr) func_ty
+  | Apply_wrong_arg (got, expected) ->
+      let aux ppf = function
+        | AT_type true -> Format_doc.fprintf ppf "a compact type"
+        | AT_type false -> Format_doc.fprintf ppf "a expanded type"
+        | AT_mod -> Format_doc.fprintf ppf "a compact module"
+        | AT_expr -> Format_doc.fprintf ppf "an expression"
+        in
+      Location.errorf ~loc
+            "@[<v>@[<2>Applied %a argument@]@ \
+            but expected %a argument.@]"
+            aux got aux expected
+
 
 let report_error ~loc env err =
   Printtyp.wrap_printing_env ~error:true env

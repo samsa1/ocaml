@@ -48,11 +48,14 @@ module type Add = sig type t val add : t -> t -> t end
 
 let add {A : Add} (x : A.t) (y : A.t) = A.add x y
 
+let add_lbl ~a:{A : Add} (x : A.t) (y : A.t) = A.add x y
+
 let add_impl ?add:{A : Add} (x : A.t) (y : A.t) = A.add x y
 
 [%%expect{|
 module type Add = sig type t val add : t -> t -> t end
 val add : {A : Add} -> A.t -> A.t -> A.t = <fun>
+val add_lbl : a:{A : Add} -> A.t -> A.t -> A.t = <fun>
 val add_impl : ?add:{A : Add} -> A.t -> A.t -> A.t = <fun>
 |}]
 
@@ -70,12 +73,33 @@ Uncaught exception: Failure("Modular implicits inference not implemented")
 let seven_fail = add 3 4
 
 [%%expect{|
-Uncaught exception: File "typing/typecore.ml", line 5911, characters 24-30: Assertion failed
-
+Line 1, characters 17-20:
+1 | let seven_fail = add 3 4
+                     ^^^
+Error: Applied an expression argument
+       but expected a compact module argument.
 |}]
 
 let seven_explicit = add {Int} 3 4
 
 [%%expect{|
 val seven_explicit : Int.t = 7
+|}]
+
+(* Fails because argument was explicit *)
+let seven_fail2 = add_lbl 3 4
+
+[%%expect{|
+Line 1, characters 18-25:
+1 | let seven_fail2 = add_lbl 3 4
+                      ^^^^^^^
+Error: This expression has type "a:{A : Add} -> A.t -> A.t -> A.t"
+       Received an expression argument. However, module arguments cannot be omitted.
+|}]
+
+
+let add_lbl_coerced = (add_lbl :> a:(module A : Add) -> A.t -> A.t -> A.t)
+
+[%%expect{|
+val add_lbl_coerced : a:(module A : Add) -> A.t -> A.t -> A.t = <fun>
 |}]
