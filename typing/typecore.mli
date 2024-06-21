@@ -152,6 +152,11 @@ type existential_binding =
   | Bind_not_in_scope
   | Bind_non_locally_abstract
 
+type arg_type =
+  | AT_type of bool
+  | AT_expr
+  | AT_mod
+
 type error =
   | Constructor_arity_mismatch of Longident.t * int * int
   | Label_mismatch of Longident.t * Errortrace.unification_error
@@ -241,6 +246,7 @@ type error =
   | Expr_not_a_record_type of type_expr
   | Cannot_infer_functor_path of Errortrace.unification_error
   | Cannot_commute_label of type_expr
+  | Apply_wrong_arg of arg_type * arg_type
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

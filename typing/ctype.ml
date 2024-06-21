@@ -5558,9 +5558,9 @@ let rec subtype_rec env trace t1 t2 cstrs =
           (Subtype.Diff {got = u1; expected = u2} :: trace)
           u1 u2
           cstrs
-    | (Tfunctor (l1, id1, (c1, Cfp_type), u1),
-       Tfunctor (l2, id2, (c2, Cfp_type), u2))
-      when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
+    | (Tfunctor (l1, id1, (_, Cfp_type), u1),
+       Tfunctor (l2, id2, (_, Cfp_type), u2))
+      when compatible_labels ~in_pattern_mode:false l1 l2 ->
         begin try
           (* FIXME : here we don't unify id1 with id2 because this would break
             the invariant of unicity of unscoped binding.
@@ -5586,9 +5586,9 @@ let rec subtype_rec env trace t1 t2 cstrs =
         with Escape _ ->
           ((env, Ident.get_id_pairs ()), trace, t1, t2, !univar_pairs)::cstrs
         end
-    | (Tfunctor (l1, id1, (c1, Cfp_module (p1, fl1)), u1),
-       Tfunctor (l2, id2, (c2, Cfp_module (p2, fl2)), u2))
-      when c1 = c2 && compatible_labels ~in_pattern_mode:false l1 l2 ->
+    | (Tfunctor (l1, id1, (_, Cfp_module (p1, fl1)), u1),
+       Tfunctor (l2, id2, (_, Cfp_module (p2, fl2)), u2))
+      when compatible_labels ~in_pattern_mode:false l1 l2 ->
         begin try
           let fcm1 = newty (Tpackage (p1, fl1)) in
           let fcm2 = newty (Tpackage (p2, fl2)) in
