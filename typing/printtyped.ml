@@ -1049,8 +1049,8 @@ and label_x_apply_arg i ppf (l, a) =
     line i ppf "<marg>\n";
     arg_label (i+1) ppf l;
     module_expr (i+1) ppf m
-  | Arg (Targ_typ t) ->
-    line i ppf "<targ>\n";
+  | Arg (Targ_typ (c, t)) ->
+    line i ppf "<targ> %b\n" c;
     arg_label (i+1) ppf l;
     core_type (i+1) ppf t
 

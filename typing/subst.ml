@@ -294,17 +294,17 @@ let rec typexp copy_scope s ty =
          end
       | Tpackage pack ->
           Tpackage (package copy_scope s pack)
-      | Tfunctor(lbl, us, (b, Cfp_module pack), ty) ->
+      | Tfunctor(lbl, us, (c, Cfp_module pack), ty) ->
           let us' = Ident.Unscoped.refresh us in
           let s' = add_module (Ident.of_unscoped us)
                               (Pident (Ident.of_unscoped us')) s in
           let pack = package copy_scope s pack in
-          Tfunctor(lbl, us', (b, Cfp_module pack), typexp copy_scope s' ty)
-      | Tfunctor(lbl, us, (b, Cfp_type), ty) ->
+          Tfunctor(lbl, us', (c, Cfp_module pack), typexp copy_scope s' ty)
+      | Tfunctor(lbl, us, (c, Cfp_type), ty) ->
           let us' = Ident.Unscoped.refresh us in
           let s' = add_type (Ident.of_unscoped us)
                               (Pident (Ident.of_unscoped us')) s in
-          Tfunctor(lbl, us', (b, Cfp_type), typexp copy_scope s' ty)
+          Tfunctor(lbl, us', (c, Cfp_type), typexp copy_scope s' ty)
       | Tobject (t1, name) ->
           let t1' = typexp copy_scope s t1 in
           let name' =

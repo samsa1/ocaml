@@ -405,6 +405,7 @@ module E = struct
     | Pparam_module (_lab, n, optyp) ->
         iter_loc iter_string sub n;
         iter_opt (sub.package_type sub) optyp
+    | Pparam_type (_, _, ty)
     | Pparam_newtype ty ->
         iter_loc iter_string sub ty
 
@@ -505,7 +506,7 @@ module E = struct
   let iter_arg sub = function
     | Parg_exp e -> sub.expr sub e
     | Parg_mod m -> sub.module_expr sub m
-    | Parg_typ t -> sub.typ sub t
+    | Parg_typ (_, t) -> sub.typ sub t
 
 end
 

@@ -441,9 +441,9 @@ let label_x_param ctxt f printer l e =
   match l with
   | Nolabel  -> printer ctxt f e
   | Optional str ->
-      pp f "?%a:{%a}" ident_of_name str (printer ctxt) e
+      pp f "?%a:%a" ident_of_name str (printer ctxt) e
   | Labelled lbl ->
-      pp f "~%a:{%a}" ident_of_name lbl (printer ctxt) e
+      pp f "~%a:%a" ident_of_name lbl (printer ctxt) e
 
 (* c ['a,'b] *)
 let rec class_params_def ctxt f =  function
@@ -755,6 +755,18 @@ and label_module ctxt f (l,n,pty_opt) =
   | Optional rest -> pp f "?%a:%a" ident_of_name rest aux ()
   | Labelled l -> pp f "~%a:%a" ident_of_name l aux ()
 
+and label_type f (l,c,t) =
+  let aux f () =
+    if c
+    then pp f "{type@ %s}" t.txt
+    else pp f "(module@ (type@ %s))" t.txt
+  in
+  match l with
+  | Nolabel -> pp f "%a@ " aux ()
+  | Optional "" -> pp f "?%a@ " aux ()
+  | Optional rest -> pp f "?%a:%a@ " ident_of_name rest aux ()
+  | Labelled l -> pp f "~%a:%a@ " ident_of_name l aux ()
+
 and sugar_expr ctxt f e =
   let is_expr = function Parg_exp _ -> true | _ -> false in
   if e.pexp_attributes <> [] then false
@@ -841,6 +853,7 @@ and function_param ctxt f param =
   match param.pparam_desc with
   | Pparam_val (a, b, c) -> label_exp ctxt f (a, b, c)
   | Pparam_module (a, b, c) -> label_module ctxt f (a, b, c)
+  | Pparam_type (a, b, c) -> label_type f (a, b, c)
   | Pparam_newtype ty -> pp f "(type %a)@;" ident_of_name ty.txt
 
 and function_body ctxt f function_body =
@@ -1921,9 +1934,13 @@ and label_x_argument_param ctxt f (l, a) =
   match a with
   | Parg_exp e -> label_x_expression_param ctxt f (l, e)
   | Parg_mod m ->
-    label_x_param ctxt f module_expr l m
-  | Parg_typ t ->
-    let aux ctxt f t = pp f "type@ %a" (core_type ctxt) t in
+    let aux ctxt f m = pp f "{%a}" (module_expr ctxt) m in
+    label_x_param ctxt f aux l m
+  | Parg_typ (true, t) ->
+    let aux ctxt f t = pp f "{type@ %a}" (core_type ctxt) t in
+    label_x_param ctxt f aux l t
+  | Parg_typ (false, t) ->
+    let aux ctxt f t = pp f "(module (type@ %a))" (core_type ctxt) t in
     label_x_param ctxt f aux l t
 
 and label_x_expression_param ctxt f (l,e) =
