@@ -23,12 +23,13 @@ val id_modexp_t : {type a} -> a -> a = <fun>
 val id_modimpl_t : ?{type a} -> a -> a = <fun>
 |}]
 
-let apply_fcm = id_fcm (module Int) 1
+let apply_fcm = id_fcm (module Int) 11
+let apply_fcm' = id_fcm (module struct type t = int end) 12
 let apply_modexp = id_modexp {Int} 2
-let apply_modimpl = id_modimpl ~t:{Int} 3
-let apply_modimpl2 = id_modimpl2 ?{Int} 3
-(* let apply_modimpl' = id_modimpl 4 *) (* Not implemented *)
-(* let apply_modimpl2' = id_modimpl 4 *) (* Not implemented *)
+let apply_modimpl = id_modimpl ~t:{Int} 31
+(* let apply_modimpl' = id_modimpl 32 *) (* Not implemented *)
+let apply_modimpl2 = id_modimpl2 ?{Int} 41
+(* let apply_modimpl2' = id_modimpl 42 *) (* Not implemented *)
 let apply_fcm_t = id_fcm_t (module (type int)) 5
 let apply_fcm_t' = id_fcm_t (module (type _)) 6
 let apply_modexp_t  = id_modexp_t {type int} 7
@@ -37,10 +38,11 @@ let apply_modimpl_t = id_modimpl_t ?{type int} 9
 let apply_modimpl_t'  = id_modimpl_t 10
 
 [%%expect{|
-val apply_fcm : Int.t = 1
+val apply_fcm : Int.t = 11
+val apply_fcm' : int = 12
 val apply_modexp : Int.t = 2
-val apply_modimpl : Int.t = 3
-val apply_modimpl2 : Int.t = 3
+val apply_modimpl : Int.t = 31
+val apply_modimpl2 : Int.t = 41
 val apply_fcm_t : int = 5
 val apply_fcm_t' : int = 6
 val apply_modexp_t : int = 7
@@ -89,6 +91,15 @@ let seven_explicit = add {Int} 3 4
 
 [%%expect{|
 val seven_explicit : Int.t = 7
+|}]
+
+let seven_explicit2 = add {struct type t = int let add = Int.add end} 3 4
+
+let seven_explicit3 = add {struct include Int end} 3 4
+
+[%%expect{|
+val seven_explicit2 : int = 7
+val seven_explicit3 : int = 7
 |}]
 
 (* Fails because argument was explicit *)

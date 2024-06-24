@@ -5776,26 +5776,11 @@ and type_application env funct sargs =
         and optional = is_optional l in
         may_warn funct.exp_loc
             (not_principal "applying a dependent function");
-        let is_type_path t =
-          match t.ptyp_desc with
-          | Ptyp_constr (_, []) -> true
-          | _ -> false
-        in
-        let rec is_path me =
-          match me.pmod_desc with
-          | Pmod_ident _ -> true
-          | Pmod_constraint (me, _) -> is_path me
-          | Pmod_apply (me1, me2) -> is_path me1 && is_path me2
-          | Pmod_apply_type (me1, te2) -> is_path me1 && is_type_path te2
-          | Pmod_functor _ | Pmod_structure _ | Pmod_apply_unit _
-          | Pmod_unpack _ | Pmod_extension _ -> false
-        in
         let is_packing sarg =
           match sarg.pexp_desc with
-          | Pexp_pack me
-          | Pexp_constraint ({ pexp_desc = Pexp_pack me; _},
-                { ptyp_desc = Ptyp_package _; _}) ->
-            is_path me
+          | Pexp_pack _
+          | Pexp_constraint ({ pexp_desc = Pexp_pack _; _},
+                { ptyp_desc = Ptyp_package _; _}) -> true
           | _ -> false
         in
         let me_opt =
@@ -5875,7 +5860,7 @@ and type_application env funct sargs =
                       (newty2 ~level:(get_level ty_fun0) (Tpackage (p0, fl0)))
           in
           let me = match texp.exp_desc with
-              Texp_pack me -> me
+              Texp_pack {mod_desc = Tmod_constraint (me, _, _, _)} -> me
             | _ -> assert false
           in
           let path_of_type typ =
@@ -5895,6 +5880,7 @@ and type_application env funct sargs =
             | _ ->
                 raise Not_found
           in
+          let arg = Some ((fun () -> Targ_exp texp), Some sarg.pexp_loc) in
           begin
             try
               let path = extract_path me in
@@ -5906,13 +5892,17 @@ and type_application env funct sargs =
                   Option.value ~default:t0
                       (instance_funct ~id_in:(Ident.of_unscoped id0)
                                       ~p_out:path ~fixed:false t0) in
-              let arg = Some ((fun () -> Targ_exp texp), Some sarg.pexp_loc) in
               type_args ((l, arg)::args) ty_res ty_res0 remaining_sargs
             with Not_found ->
-              unify_to_arrows (fun trace ->
-                    raise (Error(sarg.pexp_loc, env,
-                          Cannot_infer_functor_path trace)));
-              type_args args ty_fun ty_fun0 sargs
+              try
+                let env_id = Env.add_module (Ident.of_unscoped id) Mp_present
+                                            me.mod_type env in
+                let env_id0 = Env.add_module (Ident.of_unscoped id0) Mp_present
+                                            me.mod_type env in
+                identifier_escape env_id [id] t;
+                identifier_escape env_id0 [id0] t0;
+                type_args ((l, arg)::args) t t0 remaining_sargs
+              with Escape _ -> assert false
           end
         | Some _ | None ->
           unify_to_arrows begin fun trace ->
@@ -6021,7 +6011,7 @@ and type_application env funct sargs =
           in
           unify_exp env texp (newty (Tpackage (p0, fl0)));
           let me = match texp.exp_desc with
-              Texp_pack me -> me
+              Texp_pack {mod_desc = Tmod_constraint(me, _, _, _) } -> me
             | _ -> assert false
           in
           let path_of_type typ =
@@ -6042,6 +6032,7 @@ and type_application env funct sargs =
                 raise Not_found
           in
           begin
+            let arg = Some ((fun () -> Targ_exp texp), Some marg.pmod_loc) in
             try
               let path = extract_path me in
               let ty_res =
@@ -6052,10 +6043,17 @@ and type_application env funct sargs =
                   Option.value ~default:t0
                       (instance_funct ~id_in:(Ident.of_unscoped id0)
                                       ~p_out:path ~fixed:false t0) in
-              let arg = Some ((fun () -> Targ_exp texp), Some marg.pmod_loc) in
               type_args ((l, arg)::args) ty_res ty_res0 remaining_sargs
             with Not_found ->
-              failwith "NYI : Application of non-path module expression"
+              try
+                let env_id = Env.add_module (Ident.of_unscoped id) Mp_present
+                                            me.mod_type env in
+                let env_id0 = Env.add_module (Ident.of_unscoped id0) Mp_present
+                                              me.mod_type env in
+                identifier_escape env_id [id] t;
+                identifier_escape env_id0 [id0] t0;
+                type_args ((l, arg)::args) t t0 remaining_sargs
+              with Escape _ -> assert false
           end
         | None ->
           failwith "Modular implicits inference not implemented"
