@@ -5982,7 +5982,7 @@ and type_application env funct sargs =
                   may_warn marg.pmod_loc
                     (not_principal "commuting this argument")
                 end;
-                if is_optional l' then
+                if not optional && is_optional l' then
                   Location.prerr_warning marg.pmod_loc
                     (Warnings.Nonoptional_label (Asttypes.string_of_label l));
                 Some (remaining_sargs, marg)
@@ -6098,7 +6098,7 @@ and type_application env funct sargs =
                 may_warn targ.ptyp_loc
                   (not_principal "commuting this argument")
               end;
-              if is_optional l' then
+              if not optional && is_optional l' then
                 Location.prerr_warning targ.ptyp_loc
                   (Warnings.Nonoptional_label (Asttypes.string_of_label l));
               Some (remaining_sargs, targ)
