@@ -5754,20 +5754,6 @@ and type_application env funct sargs =
         and optional = is_optional l in
         may_warn funct.exp_loc
             (not_principal "applying a dependent function");
-        let is_type_path t =
-          match t.ptyp_desc with
-          | Ptyp_constr (_, []) -> true
-          | _ -> false
-        in
-        let rec is_path me =
-          match me.pmod_desc with
-          | Pmod_ident _ -> true
-          | Pmod_constraint (me, _) -> is_path me
-          | Pmod_apply (me1, me2) -> is_path me1 && is_path me2
-          | Pmod_apply_type (me1, te2) -> is_path me1 && is_type_path te2
-          | Pmod_functor _ | Pmod_structure _ | Pmod_apply_unit _
-          | Pmod_unpack _ | Pmod_extension _ -> false
-        in
         let is_packing sarg =
           match sarg.pexp_desc with
           | Pexp_pack _
@@ -5963,7 +5949,7 @@ and type_application env funct sargs =
                   may_warn marg.pmod_loc
                     (not_principal "commuting this argument")
                 end;
-                if is_optional l' then
+                if not optional && is_optional l' then
                   Location.prerr_warning marg.pmod_loc
                     (Warnings.Nonoptional_label (Asttypes.string_of_label l));
                 Some (remaining_sargs, marg)
@@ -6079,7 +6065,7 @@ and type_application env funct sargs =
                 may_warn targ.ptyp_loc
                   (not_principal "commuting this argument")
               end;
-              if is_optional l' then
+              if not optional && is_optional l' then
                 Location.prerr_warning targ.ptyp_loc
                   (Warnings.Nonoptional_label (Asttypes.string_of_label l));
               Some (remaining_sargs, targ)

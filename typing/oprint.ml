@@ -284,6 +284,7 @@ let print_arg_label ppf (lbl : Asttypes.arg_label) =
   match lbl with
   | Nolabel -> ()
   | Labelled s -> fprintf ppf "%a:" print_lident s
+  | Optional "?" -> fprintf ppf "?"
   | Optional s -> fprintf ppf "?%a:" print_lident s
 
 let rec print_out_type ppf =

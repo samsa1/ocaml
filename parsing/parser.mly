@@ -2728,7 +2728,7 @@ labeled_simple_expr:
       { (Optional $1, $2) }
 ;
 labeled_simple(X):
-  | QUESTION X { (Optional "", $2) }
+  | QUESTION X { (Optional "?", $2) }
   | LABEL X    { (Labelled $1, $2) }
   | OPTLABEL X { (Optional $1, $2) }
   | X          { (Nolabel, $1) }
@@ -2905,13 +2905,13 @@ fun_param_as_list:
       { [{pparam_loc = make_loc $sloc;
           pparam_desc = Pparam_module (l, m, None)}]
       }
-  | l = label_type LBRACE TYPE t = mkrhs(LIDENT) RBRACE
+  | l = label_for_mparam LBRACE TYPE t = mkrhs(LIDENT) RBRACE
       { [{pparam_loc = make_loc $sloc;
-          pparam_desc = Pparam_type (l t.txt, true, t)}]
+          pparam_desc = Pparam_type (l, true, t)}]
       }
 ;
 %inline label_for_mparam:
-  // | QUESTION      { Optional "" }
+  | QUESTION      { Optional "?" }
   | l = OPTLABEL  { Optional l }
   | l = LABEL     { Labelled l }
   |               { Nolabel }
