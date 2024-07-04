@@ -323,31 +323,21 @@ let none = newty (Ttuple [])                (* Clearly ill-formed type *)
 (**** information for [Typecore.unify_pat_*] ****)
 
 module Pattern_env : sig
-  type envop
   type t = private
     { mutable env : Env.t;
-      mutable op_list : envop list;
       equations_scope : int;
       allow_recursive_equations : bool; }
   val make: Env.t -> equations_scope:int -> allow_recursive_equations:bool -> t
   val copy: ?equations_scope:int -> t -> t
-  val enter_type: scope:int -> label -> type_declaration -> t -> Ident.t
-  val add_local_constraint: Path.t -> type_declaration -> t -> unit
-  val with_mty: t -> Ident.unscoped -> module_type -> (unit -> 'a) -> 'a
+  val with_mty: t -> Ident.unscoped -> module_type -> (unit -> unit) -> unit
   val set_env: t -> Env.t -> unit
 end = struct
-  type envop =
-    | Enter_type of int * label * type_declaration
-    | Local_constraint of Path.t * type_declaration
-
   type t =
     { mutable env : Env.t;
-      mutable op_list : envop list;
       equations_scope : int;
       allow_recursive_equations : bool; }
   let make env ~equations_scope ~allow_recursive_equations =
     { env;
-      op_list = [];
       equations_scope;
       allow_recursive_equations; }
   let copy ?equations_scope penv =
@@ -355,36 +345,12 @@ end = struct
       match equations_scope with None -> penv.equations_scope | Some s -> s in
     { penv with equations_scope }
 
-  let enter_type ~scope lbl decl penv =
-    let (id, new_env) = Env.enter_type ~scope lbl decl penv.env in
-    penv.env <- new_env;
-    penv.op_list <- (Enter_type (scope, lbl, decl)) :: penv.op_list;
-    id
-
-  let add_local_constraint source dest penv =
-    let new_env = Env.add_local_constraint source dest penv.env in
-    penv.env <- new_env;
-    penv.op_list <- (Local_constraint (source, dest)) :: penv.op_list
-
-  let do_op penv = function
-    | Enter_type (_scope, _lbl, _decl) ->
-      assert false
-    | Local_constraint (source, dest) ->
-      add_local_constraint source dest penv
-
   let with_mty penv id mty f =
-    let old_ope_list = penv.op_list in
-    penv.op_list <- [];
-    let last_env = penv.env in
-    let clean () =
-      penv.env <- last_env;
-      let ops = penv.op_list in
-      penv.op_list <- old_ope_list;
-      List.fold_right (fun op () -> do_op penv op) ops ()
-    in
-    let env = Env.add_module (Ident.of_unscoped id) Mp_present mty last_env in
-    penv.env <- env;
-    Misc.try_finally ~always:clean f
+    let env = Env.with_module id Mp_present mty penv.env (fun env ->
+      penv.env <- env;
+      f ();
+      penv.env)
+    in penv.env <- env
 
   let set_env penv env =
     penv.env <- env
@@ -415,15 +381,10 @@ let get_env = function
   | Expression {env} -> env
   | Pattern {penv} -> penv.env
 
-let enter_type uenv ~scope lbl decl =
+let set_env uenv env =
   match uenv with
-  | Expression _ -> invalid_arg "Ctype.enter_type"
-  | Pattern {penv} -> Pattern_env.enter_type ~scope lbl decl penv
-
-let add_local_constraint uenv source dest =
-  match uenv with
-  | Expression _ -> invalid_arg "Ctype.add_local_constraint"
-  | Pattern {penv} -> Pattern_env.add_local_constraint source dest penv
+  | Expression _ -> invalid_arg "Ctype.set_env"
+  | Pattern {penv} -> Pattern_env.set_env penv env
 
 let with_mty uenv id mty f =
   match uenv with
@@ -1442,9 +1403,10 @@ let instance_constructor existential_treatment cstr =
             let fresh_constr_scope = penv.equations_scope in
             let decl = new_local_type (Existential cstr.cstr_name) in
             let name = existential_name name_counter existential in
-            let id = Pattern_env.enter_type
-                      (get_new_abstract_name env name) decl penv
-                      ~scope:fresh_constr_scope in
+            let (id, new_env) =
+              Env.enter_type (get_new_abstract_name env name) decl env
+                ~scope:fresh_constr_scope in
+            Pattern_env.set_env penv new_env;
             let to_unify = newty (Tconstr (Path.Pident id,[],ref Mnil)) in
             let tv = copy copy_scope existential in
             assert (is_Tvar tv);
@@ -2545,9 +2507,11 @@ let reify uenv t =
       (* unique names are needed only for error messages *)
       if in_counterexample uenv then name else get_new_abstract_name env name
     in
-    let id = enter_type uenv new_name decl ~scope:fresh_constr_scope in
+    let (id, new_env) =
+      Env.enter_type new_name decl env ~scope:fresh_constr_scope in
     let path = Path.Pident id in
     let t = newty2 ~level:lev (Tconstr (path,[],ref Mnil)) in
+    set_env uenv new_env;
     path, t
   in
   let visited = ref TypeSet.empty in
@@ -2892,7 +2856,7 @@ let add_gadt_equation uenv source destination =
         ~manifest_and_scope:(destination, expansion_scope)
         type_origin
     in
-    add_local_constraint uenv source decl;
+    set_env uenv (Env.add_local_constraint source decl env);
     cleanup_abbrev ()
   end
 

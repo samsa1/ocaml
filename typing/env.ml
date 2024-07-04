@@ -2237,6 +2237,15 @@ and add_cltype ?shape id ty env =
 let add_module ?arg ?shape id presence mty env =
   add_module_declaration ~check:false ?arg ?shape id presence (md mty) env
 
+let with_module ?arg ?shape id presence mty env f =
+  let modules = env.modules in
+  let env =
+        add_module_declaration ~check:false ?arg ?shape
+                              (Ident.of_unscoped id) presence (md mty) env
+  in
+  let env = f env in
+  { env with modules }
+
 let add_module_lazy ~update_summary id presence mty env =
   let md = Subst.Lazy.{mdl_type = mty;
                        mdl_attributes = [];

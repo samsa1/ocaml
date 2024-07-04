@@ -303,6 +303,8 @@ val add_extension:
   extension_constructor -> t -> t
 val add_module: ?arg:bool -> ?shape:Shape.t ->
   Ident.t -> module_presence -> module_type -> t -> t
+val with_module: ?arg:bool -> ?shape:Shape.t ->
+  Ident.unscoped -> module_presence -> module_type -> t -> (t -> t) -> t  
 val add_module_lazy: update_summary:bool ->
   Ident.t -> module_presence -> Subst.Lazy.modtype -> t -> t
 val add_module_declaration: ?arg:bool -> ?shape:Shape.t -> check:bool ->

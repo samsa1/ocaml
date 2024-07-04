@@ -85,3 +85,17 @@ Error: This pattern matches values of type "((module N : T) -> N.t -> N.t) t2"
          "((module N : T) -> a) t2"
        The module "N" would escape its scope
 |}]
+
+type _ t3 =
+  | E : ((module N : T) -> int) t3
+  | F : ((module N : T) -> float) t3
+
+let f (type a) (v : ((module N : T) -> a) t3) : a =
+  match v with
+  | E -> 3
+  | F -> 5.4
+
+[%%expect{|
+type _ t3 = E : ((module N : T) -> int) t3 | F : ((module N : T) -> float) t3
+val f : ((module N : T) -> 'a) t3 -> 'a = <fun>
+|}]
