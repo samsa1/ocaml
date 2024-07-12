@@ -913,6 +913,41 @@ typing/ident.cmx : \
 typing/ident.cmi : \
     utils/identifiable.cmi \
     utils/format_doc.cmi
+typing/implicitmod.cmo : \
+    typing/types.cmi \
+    typing/printtyp.cmi \
+    typing/path.cmi \
+    parsing/parsetree.cmi \
+    utils/misc.cmi \
+    parsing/longident.cmi \
+    parsing/location.cmi \
+    typing/includemod.cmi \
+    typing/ident.cmi \
+    typing/env.cmi \
+    typing/ctype.cmi \
+    typing/btype.cmi \
+    parsing/asttypes.cmi \
+    typing/implicitmod.cmi
+typing/implicitmod.cmx : \
+    typing/types.cmx \
+    typing/printtyp.cmx \
+    typing/path.cmx \
+    parsing/parsetree.cmi \
+    utils/misc.cmx \
+    parsing/longident.cmx \
+    parsing/location.cmx \
+    typing/includemod.cmx \
+    typing/ident.cmx \
+    typing/env.cmx \
+    typing/ctype.cmx \
+    typing/btype.cmx \
+    parsing/asttypes.cmx \
+    typing/implicitmod.cmi
+typing/implicitmod.cmi : \
+    typing/types.cmi \
+    parsing/parsetree.cmi \
+    parsing/location.cmi \
+    typing/env.cmi
 typing/includeclass.cmo : \
     typing/types.cmi \
     typing/printtyp.cmi \
@@ -1069,6 +1104,7 @@ typing/includemod_errorprinter.cmo : \
     typing/env.cmi \
     utils/diffing.cmi \
     utils/clflags.cmi \
+    parsing/asttypes.cmi \
     typing/includemod_errorprinter.cmi
 typing/includemod_errorprinter.cmx : \
     typing/types.cmx \
@@ -1088,6 +1124,7 @@ typing/includemod_errorprinter.cmx : \
     typing/env.cmx \
     utils/diffing.cmx \
     utils/clflags.cmx \
+    parsing/asttypes.cmx \
     typing/includemod_errorprinter.cmi
 typing/includemod_errorprinter.cmi : \
     typing/types.cmi \
@@ -2070,6 +2107,7 @@ typing/typemod.cmo : \
     utils/load_path.cmi \
     typing/includemod_errorprinter.cmi \
     typing/includemod.cmi \
+    typing/implicitmod.cmi \
     typing/ident.cmi \
     utils/format_doc.cmi \
     typing/errortrace.cmi \
@@ -2109,6 +2147,7 @@ typing/typemod.cmx : \
     utils/load_path.cmx \
     typing/includemod_errorprinter.cmx \
     typing/includemod.cmx \
+    typing/implicitmod.cmx \
     typing/ident.cmx \
     utils/format_doc.cmx \
     typing/errortrace.cmx \
@@ -7371,7 +7410,6 @@ toplevel/topcommon.cmo : \
     bytecomp/symtable.cmi \
     typing/shape_reduce.cmi \
     typing/shape.cmi \
-    typing/printtyped.cmi \
     parsing/printast.cmi \
     typing/predef.cmi \
     parsing/pprintast.cmi \
@@ -7408,7 +7446,6 @@ toplevel/topcommon.cmx : \
     bytecomp/symtable.cmx \
     typing/shape_reduce.cmx \
     typing/shape.cmx \
-    typing/printtyped.cmx \
     parsing/printast.cmx \
     typing/predef.cmx \
     parsing/pprintast.cmx \
@@ -7607,6 +7644,7 @@ toplevel/byte/topeval.cmo : \
     toplevel/topcommon.cmi \
     bytecomp/symtable.cmi \
     lambda/simplif.cmi \
+    typing/printtyped.cmi \
     typing/printtyp.cmi \
     lambda/printlambda.cmi \
     bytecomp/printinstr.cmi \
@@ -7637,6 +7675,7 @@ toplevel/byte/topeval.cmx : \
     toplevel/topcommon.cmx \
     bytecomp/symtable.cmx \
     lambda/simplif.cmx \
+    typing/printtyped.cmx \
     typing/printtyp.cmx \
     lambda/printlambda.cmx \
     bytecomp/printinstr.cmx \
@@ -7734,6 +7773,7 @@ toplevel/native/topeval.cmo : \
     toplevel/native/tophooks.cmi \
     toplevel/topcommon.cmi \
     lambda/simplif.cmi \
+    typing/printtyped.cmi \
     typing/printtyp.cmi \
     lambda/printlambda.cmi \
     typing/predef.cmi \
@@ -7762,6 +7802,7 @@ toplevel/native/topeval.cmx : \
     toplevel/native/tophooks.cmx \
     toplevel/topcommon.cmx \
     lambda/simplif.cmx \
+    typing/printtyped.cmx \
     typing/printtyp.cmx \
     lambda/printlambda.cmx \
     typing/predef.cmx \
