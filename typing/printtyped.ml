@@ -885,6 +885,18 @@ and module_expr i ppf x =
   | Tmod_unpack (e, _) ->
       line i ppf "Tmod_unpack\n";
       expression i ppf e;
+  | Tmod_implicit ime ->
+      line i ppf "Tmod_implicit\n";
+      implicit_module i ppf ime
+
+and implicit_module i ppf ime =
+  let i = i + 1 in
+  match ime.desc with
+  | Timod_found me ->
+      line i ppf "Timod_found\n";
+      module_expr i ppf me
+  | Timod_unknown _ ->
+      line i ppf "Timod_unknown\n"
 
 and structure i ppf x = list i structure_item ppf x.str_items
 

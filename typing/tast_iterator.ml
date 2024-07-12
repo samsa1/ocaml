@@ -509,6 +509,8 @@ let module_expr sub {mod_loc; mod_desc; mod_env; mod_attributes; _} =
       sub.module_type sub mtype;
       sub.module_coercion sub c
   | Tmod_unpack (exp, _) -> sub.expr sub exp
+  | Tmod_implicit { desc = Timod_found mexpr} -> sub.module_expr sub mexpr
+  | Tmod_implicit { desc = Timod_unknown _ } -> assert false
 
 let module_binding sub ({mb_loc; mb_name; mb_expr; mb_attributes; _} as mb) =
   sub.item_declaration sub (Module_binding mb);

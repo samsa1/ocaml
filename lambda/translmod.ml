@@ -531,6 +531,10 @@ and transl_module ~scopes cc rootpath mexp =
       transl_module ~scopes (compose_coercions cc ccarg) rootpath arg
   | Tmod_unpack(arg, _) ->
       apply_coercion loc Strict cc (Translcore.transl_exp ~scopes arg)
+  | Tmod_implicit { desc = Timod_found me } ->
+      transl_module ~scopes cc rootpath me
+  | Tmod_implicit { desc = Timod_unknown _ } ->
+      Misc.fatal_error "Translmod.transl_module"
 
 and transl_apply ~scopes ~loc ~cc mod_env funct translated_arg =
   let inlined_attribute =

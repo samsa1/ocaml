@@ -732,6 +732,10 @@ let module_expr (sub : mapper) mexpr =
           | Tmod_unpack (exp, _pack) ->
               Pmod_unpack (sub.expr sub exp)
               (* TODO , sub.package_type sub pack) *)
+          | Tmod_implicit { desc = Timod_found me } ->
+              (sub.module_expr sub me).pmod_desc
+          | Tmod_implicit { desc = Timod_unknown _ } ->
+              assert false
         in
         Mod.mk ~loc ~attrs desc
 
