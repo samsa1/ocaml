@@ -812,9 +812,10 @@ module Analyser =
     (** Get a name from a module expression, or "struct ... end" if the module expression
        is not an ident of a constraint on an ident. *)
     let rec tt_name_from_module_expr mod_expr =
-      match mod_expr.Typedtree.mod_desc with
+      match Typedtree.mod_desc mod_expr with
         Typedtree.Tmod_ident (p,_) -> Name.from_path p
       | Typedtree.Tmod_constraint (m_exp, _, _, _) -> tt_name_from_module_expr m_exp
+      | Typedtree.Tmod_implicit _ -> assert false
       | Typedtree.Tmod_structure _
       | Typedtree.Tmod_functor _
       | Typedtree.Tmod_apply _

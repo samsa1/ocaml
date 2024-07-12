@@ -662,6 +662,11 @@ let module_expr sub x =
             sub.expr sub exp,
             mty
           )
+    | Tmod_implicit ({ desc = Timod_found me } as imod) ->
+        imod.desc <- Timod_found (sub.module_expr sub me);
+        Tmod_implicit imod
+    | Tmod_implicit ({ desc = Timod_unknown _}) ->
+        assert false
   in
   let mod_attributes = sub.attributes sub x.mod_attributes in
   {x with mod_loc; mod_desc; mod_env; mod_attributes}

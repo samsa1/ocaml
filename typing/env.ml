@@ -513,6 +513,7 @@ type t = {
   types: (type_data, type_data) IdTbl.t;
   modules: (module_entry, module_data) IdTbl.t;
   modtypes: (modtype_data, modtype_data) IdTbl.t;
+  implicit_modules: (int * Ident.Set.t) * (int * Ident.Set.t) NameMap.t;
   classes: (class_data, class_data) IdTbl.t;
   cltypes: (cltype_data, cltype_data) IdTbl.t;
   functor_args: unit Ident.tbl;
@@ -710,6 +711,7 @@ let empty = {
   values = IdTbl.empty; constrs = TycompTbl.empty;
   labels = TycompTbl.empty; types = IdTbl.empty;
   modules = IdTbl.empty; modtypes = IdTbl.empty;
+  implicit_modules = ((0, Ident.Set.empty), NameMap.empty);
   classes = IdTbl.empty; cltypes = IdTbl.empty;
   summary = Env_empty; local_constraints = Path.Map.empty;
   flags = 0;
@@ -1071,6 +1073,20 @@ let find_module ~alias path env =
       if alias then md (fc.fcomp_res)
       else md (modtype_of_functor_appl fc p1 p2)
   | Pextra_ty _ -> raise Not_found
+
+let find_structures sg env =
+  let open Types in
+  let (all, mapping) = env.implicit_modules in
+  let get_name = function
+    | Sig_type (id, _, _, _) | Sig_value (id, _, _) 
+    | Sig_typext (id, _, _, _) | Sig_module (id, _, _, _, _)
+    | Sig_modtype (id, _, _) | Sig_class (id, _, _, _)
+    | Sig_class_type (id, _, _, _) -> Ident.name id
+  in
+  snd (List.fold_left (fun (s, tbl) bind ->
+      let (s2, tbl2) = NameMap.find (get_name bind) mapping in
+      if s2 < s then (s2, tbl2) else (s, tbl)
+    ) all sg)
 
 let find_module_lazy ~alias path env =
   match path with

@@ -253,6 +253,13 @@ let check_closed_package :
    (Longident.t * type_expr) list -> unit) ref =
   ref (fun ~loc:_ ~env:_ ~typ:_ _ -> assert false)
 
+(* Forward declaration, to be filled in by Typemod.new_implicit_module *)
+
+let new_implicit_module :
+  (?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
+   Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr) ref =
+  ref (fun ?attributes:_ ~loc:_ _ -> assert false)
+
 (* Forward declaration, to be filled in by Typeclass.class_structure *)
 let type_object =
   ref (fun _env _s -> assert false :
@@ -2725,6 +2732,10 @@ and is_nonexpansive_mod mexp =
         )
         str.str_items
   | Tmod_apply _ | Tmod_apply_unit _ | Tmod_apply_type _ -> false
+  | Tmod_implicit { desc = Timod_found me } ->
+      is_nonexpansive_mod me
+  | Tmod_implicit { desc = Timod_unknown _ } ->
+      assert false
 
 and is_nonexpansive_opt = function
   | None -> true
@@ -4600,7 +4611,7 @@ and type_newtype
     let ety = exp_type in
     let decl =
         new_local_type ~loc:name_loc ~manifest_and_scope:(ty, get_scope ty) Definition in
-    let new_env = Env.add_type ~check:true id decl env in
+    let new_env = Env.add_type ~check:false id decl env in
     unify new_env compare ety;
     (* replace ety; *)
     (result, ety)
@@ -5972,7 +5983,6 @@ and type_application env funct sargs =
                       ty_fun'
                   in
                   raise(Error(funct.exp_loc, env, Cannot_commute_label ty_res))
-
         in
         begin match me_opt with
         | Some (remaining_sargs, marg) ->
@@ -6025,7 +6035,30 @@ and type_application env funct sargs =
               failwith "NYI : Application of non-path module expression"
           end
         | None ->
-          failwith "Modular implicits inference not implemented"
+          let previous_arg_loc = previous_arg_loc args in
+          let mty = !Ctype.modtype_of_package env previous_arg_loc p fl in
+          let modimpl, me = !new_implicit_module ~loc:previous_arg_loc env mty
+          in
+          try
+            Typedtree.solve_implicit modimpl;
+            let env_id = Env.add_module (Ident.of_unscoped id) Mp_present
+                                        me.mod_type env in
+            let env_id0 = Env.add_module (Ident.of_unscoped id0) Mp_present
+                                          me.mod_type env in
+            identifier_escape env_id [id] t;
+            identifier_escape env_id0 [id0] t0;
+            let texp =
+              {
+                exp_desc = Texp_pack me;
+                exp_loc = previous_arg_loc; exp_extra = [];
+                exp_type = newty (Tpackage (p, fl));
+                exp_attributes = [];
+                exp_env = env
+              }
+            in
+            let arg = Some ((fun () -> Targ_exp texp), None) in
+            type_args ((l, arg)::args) t t0 sargs
+          with Not_found -> failwith "Modular implicits inference not implemented"
         end
     | Tfunctor (l, id, (c, Cfp_type), t), Tfunctor (_, id0, _, t0) ->
       let name = label_name l

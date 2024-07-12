@@ -28,6 +28,10 @@ module Signature_names : sig
   val simplify: Env.t -> t -> signature -> signature
 end
 
+val new_implicit_module:
+  ?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
+  Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr
+
 val type_module:
         Env.t -> Parsetree.module_expr -> Typedtree.module_expr * Shape.t
 val type_structure:

@@ -290,9 +290,13 @@ let iter_on_occurrences
   module_expr =
     (fun sub ({ mod_desc; mod_env; _ } as me) ->
       (match mod_desc with
+      | Tmod_implicit { desc = Timod_found { mod_desc = Tmod_ident (path, lid)}}
       | Tmod_ident (path, lid) -> f ~namespace:Module mod_env path lid
+      | Tmod_implicit { desc = Timod_unknown _ } ->
+          Misc.fatal_error "Cmt_Format.module_expr"
       | Tmod_structure _ | Tmod_functor _ | Tmod_apply _ | Tmod_apply_unit _
-      | Tmod_apply_type _ | Tmod_constraint _ | Tmod_unpack _ -> ());
+      | Tmod_apply_type _ | Tmod_constraint _ | Tmod_unpack _
+      | Tmod_implicit { desc = Timod_found _ } -> ());
       default_iterator.module_expr sub me);
 
   open_description =

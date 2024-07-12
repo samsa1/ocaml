@@ -1870,8 +1870,9 @@ let rec path_of_module mexp =
       path_of_module mexp
   | Tmod_apply_type(funct, arg) when !Clflags.applicative_functors ->
       Papply(Longident.Ktype, path_of_module funct, path_of_type arg)
+  | Tmod_implicit { desc = Timod_found me } -> path_of_module me
   | (Tmod_structure _ | Tmod_functor _ | Tmod_apply_unit _ | Tmod_unpack _ |
-    Tmod_apply _ | Tmod_apply_type _) ->
+    Tmod_apply _ | Tmod_apply_type _ | Tmod_implicit _ ) ->
     raise Not_a_path
 
 let path_of_module mexp =
@@ -2228,7 +2229,89 @@ let check_closed_package ~loc ~env ~typ fl =
   if List.exists (fun (_n, t) -> Ctype.free_variables t <> []) fl then
     raise (Error (loc, env, Incomplete_packed_module typ));;
 
-let rec type_module ?(alias=false) sttn funct_body anchor env smod =
+let rec open_signature_item env = function
+  | Sig_type (id, ({type_manifest = None} as tdecl), r, v) ->
+      if tdecl.type_arity <> 0
+      then Misc.fatal_error "Abstract parametrized type not supported"
+      else
+          let tdecl = { tdecl with type_manifest = Some (Ctype.newvar ())} in
+          Sig_type (id, tdecl, r, v)
+  | Sig_module (id, mp, md, r, v) ->
+      let md = { md with md_type = open_module_type env md.md_type} in
+      Sig_module (id, mp, md, r, v)
+  | Sig_modtype (_, { mtd_type = None}, _) ->
+      Misc.fatal_error "Abstract sig not supported"
+  | item -> item
+and open_signature env s =
+  List.map (open_signature_item env) s
+and open_module_type env mty =
+  match Mtype.scrape env mty with
+  | Mty_signature s -> Mty_signature (open_signature env s)
+  | Mty_alias _ | Mty_functor _ as mty -> mty
+  | _ -> Misc.fatal_error "open_module_type"
+
+exception Collision
+
+let extract_function _env _mty =
+  assert false
+
+let rec find_module_expr ~loc env mty =
+  let test_one_sig id prev_sol =
+    let mda = Env.find_module (Pident id) env in
+    let arguments, result = extract_function env mda.md_type in
+    let snap = Types.snapshot () in
+    try begin
+      ignore (Includemod.modtypes ~loc ~mark:Mark_neither env result mty);
+      let mexp = {
+        pmod_desc = Pmod_ident { txt = Lident (Ident.name id); loc };
+        pmod_loc = loc; pmod_attributes = [];
+      } in
+      let mexp = List.fold_right (fun arg_mty mexp ->
+        let marg = find_module_expr ~loc env arg_mty in
+        { pmod_desc = Pmod_apply (mexp, marg); 
+          pmod_loc = loc; pmod_attributes = [] }
+      ) arguments mexp in
+      Btype.backtrack snap;
+      match prev_sol with
+      | None -> Some mexp
+      | Some _mexp' -> raise Collision
+    end with Includemod.Error _ | Not_found ->
+        Btype.backtrack snap; prev_sol
+  in
+  let sg = match mty with
+    | Mty_signature sg -> sg
+    | _ -> Misc.fatal_error "infer_implicit"
+  in
+  let ids = Env.find_structures sg env in
+  match Ident.Set.fold test_one_sig ids None with
+  | None -> raise Not_found
+  | Some mexp -> mexp
+
+let rec infer_implicit ~loc env mty () =
+  let mexp = find_module_expr ~loc env mty in
+  let (mtexp, shape) = type_module true false None env mexp in
+  let md, _final_shape =
+    wrap_constraint_with_shape env true mtexp mty shape Tmodtype_implicit
+  in
+  { md with
+    mod_loc = loc;
+    mod_attributes = [];
+  }
+
+and new_implicit_module ?(attributes=[]) ~loc env mty =
+  let mty = open_module_type env mty in
+  let implicit_module = {
+    desc = Timod_unknown (infer_implicit ~loc env mty)
+  } in
+  implicit_module,
+  { mod_desc = Tmod_implicit implicit_module;
+    mod_loc = loc;
+    mod_type = mty;
+    mod_env = env;
+    mod_attributes = attributes;
+  }
+
+and type_module ?(alias=false) sttn funct_body anchor env smod =
   Builtin_attributes.warning_scope smod.pmod_attributes
     (fun () -> type_module_aux ~alias sttn funct_body anchor env smod)
 
@@ -3165,6 +3248,7 @@ let type_open_descr ?used_slot env od =
 
 let () =
   Typecore.check_closed_package := check_closed_package;
+  Typecore.new_implicit_module := new_implicit_module;
   Typecore.type_module := type_module_alias;
   Typetexp.transl_modtype_longident := transl_modtype_longident;
   Typetexp.transl_modtype := transl_modtype;

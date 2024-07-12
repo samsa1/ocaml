@@ -266,6 +266,11 @@ val type_open:
 val check_closed_package:
   (loc:Location.t -> env:Env.t -> typ:type_expr ->
    (Longident.t * type_expr) list -> unit) ref
+(* Forward declaration, to be filled in by Typemod.new_implicit_module *)
+val new_implicit_module:
+  (?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
+   Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr) ref
+
 (* Forward declaration, to be filled in by Typemod.type_open_decl *)
 val type_open_decl:
   (?used_slot:bool ref -> Env.t -> Parsetree.open_declaration ->
