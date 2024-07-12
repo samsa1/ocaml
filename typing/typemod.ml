@@ -2463,7 +2463,19 @@ let check_purity loc env funct_body pure =
     Error.log_or_raise loc env (Not_allowed_in_functor_body Impure)
   | _ -> ()
 
-let rec type_module ?(alias=false) ~strengthen ~funct_body anchor env smod =
+let rec infer_implicit ~loc env mty =
+  let mexp = Implicitmod.infer ~loc env mty in
+  let (mtexp, shape) =
+      type_module ~strengthen:true ~funct_body:Pure None env mexp in
+  let md, _final_shape =
+    wrap_constraint_with_shape env true mtexp mty shape Tmodtype_implicit
+  in
+  { md with
+    mod_loc = loc;
+    mod_attributes = [];
+  }
+
+and type_module ?(alias=false) ~strengthen ~funct_body anchor env smod =
   let delayed () =
     Builtin_attributes.warning_scope smod.pmod_attributes
       (fun () -> type_module_aux ~alias ~strengthen ~funct_body anchor env smod)
@@ -3272,6 +3284,8 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         Tstr_attribute x, [], shape_map, env
   in
   { str_desc = desc; str_loc = loc; str_env = env }, sg, shape_map, new_env
+
+let _ = infer_implicit
 
 let type_toplevel_phrase env s =
   Env.reset_required_globals ();
