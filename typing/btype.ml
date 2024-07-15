@@ -111,12 +111,14 @@ let lowest_level = Ident.lowest_scope
    the only function returning the contents of a pool is [with_new_pool],
    so that the initial pool can be added to, but never read from. *)
 
-type pool = {level: int; mutable pool: transient_expr list; next: pool}
+type pool = {level: int; mutable pool: transient_expr list;
+             mutable ipool: Typedtree.implicit_module_solver list; next: pool}
 (* To avoid an indirection we choose to add a dummy level at the end of
    the list. It will never be accessed, as [pool_of_level] is always called
    with [level >= 0]. *)
-let rec dummy = {level = max_int; pool = []; next = dummy}
-let pool_stack = s_table (fun () -> {level = 0; pool = []; next = dummy}) ()
+let rec dummy = {level = max_int; pool = []; ipool = []; next = dummy}
+let pool_stack =
+    s_table (fun () -> {level = 0; pool = []; ipool = []; next = dummy}) ()
 
 (* Lookup in the stack is linear, but the depth is the number of nested
    generalization points (e.g. lhs of let-definitions), which in ML is known
@@ -131,12 +133,45 @@ let pool_stack = s_table (fun () -> {level = 0; pool = []; next = dummy}) ()
 let rec pool_of_level level pool =
   if level >= pool.level then pool else pool_of_level level pool.next
 
+let add_impl_to_pool imod =
+  let level = Typedtree.get_level_of_implicit imod in
+  let pool = pool_of_level level !pool_stack in
+  pool.ipool <- imod :: pool.ipool
+
+let solve_imod pool =
+  let solved_one = ref false in
+  let aux imod =
+    try
+      Typedtree.solve_implicit imod;
+      solved_one := true;
+    with Errortrace.ImplicitError _ ->
+      add_impl_to_pool imod
+  in
+  let ipool = pool.ipool in
+  pool.ipool <- [];
+  List.iter aux ipool;
+  !solved_one
+
+let rec simplify_implicit_modules top_pool =
+  begin
+    let solved_one = ref false in
+    let rec aux pool =
+      if pool.level <> max_int then aux pool.next;
+      if solve_imod pool then solved_one := true;
+    in
+    aux top_pool;
+    if !solved_one && top_pool.ipool <> []
+    then simplify_implicit_modules top_pool;
+  end
+
 (* Create a new pool at given level, and use it locally. *)
 let with_new_pool ~level f =
-  let pool = {level; pool = []; next = !pool_stack} in
+  let pool = {level; pool = []; ipool = []; next = !pool_stack} in
   let r =
     Misc.protect_refs [ R(pool_stack, pool) ] f
   in
+  simplify_implicit_modules pool;
+  List.iter Typedtree.solve_implicit pool.ipool;
   (r, pool.pool)
 
 let add_to_pool ~level ty =

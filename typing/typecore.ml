@@ -257,7 +257,7 @@ let check_closed_package :
 
 let new_implicit_module :
   (?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
-   Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr) ref =
+   Types.module_type -> Typedtree.module_expr) ref =
   ref (fun ?attributes:_ ~loc:_ _ -> assert false)
 
 (* Forward declaration, to be filled in by Typeclass.class_structure *)
@@ -6037,28 +6037,25 @@ and type_application env funct sargs =
         | None ->
           let previous_arg_loc = previous_arg_loc args in
           let mty = !Ctype.modtype_of_package env previous_arg_loc p fl in
-          let modimpl, me = !new_implicit_module ~loc:previous_arg_loc env mty
+          let me = !new_implicit_module ~loc:previous_arg_loc env mty
           in
-          try
-            Typedtree.solve_implicit modimpl;
-            let env_id = Env.add_module (Ident.of_unscoped id) Mp_present
+          let env_id = Env.add_module (Ident.of_unscoped id) Mp_present
+                                      me.mod_type env in
+          let env_id0 = Env.add_module (Ident.of_unscoped id0) Mp_present
                                         me.mod_type env in
-            let env_id0 = Env.add_module (Ident.of_unscoped id0) Mp_present
-                                          me.mod_type env in
-            identifier_escape env_id [id] t;
-            identifier_escape env_id0 [id0] t0;
-            let texp =
-              {
-                exp_desc = Texp_pack me;
-                exp_loc = previous_arg_loc; exp_extra = [];
-                exp_type = newty (Tpackage (p, fl));
-                exp_attributes = [];
-                exp_env = env
-              }
-            in
-            let arg = Some ((fun () -> Targ_exp texp), None) in
-            type_args ((l, arg)::args) t t0 sargs
-          with Not_found -> failwith "Modular implicits inference not implemented"
+          identifier_escape env_id [id] t;
+          identifier_escape env_id0 [id0] t0;
+          let texp =
+            {
+              exp_desc = Texp_pack me;
+              exp_loc = previous_arg_loc; exp_extra = [];
+              exp_type = newty (Tpackage (p, fl));
+              exp_attributes = [];
+              exp_env = env
+            }
+          in
+          let arg = Some ((fun () -> Targ_exp texp), None) in
+          type_args ((l, arg)::args) t t0 sargs
         end
     | Tfunctor (l, id, (c, Cfp_type), t), Tfunctor (_, id0, _, t0) ->
       let name = label_name l

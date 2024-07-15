@@ -2303,7 +2303,7 @@ and new_implicit_module ?(attributes=[]) ~loc env mty =
   let implicit_module = {
     desc = Timod_unknown (infer_implicit ~loc env mty)
   } in
-  implicit_module,
+  Btype.add_impl_to_pool implicit_module;
   { mod_desc = Tmod_implicit implicit_module;
     mod_loc = loc;
     mod_type = mty;

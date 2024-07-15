@@ -269,7 +269,7 @@ val check_closed_package:
 (* Forward declaration, to be filled in by Typemod.new_implicit_module *)
 val new_implicit_module:
   (?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
-   Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr) ref
+   Types.module_type -> Typedtree.module_expr) ref
 
 (* Forward declaration, to be filled in by Typemod.type_open_decl *)
 val type_open_decl:

@@ -947,6 +947,10 @@ let nominal_exp_doc lid t =
   in
   nominal_exp_doc empty t
 
+type implicit_module_solver = implicit_module
+
+let get_level_of_implicit _ = max_int
+
 let solve_implicit impl =
   match impl.desc with
   | Timod_found _ -> ()

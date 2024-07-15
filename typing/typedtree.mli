@@ -944,5 +944,7 @@ val nominal_exp_doc :
   Longident.t Format_doc.printer -> expression
   -> Format_doc.t option
 
-val solve_implicit : implicit_module -> unit
+type implicit_module_solver = implicit_module
+val get_level_of_implicit : implicit_module_solver -> int
+val solve_implicit : implicit_module_solver -> unit
 val mod_desc : module_expr -> module_expr_desc
