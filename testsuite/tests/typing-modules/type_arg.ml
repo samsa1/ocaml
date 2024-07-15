@@ -18,9 +18,9 @@ end = functor (type a) -> struct
 end
 
 [%%expect{|
-module type F = functor (type a) -> sig val default : a end
-module List : functor (type a) -> sig type t = a list end
-module List2 : functor (type b) -> sig type t = (b * b) list end
+module type F = (type a) -> sig val default : a end
+module List : (type a) -> sig type t = a list end
+module List2 : (type b) -> sig type t = (b * b) list end
 |}]
 
 (* Test valid applications *)
@@ -62,7 +62,7 @@ module Id (X : T) = X
 
 [%%expect{|
 module type T = sig type t end
-module Id : functor (X : T) -> sig type t = X.t end
+module Id : (X : T) -> sig type t = X.t end
 |}]
 
 module Err3 = Id(type int)
@@ -79,7 +79,7 @@ module G () = struct end
 module Err4 = G(type int)
 
 [%%expect{|
-module G : functor () -> sig end
+module G : () -> sig end
 Line 3, characters 14-15:
 3 | module Err4 = G(type int)
                   ^
@@ -97,7 +97,7 @@ end = functor (type b) (type a) -> struct
 end
 
 [%%expect{|
-module Swaping : functor (type a) (type b) -> sig type t = a type s = b end
+module Swaping : (type a) (type b) -> sig type t = a type s = b end
 |}]
 
 module Err5 : functor (type t) -> sig type nonrec t = t end = Id
@@ -108,9 +108,9 @@ Line 1, characters 62-64:
                                                                   ^^
 Error: Signature mismatch:
        Modules do not match:
-         functor (X : T) -> ...
+         (X : T) -> ...
        is not included in
-         functor (type t) -> ...
+         (type t) -> ...
        The functor expected a type argument at this position
 |}]
 
@@ -130,9 +130,9 @@ Lines 5-7, characters 14-3:
 7 | end
 Error: Signature mismatch:
        Modules do not match:
-         functor (type a) -> ...
+         (type a) -> ...
        is not included in
-         functor (T : Typ) -> ...
+         (T : Typ) -> ...
        The functor was expected to be applicative at this position
 |}]
 
@@ -191,7 +191,7 @@ let fail_in_path2 (x : IdTyp(type int).t) = x
 
 [%%expect{|
 module type Typ = sig type t end
-module IdTyp : functor (T : Typ) -> sig type t = T.t end
+module IdTyp : (T : Typ) -> sig type t = T.t end
 Line 5, characters 23-40:
 5 | let fail_in_path2 (x : IdTyp(type int).t) = x
                            ^^^^^^^^^^^^^^^^^
@@ -209,7 +209,7 @@ Error: The functor was expected to be applicative at this position
 module Gen () : Typ = struct type t = int end
 
 [%%expect{|
-module Gen : functor () -> Typ
+module Gen : () -> Typ
 |}]
 
 

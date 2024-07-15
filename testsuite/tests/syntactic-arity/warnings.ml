@@ -32,27 +32,21 @@ val f : (module M : S) -> 'a -> M.t -> M.t = <fun>
 
 let f (module M : S) (type a) = ((fun z -> z) : a M.u);;
 [%%expect {|
-val f : (module M : S) -> 'a M.u = <fun>
+val f : (module M : S) -> M.t -> M.t = <fun>
 |}];;
 
 let f (module M : S) (type a) x = ((fun z -> z) : a M.u);;
 [%%expect {|
-val f : (module M : S) -> 'b -> 'a M.u = <fun>
-|}, Principal{|
 val f : (module M : S) -> 'a -> M.t -> M.t = <fun>
 |}];;
 
 let f (module M : S) x (type a) = ((fun z -> z) : a M.u);;
 [%%expect {|
-val f : (module M : S) -> 'b -> 'a M.u = <fun>
-|}, Principal{|
 val f : (module M : S) -> 'a -> M.t -> M.t = <fun>
 |}];;
 
 let f (module M : S) x (type a) :> a M.u = function z -> z
 [%%expect {|
-val f : (module M : S) -> 'b -> 'a M.u = <fun>
-|}, Principal{|
 val f : (module M : S) -> 'a -> M.t -> M.t = <fun>
 |}];;
 
