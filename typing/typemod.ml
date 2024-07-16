@@ -290,7 +290,7 @@ let iterator_with_env super env =
         | None -> ()
         | Some id ->
           env := lazy (Env.add_module ~arg:true id Mp_present
-                       mty_arg (Lazy.force env_before))
+                       IILocal mty_arg (Lazy.force env_before))
       end;
       self.Btype.it_module_type self mty_body;
       env := env_before;
@@ -823,7 +823,7 @@ let rec approx_modtype env smty =
             let rarg = Mtype.scrape_for_functor_arg env arg in
             let scope = Ctype.create_scope () in
             let (id, newenv) =
-              Env.enter_module ~scope ~arg:true name Mp_present rarg env
+              Env.enter_module ~scope ~arg:true name Mp_present IILocal rarg env
             in
             Types.Named (Some id, arg), newenv
       in
@@ -857,6 +857,7 @@ let rec approx_modtype env smty =
 and approx_module_declaration env pmd =
   {
     Types.md_type = approx_modtype env pmd.pmd_type;
+    md_impl = IIShadows;
     md_attributes = pmd.pmd_attributes;
     md_loc = pmd.pmd_loc;
     md_uid = Uid.internal_not_actually_unique;
@@ -1359,6 +1360,7 @@ and transl_modtype_aux env smty =
               let id, newenv =
                 let arg_md =
                   { md_type = arg.mty_type;
+                    md_impl = IILocal;
                     md_attributes = [];
                     md_loc = param.loc;
                     md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
@@ -1521,6 +1523,7 @@ and transl_signature env sg =
             in
             let md = {
               md_type=tmty.mty_type;
+              md_impl=IIShadows;
               md_attributes=pmd.pmd_attributes;
               md_loc=pmd.pmd_loc;
               md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
@@ -1538,6 +1541,7 @@ and transl_signature env sg =
             in
             let (trem, rem, final_env) = transl_sig newenv srem in
             mksig (Tsig_module {md_id=id; md_name=pmd.pmd_name;
+                                md_impl=pmd.pmd_impl;
                                 md_uid=md.md_uid; md_presence=pres;
                                 md_type=tmty; md_loc=pmd.pmd_loc;
                                 md_attributes=pmd.pmd_attributes})
@@ -1558,6 +1562,7 @@ and transl_signature env sg =
                 md
               else
                 { md_type = Mty_alias path;
+                  md_impl = IIShadows;
                   md_attributes = pms.pms_attributes;
                   md_loc = pms.pms_loc;
                   md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
@@ -1601,6 +1606,7 @@ and transl_signature env sg =
               env loc :: trem,
             map_rec (fun rs (id, md, uid) ->
                 let d = {Types.md_type = md.md_type.mty_type;
+                         md_impl = IIShadows;
                          md_attributes = md.md_attributes;
                          md_loc = md.md_loc;
                          md_uid = uid;
@@ -1814,6 +1820,7 @@ and transl_recmodule_modtypes env sdecls =
          let md =
            { md_type = approx_modtype approx_env pmd.pmd_type;
              md_loc = pmd.pmd_loc;
+             md_impl = if pmd.pmd_impl then IIImplicit else IIShadows;
              md_attributes = pmd.pmd_attributes;
              md_uid }
          in
@@ -1843,6 +1850,7 @@ and transl_recmodule_modtypes env sdecls =
     List.map2 (fun pmd (id_shape, id_loc, md, mty) ->
       let tmd =
         {md_id=Option.map fst id_shape; md_name=id_loc; md_type=mty;
+         md_impl=(md.Types.md_impl = IIImplicit);
          md_uid=md.Types.md_uid; md_presence=Mp_present;
          md_loc=pmd.pmd_loc;
          md_attributes=pmd.pmd_attributes}
@@ -1899,7 +1907,7 @@ let rec nongen_modtype env = function
             let decl = Ctype.new_local_type ~loc:Location.none Definition in
             Env.add_type ~check:true id decl env
         | Named (Some id, param) ->
-            Env.add_module ~arg:true id Mp_present param env
+            Env.add_module ~arg:true id Mp_present IILocal param env
       in
       nongen_modtype env body
 
@@ -2008,7 +2016,7 @@ let check_recmodule_inclusion env bindings =
       (* Generate fresh names Y_i for the rec. bound module idents X_i *)
       let bindings1 =
         List.map
-          (fun (id, _name, _mty_decl, _modl,
+          (fun (id, _impl, _name, _mty_decl, _modl,
                 mty_actual, _attrs, _loc, shape, _uid) ->
              let ids =
                Option.map
@@ -2029,7 +2037,8 @@ let check_recmodule_inclusion env bindings =
                  then mty_actual
                  else subst_and_strengthen env scope s (Some id) mty_actual
                in
-               Env.add_module ~arg:false ~shape id' Mp_present mty_actual' env)
+               Env.add_module ~arg:false ~shape id' Mp_present IILocal
+                              mty_actual' env)
           env bindings1 in
       (* Build the output substitution Y_i <- X_i *)
       let s' =
@@ -2045,7 +2054,7 @@ let check_recmodule_inclusion env bindings =
       (* Base case: check inclusion of s(mty_actual) in s(mty_decl)
          and insert coercion if needed *)
       let check_inclusion
-            (id, name, mty_decl, modl, mty_actual, attrs, loc, shape, uid) =
+          (id, impl, name, mty_decl, modl, mty_actual, attrs, loc, shape, uid) =
         let mty_decl' = Subst.modtype (Rescope scope) s mty_decl.mty_type
         and mty_actual' = subst_and_strengthen env scope s id mty_actual in
         let coercion, shape =
@@ -2066,6 +2075,7 @@ let check_recmodule_inclusion env bindings =
         let mb =
           {
             mb_id = id;
+            mb_impl = impl;
             mb_name = name;
             mb_uid = uid;
             mb_presence = Mp_present;
@@ -2250,15 +2260,22 @@ and open_module_type env mty =
   | Mty_alias _ | Mty_functor _ as mty -> mty
   | _ -> Misc.fatal_error "open_module_type"
 
-exception Collision
-
-let extract_function _env _mty =
-  assert false
+let rec extract_function env mty =
+  match mty with
+  | Mty_signature _ -> ([], mty)
+  | Mty_functor _ -> failwith "NYI : Inference through functors"
+  | Mty_ident p ->
+      begin let decl = Env.find_modtype p env in
+        match decl.mtd_type with
+        | Some mty -> extract_function env mty
+        | None -> failwith "NYI : Inference with abstract signatures"
+      end
+  | Mty_alias _ -> assert false
 
 let rec find_module_expr ~loc env mty =
   let test_one_sig id prev_sol =
-    let mda = Env.find_module (Pident id) env in
-    let arguments, result = extract_function env mda.md_type in
+    let mdecl = Env.find_strengthened_module ~aliasable:false (Pident id) env in
+    let arguments, result = extract_function env mdecl in
     let snap = Types.snapshot () in
     try begin
       ignore (Includemod.modtypes ~loc ~mark:Mark_neither env result mty);
@@ -2274,8 +2291,9 @@ let rec find_module_expr ~loc env mty =
       Btype.backtrack snap;
       match prev_sol with
       | None -> Some mexp
-      | Some _mexp' -> raise Collision
-    end with Includemod.Error _ | Not_found ->
+      | Some _mexp' -> raise (ImplicitError ((loc, mty, Ambiguity)))
+    end with
+      | Includemod.Error _ | ImplicitError ((_, _, NoSolution)) ->
         Btype.backtrack snap; prev_sol
   in
   let sg = match mty with
@@ -2283,8 +2301,8 @@ let rec find_module_expr ~loc env mty =
     | _ -> Misc.fatal_error "infer_implicit"
   in
   let ids = Env.find_structures sg env in
-  match Ident.Set.fold test_one_sig ids None with
-  | None -> raise Not_found
+  match Misc.Stdlib.String.Map.fold (fun _ -> test_one_sig) ids None with
+  | None -> raise (ImplicitError ((loc, mty, NoSolution)))
   | Some mexp -> mexp
 
 let rec infer_implicit ~loc env mty () =
@@ -2299,14 +2317,14 @@ let rec infer_implicit ~loc env mty () =
   }
 
 and new_implicit_module ?(attributes=[]) ~loc env mty =
-  let mty = open_module_type env mty in
+  let new_mty = open_module_type env mty in
   let implicit_module = {
-    desc = Timod_unknown (infer_implicit ~loc env mty)
+    desc = Timod_unknown (infer_implicit ~loc env new_mty)
   } in
   Btype.add_impl_to_pool implicit_module;
   { mod_desc = Tmod_implicit implicit_module;
     mod_loc = loc;
-    mod_type = mty;
+    mod_type = new_mty;
     mod_env = env;
     mod_attributes = attributes;
   }
@@ -2392,6 +2410,7 @@ and type_module_aux ~alias sttn funct_body anchor env smod =
               let md_uid =  Uid.mk ~current_unit:(Env.get_unit_name ()) in
               let arg_md =
                 { md_type = mty.mty_type;
+                  md_impl = IIShadows;
                   md_attributes = [];
                   md_loc = param.loc;
                   md_uid;
@@ -2622,7 +2641,8 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
               | None -> env, mty_res
               | Some param ->
                   let env =
-                    Env.add_module ~arg:true param Mp_present arg.mod_type env
+                    Env.add_module ~arg:true param Mp_present IIShadows
+                                   arg.mod_type env
                   in
                   check_well_formed_module env app_loc
                     "the signature of this functor application" mty_res;
@@ -2824,8 +2844,8 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
           constructor.ext_id
           shape,
         newenv
-    | Pstr_module {pmb_name = name; pmb_expr = smodl; pmb_attributes = attrs;
-                   pmb_loc;
+    | Pstr_module {pmb_name = name; pmb_impl; pmb_expr = smodl;
+                   pmb_attributes = attrs; pmb_loc;
                   } ->
         let outer_scope = Ctype.get_current_level () in
         let scope = Ctype.create_scope () in
@@ -2844,6 +2864,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
         let md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
         let md =
           { md_type = enrich_module_type anchor name.txt modl.mod_type env;
+            md_impl = if pmb_impl then IIImplicit else IIShadows;
             md_attributes = attrs;
             md_loc = pmb_loc;
             md_uid;
@@ -2863,6 +2884,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
             Some id, e,
             [Sig_module(id, pres,
                         {md_type = modl.mod_type;
+                         md_impl = if pmb_impl then IIImplicit else IIShadows;
                          md_attributes = attrs;
                          md_loc = pmb_loc;
                          md_uid;
@@ -2872,9 +2894,9 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
           | Some id -> Shape.Map.add_module shape_map id md_shape
           | None -> shape_map
         in
-        Tstr_module {mb_id=id; mb_name=name; mb_uid = md.md_uid;
-                     mb_expr=modl; mb_presence=pres; mb_attributes=attrs;
-                     mb_loc=pmb_loc; },
+        Tstr_module {mb_id=id; mb_impl=pmb_impl; mb_name=name;
+                     mb_uid = md.md_uid; mb_expr=modl; mb_presence=pres;
+                     mb_attributes=attrs; mb_loc=pmb_loc; },
         sg,
         shape_map,
         newenv
@@ -2883,11 +2905,12 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
           List.map
             (function
               | {pmb_name = name;
+                 pmb_impl = impl;
                  pmb_expr = {pmod_desc=Pmod_constraint(expr, typ)};
                  pmb_attributes = attrs;
                  pmb_loc = loc;
                 } ->
-                  name, typ, expr, attrs, loc
+                  name, impl, typ, expr, attrs, loc
               | mb ->
                   raise (Error (mb.pmb_expr.pmod_loc, env,
                                 Recursive_module_require_explicit_type))
@@ -2896,8 +2919,8 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
         in
         let (decls, newenv) =
           transl_recmodule_modtypes env
-            (List.map (fun (name, smty, _smodl, attrs, loc) ->
-                 {pmd_name=name; pmd_type=smty;
+            (List.map (fun (name, impl, smty, _smodl, attrs, loc) ->
+                 {pmd_name=name; pmd_impl=impl; pmd_type=smty;
                   pmd_attributes=attrs; pmd_loc=loc}) sbind
             ) in
         List.iter
@@ -2907,7 +2930,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
         let bindings1 =
           List.map2
             (fun ({md_id=id; md_type=mty}, uid, _prev_shape)
-                 (name, _, smodl, attrs, loc) ->
+                 (name, impl, _, smodl, attrs, loc) ->
                let modl, shape =
                  Builtin_attributes.warning_scope attrs
                    (fun () ->
@@ -2920,17 +2943,18 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
                in
                Includemod.modtypes_consistency ~loc:modl.mod_loc newenv
                 mty' mty.mty_type;
-               (id, name, mty, modl, mty', attrs, loc, shape, uid))
+               (id, impl, name, mty, modl, mty', attrs, loc, shape, uid))
             decls sbind in
         let newenv = (* allow aliasing recursive modules from outside *)
           List.fold_left
-            (fun env (id_opt, _, mty, _, _, attrs, loc, shape, uid) ->
+            (fun env (id_opt, _, _, mty, _, _, attrs, loc, shape, uid) ->
                match id_opt with
                | None -> env
                | Some id ->
                    let mdecl =
                      {
                        md_type = mty.mty_type;
+                       md_impl = IIShadows;
                        md_attributes = attrs;
                        md_loc = loc;
                        md_uid = uid;
@@ -2957,6 +2981,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
         map_rec (fun rs (id, mb, uid, _shape) ->
             Sig_module(id, Mp_present, {
                 md_type=mb.mb_expr.mod_type;
+                md_impl=IIShadows;
                 md_attributes=mb.mb_attributes;
                 md_loc=mb.mb_loc;
                 md_uid = uid;
@@ -3405,6 +3430,7 @@ let package_signatures units =
       let sg = Subst.signature Make_local subst sg in
       let md =
         { md_type=Mty_signature sg;
+          md_impl=IILocal;
           md_attributes=[];
           md_loc=Location.none;
           md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());

@@ -459,11 +459,12 @@ let expr sub x =
           path,
           List.map (tuple3 id (map_loc sub) (sub.expr sub)) list
         )
-    | Texp_letmodule (id, s, pres, mexpr, exp) ->
+    | Texp_letmodule (id, s, pres, b, mexpr, exp) ->
         Texp_letmodule (
           id,
           map_loc sub s,
           pres,
+          b,
           sub.module_expr sub mexpr,
           sub.expr sub exp
         )

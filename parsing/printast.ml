@@ -371,8 +371,8 @@ and expression i ppf x =
   | Pexp_override (l) ->
       line i ppf "Pexp_override\n";
       list i string_x_expression ppf l;
-  | Pexp_letmodule (s, me, e) ->
-      line i ppf "Pexp_letmodule %a\n" fmt_str_opt_loc s;
+  | Pexp_letmodule (b, s, me, e) ->
+      line i ppf "Pexp_letmodule %b %a\n" b fmt_str_opt_loc s;
       module_expr i ppf me;
       expression i ppf e;
   | Pexp_letexception (cd, e) ->
@@ -774,7 +774,8 @@ and signature_item i ppf x =
       line i ppf "Psig_exception\n";
       type_exception i ppf te
   | Psig_module pmd ->
-      line i ppf "Psig_module %a\n" fmt_str_opt_loc pmd.pmd_name;
+      line i ppf "Psig_module %b %a\n"
+            pmd.pmd_impl fmt_str_opt_loc pmd.pmd_name;
       attributes i ppf pmd.pmd_attributes;
       module_type i ppf pmd.pmd_type
   | Psig_modsubst pms ->

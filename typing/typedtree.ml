@@ -131,8 +131,8 @@ and expression_desc =
   | Texp_setinstvar of Path.t * Path.t * string loc * expression
   | Texp_override of Path.t * (Ident.t * string loc * expression) list
   | Texp_letmodule of
-      Ident.t option * string option loc * Types.module_presence * module_expr *
-        expression
+      Ident.t option * string option loc * Types.module_presence * bool *
+        module_expr * expression
   | Texp_letexception of extension_constructor * expression
   | Texp_assert of expression * Location.t
   | Texp_lazy of expression
@@ -331,6 +331,7 @@ and structure_item_desc =
 and module_binding =
     {
      mb_id: Ident.t option;
+     mb_impl: bool;
      mb_name: string option loc;
      mb_uid: Uid.t;
      mb_presence: module_presence;
@@ -412,6 +413,7 @@ and signature_item_desc =
 and module_declaration =
     {
      md_id: Ident.t option;
+     md_impl: bool;
      md_name: string option loc;
      md_uid: Uid.t;
      md_presence: module_presence;
@@ -946,6 +948,37 @@ let nominal_exp_doc lid t =
     | _ -> None
   in
   nominal_exp_doc empty t
+
+type implicit_inference_fail_desc =
+  | Ambiguity
+  | NoSolution
+
+type implicit_inference_fail =
+  Location.t * Types.module_type * implicit_inference_fail_desc
+
+exception ImplicitError of implicit_inference_fail
+
+let modtype = ref (fun _ -> assert false)
+
+let report_error ~loc mty err =
+  match err with
+  | Ambiguity ->
+      Location.errorf ~loc
+          "@[<v>@[<2>Inference of signature %a@]@ \
+           failed as multiple solutions were found.@]"
+           !modtype mty
+  | NoSolution ->
+      Location.errorf ~loc
+          "@[<v>@[<2>Inference of signature %a@]@ \
+            failed as no solution was found.@]"
+            !modtype mty
+
+let () =
+  Location.register_error_of_exn
+    (function
+      | ImplicitError ((loc, mty, err)) ->
+          Some (report_error ~loc mty err)
+      | _ -> None)
 
 type implicit_module_solver = implicit_module
 

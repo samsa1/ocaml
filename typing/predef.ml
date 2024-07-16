@@ -17,7 +17,7 @@
 
 open Path
 open Types
-open Btype
+open Btype1
 
 let builtin_idents = ref []
 
@@ -156,7 +156,7 @@ let mk_add_type add_type type_ident ?manifest
      type_variance = [];
      type_separability = [];
      type_is_newtype = false;
-     type_expansion_scope = lowest_level;
+     type_expansion_scope = Btype1.lowest_level;
      type_attributes = [];
      type_immediate = immediate;
      type_unboxed_default = false;
@@ -180,7 +180,7 @@ let build_initial_env add_type add_extension empty_env =
        type_variance = [variance];
        type_separability = [separability];
        type_is_newtype = false;
-       type_expansion_scope = lowest_level;
+       type_expansion_scope = Btype1.lowest_level;
        type_attributes = [];
        type_immediate = Unknown;
        type_unboxed_default = false;
@@ -202,7 +202,7 @@ let build_initial_env add_type add_extension empty_env =
        type_variance = [Variance.contravariant; Variance.covariant];
        type_separability = Types.Separability.default_signature ~arity;
        type_is_newtype = false;
-       type_expansion_scope = lowest_level;
+       type_expansion_scope = Btype1.lowest_level;
        type_attributes = [];
        type_immediate = Unknown;
        type_unboxed_default = false;

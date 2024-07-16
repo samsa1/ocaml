@@ -268,8 +268,8 @@ and expression_desc =
   | Texp_setinstvar of Path.t * Path.t * string loc * expression
   | Texp_override of Path.t * (Ident.t * string loc * expression) list
   | Texp_letmodule of
-      Ident.t option * string option loc * Types.module_presence * module_expr *
-        expression
+      Ident.t option * string option loc * Types.module_presence * bool *
+        module_expr * expression
   | Texp_letexception of extension_constructor * expression
   | Texp_assert of expression * Location.t
   | Texp_lazy of expression
@@ -501,6 +501,7 @@ and structure_item_desc =
 and module_binding =
     {
      mb_id: Ident.t option; (** [None] for [module _ = struct ... end] *)
+     mb_impl: bool;
      mb_name: string option loc;
      mb_uid: Uid.t;
      mb_presence: Types.module_presence;
@@ -593,6 +594,7 @@ and signature_item_desc =
 and module_declaration =
     {
      md_id: Ident.t option;
+     md_impl: bool;
      md_name: string option loc;
      md_uid: Uid.t;
      md_presence: Types.module_presence;
@@ -943,6 +945,16 @@ val split_pattern:
 val nominal_exp_doc :
   Longident.t Format_doc.printer -> expression
   -> Format_doc.t option
+
+type implicit_inference_fail_desc =
+  | Ambiguity
+  | NoSolution
+
+type implicit_inference_fail =
+  Location.t * Types.module_type * implicit_inference_fail_desc
+
+exception ImplicitError of implicit_inference_fail
+val modtype : Types.module_type Format_doc.printer ref
 
 type implicit_module_solver = implicit_module
 val get_level_of_implicit : implicit_module_solver -> int

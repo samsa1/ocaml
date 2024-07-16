@@ -174,12 +174,3 @@ module Subtype : sig
 
   val map : ('a -> 'b) -> 'a t -> 'b t
 end
-
-type implicit_inference_fail_desc =
-  | Ambiguity
-  | NoSolution
-
-type implicit_inference_fail =
-  Location.t * module_type * implicit_inference_fail_desc
-
-exception ImplicitError of implicit_inference_fail

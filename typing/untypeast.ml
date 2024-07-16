@@ -207,6 +207,7 @@ let module_binding sub mb =
   let loc = sub.location sub mb.mb_loc in
   let attrs = sub.attributes sub mb.mb_attributes in
   Mb.mk ~loc ~attrs
+    (mb.mb_impl)
     (map_loc sub mb.mb_name)
     (sub.module_expr sub mb.mb_expr)
 
@@ -530,8 +531,8 @@ let expression sub exp =
         Pexp_override (List.map (fun (_path, lid, exp) ->
               (map_loc sub lid, sub.expr sub exp)
           ) list)
-    | Texp_letmodule (_id, name, _pres, mexpr, exp) ->
-        Pexp_letmodule (name, sub.module_expr sub mexpr,
+    | Texp_letmodule (_id, name, _pres, b, mexpr, exp) ->
+        Pexp_letmodule (b, name, sub.module_expr sub mexpr,
           sub.expr sub exp)
     | Texp_letexception (ext, exp) ->
         Pexp_letexception (sub.extension_constructor sub ext,
@@ -631,6 +632,7 @@ let module_declaration sub md =
   let loc = sub.location sub md.md_loc in
   let attrs = sub.attributes sub md.md_attributes in
   Md.mk ~loc ~attrs
+    md.md_impl
     (map_loc sub md.md_name)
     (sub.module_type sub md.md_type)
 

@@ -120,7 +120,7 @@ typing_SOURCES = \
   typing/shape.mli typing/shape.ml \
   typing/types.mli typing/types.ml \
   typing/rawprinttyp.mli typing/rawprinttyp.ml \
-  typing/btype.mli typing/btype.ml \
+  typing/btype1.ml typing/btype1.mli \
   typing/oprint.mli typing/oprint.ml \
   typing/subst.mli typing/subst.ml \
   typing/predef.mli typing/predef.ml \
@@ -130,6 +130,7 @@ typing_SOURCES = \
   typing/env.mli typing/env.ml \
   typing/errortrace.mli typing/errortrace.ml \
   typing/typedtree.mli typing/typedtree.ml \
+  typing/btype.mli typing/btype.ml \
   typing/signature_group.mli typing/signature_group.ml \
   typing/printtyped.mli typing/printtyped.ml \
   typing/ctype.mli typing/ctype.ml \

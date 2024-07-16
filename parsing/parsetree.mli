@@ -390,7 +390,7 @@ and expression_desc =
   | Pexp_setinstvar of label loc * expression  (** [x <- 2] *)
   | Pexp_override of (label loc * expression) list
       (** [{< x1 = E1; ...; xn = En >}] *)
-  | Pexp_letmodule of string option loc * module_expr * expression
+  | Pexp_letmodule of bool * string option loc * module_expr * expression
       (** [let module M = ME in E] *)
   | Pexp_letexception of extension_constructor * expression
       (** [let exception C in E] *)
@@ -938,6 +938,7 @@ and signature_item_desc =
 and module_declaration =
     {
      pmd_name: string option loc;
+     pmd_impl: bool;
      pmd_type: module_type;
      pmd_attributes: attributes;  (** [... [\@\@id1] [\@\@id2]] *)
      pmd_loc: Location.t;
@@ -1110,6 +1111,7 @@ and value_binding =
 and module_binding =
     {
      pmb_name: string option loc;
+     pmb_impl: bool;
      pmb_expr: module_expr;
      pmb_attributes: attributes;
      pmb_loc: Location.t;

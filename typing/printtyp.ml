@@ -1167,7 +1167,8 @@ let rec tree_of_typexp mode ty =
       in
       let fenv env =
         let mty = !Ctype.modtype_of_package env Location.none p fl in
-        Env.add_module ~arg:true (Ident.of_unscoped id) Mp_present mty env
+        Env.add_module ~arg:true (Ident.of_unscoped id)
+                       Mp_present IILocal mty env
       in
       let ty = wrap_env fenv (tree_of_typexp mode) ty in
       let fl = tree_of_pack_fields mode fl in
@@ -1915,7 +1916,7 @@ and tree_of_functor_parameter = function
         | None -> None, fun env -> env
         | Some id ->
             Some (Ident.name id),
-            Env.add_module ~arg:true id Mp_present ty_arg
+            Env.add_module ~arg:true id Mp_present IILocal ty_arg
       in
       Some (name, Some (tree_of_modtype ~ellipsis:false ty_arg)), env
 
@@ -2001,6 +2002,7 @@ and functor_param ~sep ~custom_printer id q =
 
 
 let modtype ppf mty = !Oprint.out_module_type ppf (tree_of_modtype mty)
+let () = Typedtree.modtype := modtype
 let modtype_declaration id ppf decl =
   !Oprint.out_sig_item ppf (tree_of_modtype_declaration id decl)
 

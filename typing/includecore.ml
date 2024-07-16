@@ -896,6 +896,18 @@ let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
       | None -> None
       | Some err -> Some (Private_object(ty1, ty2, err))
     end
+  | Tvar _, _
+    when get_level ty1' < Btype.generic_level && params1 = [] && params2 = [] ->
+      begin try
+        Ctype.unify env ty1' ty2'; None
+      with Ctype.Unify _ -> assert false
+      end
+  | _, Tvar _
+    when get_level ty2' < Btype.generic_level && params1 = [] && params2 = [] ->
+      begin try
+        Ctype.unify env ty1' ty2'; None
+      with Ctype.Unify _ -> assert false
+      end
   | _ -> begin
       let is_private_abbrev_2 =
         match priv2, kind2 with

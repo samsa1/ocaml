@@ -18,7 +18,7 @@
 
 open Asttypes
 open Types
-open Btype
+open Btype1
 
 (* Simplified version of Ctype.free_vars *)
 let free_vars ?(param=false) ty =
@@ -80,7 +80,7 @@ let constructor_args ~current_unit priv cd_args cd_res path rep =
           type_variance = Variance.unknown_signature ~injective:true ~arity;
           type_separability = Types.Separability.default_signature ~arity;
           type_is_newtype = false;
-          type_expansion_scope = Btype.lowest_level;
+          type_expansion_scope = Btype1.lowest_level;
           type_loc = Location.none;
           type_attributes = [];
           type_immediate = Unknown;
@@ -174,7 +174,7 @@ let extension_descr ~current_unit path_ext ext =
     }
 
 let none =
-  create_expr (Ttuple []) ~level:(-1) ~scope:Btype.generic_level ~id:(-1)
+  create_expr (Ttuple []) ~level:(-1) ~scope:Btype1.generic_level ~id:(-1)
     (* Clearly ill-formed type *)
 
 let dummy_label =

@@ -556,7 +556,7 @@ let rec check_constraints_rec env loc visited ty =
         | Cfp_module (p, fl) ->
           List.iter (fun (_, t) -> check_constraints_rec env loc visited t) fl;
           let mty = !Ctype.modtype_of_package env loc p fl in
-          Env.add_module id' Mp_present mty env
+          Env.add_module id' Mp_present IILocal mty env
         | Cfp_type ->
           let decl = Ctype.new_local_type Definition in
           Env.add_type ~check:true id' decl env    

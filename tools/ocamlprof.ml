@@ -288,7 +288,7 @@ and rw_exp iflag sexp =
   | Pexp_override l ->
       List.iter (fun (_, sexp) -> rewrite_exp iflag sexp) l
 
-  | Pexp_letmodule (_, smod, sexp) ->
+  | Pexp_letmodule (_, _, smod, sexp) ->
       rewrite_mod iflag smod;
       rewrite_exp iflag sexp
 

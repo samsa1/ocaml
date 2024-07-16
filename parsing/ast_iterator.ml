@@ -453,7 +453,7 @@ module E = struct
         iter_loc sub s; sub.expr sub e
     | Pexp_override sel ->
         List.iter (iter_tuple (iter_loc sub) (sub.expr sub)) sel
-    | Pexp_letmodule (s, me, e) ->
+    | Pexp_letmodule (_, s, me, e) ->
         iter_loc sub s; sub.module_expr sub me;
         sub.expr sub e
     | Pexp_letexception (cd, e) ->

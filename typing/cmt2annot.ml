@@ -73,7 +73,9 @@ let rec iterator ~scope rebuild_env =
 
   and module_expr _sub node =
     Stypes.record (Stypes.Ti_mod node);
-    super.module_expr (iterator ~scope:node.mod_loc rebuild_env) node
+    match node.mod_desc with
+    | Tmod_implicit { desc = Timod_unknown _ } -> ()
+    | _ -> super.module_expr (iterator ~scope:node.mod_loc rebuild_env) node
 
   and expr sub exp =
     begin match exp.exp_desc with
@@ -108,7 +110,7 @@ let rec iterator ~scope rebuild_env =
         bind_cases f2
     | Texp_function (params, _) ->
         List.iter (bind_function_param exp.exp_loc) params
-    | Texp_letmodule (_, modname, _, _, body ) ->
+    | Texp_letmodule (_, modname, _, _, _, body ) ->
         Stypes.record (Stypes.An_ident
                          (modname.loc,Option.value ~default:"_" modname.txt,
                           Annot.Idef body.exp_loc))

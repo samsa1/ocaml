@@ -18,9 +18,12 @@
 open Misc
 open Path
 open Types
-open Btype
+open Btype1
 
 open Local_store
+
+let newty2 : (level:int -> type_desc -> type_expr) ref =
+    ref (fun ~level:_ _ -> assert false)
 
 type type_replacement =
   | Path of Path.t
@@ -147,7 +150,7 @@ let reset_for_saving () = new_id := -1
 let newpersty desc =
   decr new_id;
   create_expr
-    desc ~level:generic_level ~scope:Btype.lowest_level ~id:!new_id
+    desc ~level:generic_level ~scope:Btype1.lowest_level ~id:!new_id
 
 (* ensure that all occurrences of 'Tvar None' are physically shared *)
 let tvar_none = Tvar None
@@ -228,7 +231,7 @@ let rec typexp copy_scope s ty =
       if s.for_saving || get_id ty < 0 then
         let ty' =
           if s.for_saving then newpersty (norm desc)
-          else newty2 ~level:(get_level ty) desc
+          else !newty2 ~level:(get_level ty) desc
         in
         For_copy.redirect_desc copy_scope ty (Tsubst (ty', None));
         ty'
@@ -402,7 +405,7 @@ let type_declaration' copy_scope s decl =
     type_variance = decl.type_variance;
     type_separability = decl.type_separability;
     type_is_newtype = false;
-    type_expansion_scope = Btype.lowest_level;
+    type_expansion_scope = Btype1.lowest_level;
     type_loc = loc s decl.type_loc;
     type_attributes = attrs s decl.type_attributes;
     type_immediate = decl.type_immediate;
@@ -528,6 +531,7 @@ module Lazy_types = struct
   type module_decl =
     {
       mdl_type: modtype;
+      mdl_impl: is_implicit;
       mdl_attributes: Parsetree.attributes;
       mdl_loc: Location.t;
       mdl_uid: Uid.t;
@@ -627,6 +631,7 @@ let rename_bound_idents scoping s sg =
 
 let rec lazy_module_decl md =
   { mdl_type = lazy_modtype md.md_type;
+    mdl_impl = md.md_impl;
     mdl_attributes = md.md_attributes;
     mdl_loc = md.md_loc;
     mdl_uid = md.md_uid }
@@ -634,6 +639,7 @@ let rec lazy_module_decl md =
 and subst_lazy_module_decl scoping s md =
   let mdl_type = subst_lazy_modtype scoping s md.mdl_type in
   { mdl_type;
+    mdl_impl = md.mdl_impl;
     mdl_attributes = attrs s md.mdl_attributes;
     mdl_loc = loc s md.mdl_loc;
     mdl_uid = md.mdl_uid }
@@ -641,6 +647,7 @@ and subst_lazy_module_decl scoping s md =
 and force_module_decl md =
   let md_type = force_modtype md.mdl_type in
   { md_type;
+    md_impl = md.mdl_impl;
     md_attributes = md.mdl_attributes;
     md_loc = md.mdl_loc;
     md_uid = md.mdl_uid }

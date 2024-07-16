@@ -150,7 +150,7 @@ let classify_expression : Typedtree.expression -> sd =
     | Texp_let (rec_flag, vb, e) ->
         let env = classify_value_bindings rec_flag env vb in
         classify_expression env e
-    | Texp_letmodule (Some mid, _, _, mexp, e) ->
+    | Texp_letmodule (Some mid, _, _, _, mexp, e) ->
         (* Note on module presence:
            For absent modules (i.e. module aliases), the module being bound
            does not have a physical representation, but its size can still be
@@ -164,7 +164,7 @@ let classify_expression : Typedtree.expression -> sd =
 
     (* non-binding cases *)
     | Texp_open (_, e)
-    | Texp_letmodule (None, _, _, _, e)
+    | Texp_letmodule (None, _, _, _, _, e)
     | Texp_sequence (_, e)
     | Texp_letexception (_, e) ->
         classify_expression env e
@@ -596,7 +596,7 @@ let rec expression : Typedtree.expression -> term_judg =
          G |- let <bindings> in body : m
       *)
       value_bindings rec_flag bindings >> expression body
-    | Texp_letmodule (x, _, _, mexp, e) ->
+    | Texp_letmodule (x, _, _, _, mexp, e) ->
       module_binding (x, mexp) >> expression e
     | Texp_match (e, cases, eff_cases, _) ->
       (* TODO: update comment below for eff_cases

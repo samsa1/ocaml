@@ -868,8 +868,9 @@ and expression ctxt f x =
           pp f "@[<hov2>%a@ =@ %a@]" ident_of_name s.txt (expression ctxt) e in
         pp f "@[<hov2>{<%a>}@]"
           (list string_x_expression  ~sep:";"  )  l;
-    | Pexp_letmodule (s, me, e) ->
-        pp f "@[<hov2>let@ module@ %s@ =@ %a@ in@ %a@]"
+    | Pexp_letmodule (b, s, me, e) ->
+        pp f "@[<hov2>let@ %smodule@ %s@ =@ %a@ in@ %a@]"
+          (if b then "implicit " else "")
           (Option.value s.txt ~default:"_")
           (module_expr reset_ctxt) me (expression ctxt) e
     | Pexp_letexception (cd, e) ->

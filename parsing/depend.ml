@@ -243,7 +243,7 @@ let rec add_expr bv exp =
   | Pexp_new li -> add bv li
   | Pexp_setinstvar(_v, e) -> add_expr bv e
   | Pexp_override sel -> List.iter (fun (_s, e) -> add_expr bv e) sel
-  | Pexp_letmodule(id, m, e) ->
+  | Pexp_letmodule(_, id, m, e) ->
       let b = add_module_binding bv m in
       let bv =
         match id.txt with

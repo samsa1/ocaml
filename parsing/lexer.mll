@@ -59,6 +59,7 @@ let keyword_table =
     "functor", FUNCTOR;
     "if", IF;
     "in", IN;
+    "implicit", IMPLICIT;
     "include", INCLUDE;
     "inherit", INHERIT;
     "initializer", INITIALIZER;

@@ -19,6 +19,8 @@ open Types
 
 type t
 
+val newty2: (level:int -> type_desc -> type_expr) ref
+
 (*
    Substitutions are used to translate a type from one context to
    another.  This requires substituting paths for identifiers, and
@@ -88,6 +90,7 @@ module Lazy : sig
   type module_decl =
     {
       mdl_type: modtype;
+      mdl_impl: is_implicit;
       mdl_attributes: Parsetree.attributes;
       mdl_loc: Location.t;
       mdl_uid: Uid.t;

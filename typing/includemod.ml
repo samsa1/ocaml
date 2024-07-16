@@ -606,14 +606,14 @@ and equate_one_functor_param subst env arg2' name1 name2  =
   (* two matching abstract parameters: we add one identifier to the
      environment and record the equality between the two identifiers
      in the substitution *)
-      Env.add_module id1 Mp_present arg2' env,
+      Env.add_module id1 Mp_present IILocal arg2' env,
       Subst.add_module id2 (Path.Pident id1) subst
   | None, Some id2 ->
       let id1 = Ident.rename id2 in
-      Env.add_module id1 Mp_present arg2' env,
+      Env.add_module id1 Mp_present IILocal arg2' env,
       Subst.add_module id2 (Path.Pident id1) subst
   | Some id1, None ->
-      Env.add_module id1 Mp_present arg2' env, subst
+      Env.add_module id1 Mp_present IILocal arg2' env, subst
   | None, None ->
       env, subst
 
@@ -1129,7 +1129,7 @@ module Functor_inclusion_diff = struct
      contain useful abbreviations, but without adding any equations  *)
   let bind id arg state =
     let arg' = Subst.modtype Keep state.subst arg in
-    let env = Env.add_module id Mp_present arg' state.env in
+    let env = Env.add_module id Mp_present IILocal arg' state.env in
     { state with env }
 
   let bindt id state =
@@ -1241,7 +1241,8 @@ module Functor_app_diff = struct
            environment to track equalities with external components that the
            parameter might add. *)
         let mty = Subst.modtype Keep st.subst param_ty in
-        let env = Env.add_module ~arg:true param Mp_present mty st.env in
+        let env = Env.add_module ~arg:true param Mp_present IILocal mty st.env
+        in
         I.expand_params { st with env }
     | Insert(Newtype param)
     | Change(_, Newtype param, _ ) ->
@@ -1276,7 +1277,8 @@ module Functor_app_diff = struct
     | Keep (((Anonymous|Empty_struct), mty),
             Named (Some param, _param), _) ->
         let mty' = Subst.modtype Keep st.subst mty in
-        let env = Env.add_module ~arg:true param Mp_present mty' st.env in
+        let env = Env.add_module ~arg:true param Mp_present IILocal mty' st.env
+        in
         let res = Option.map (Mtype.nondep_supertype env [param]) st.res in
         I.expand_params { st with env; res}
     | Keep ((Newtype None, _), Newtype param, _) ->

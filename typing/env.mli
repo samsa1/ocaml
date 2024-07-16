@@ -87,7 +87,7 @@ val find_module: Path.t -> t -> module_declaration
 val find_modtype: Path.t -> t -> modtype_declaration
 val find_class: Path.t -> t -> class_declaration
 val find_cltype: Path.t -> t -> class_type_declaration
-val find_structures: signature -> t -> Ident.Set.t
+val find_structures: signature -> t -> Ident.t Misc.Stdlib.String.Map.t
 
 val find_strengthened_module:
   aliasable:bool -> Path.t -> t -> module_type
@@ -303,9 +303,9 @@ val add_extension:
   check:bool -> ?shape:Shape.t -> rebind:bool -> Ident.t ->
   extension_constructor -> t -> t
 val add_module: ?arg:bool -> ?shape:Shape.t ->
-  Ident.t -> module_presence -> module_type -> t -> t
+  Ident.t -> module_presence -> is_implicit -> module_type -> t -> t
 val add_module_lazy: update_summary:bool ->
-  Ident.t -> module_presence -> Subst.Lazy.modtype -> t -> t
+  Ident.t -> module_presence -> is_implicit -> Subst.Lazy.modtype -> t -> t
 val add_module_declaration: ?arg:bool -> ?shape:Shape.t -> check:bool ->
   Ident.t -> module_presence -> module_declaration -> t -> t
 val add_module_declaration_lazy: update_summary:bool ->
@@ -364,7 +364,7 @@ val enter_extension:
   extension_constructor -> t -> Ident.t * t
 val enter_module:
   scope:int -> ?arg:bool -> string -> module_presence ->
-  module_type -> t -> Ident.t * t
+  is_implicit -> module_type -> t -> Ident.t * t
 val enter_module_declaration:
   scope:int -> ?arg:bool -> ?shape:Shape.t -> string -> module_presence ->
   module_declaration -> t -> Ident.t * t
@@ -526,3 +526,5 @@ val scrape_alias: t -> module_type -> module_type
 val check_value_name: string -> Location.t -> unit
 
 val print_address : Format.formatter -> address -> unit
+
+val cleanup_abbrev: (unit -> unit) ref

@@ -43,7 +43,7 @@
                         expression (shortcut_ext_attr.ml[12,222+3]..[12,222+35])
                           attribute "foo"
                             []
-                          Pexp_letmodule "M" (shortcut_ext_attr.ml[12,222+24]..[12,222+25])
+                          Pexp_letmodule false "M" (shortcut_ext_attr.ml[12,222+24]..[12,222+25])
                           module_expr (shortcut_ext_attr.ml[12,222+28]..[12,222+29])
                             Pmod_ident "M" (shortcut_ext_attr.ml[12,222+28]..[12,222+29])
                           expression (shortcut_ext_attr.ml[12,222+33]..[12,222+35])
@@ -905,7 +905,7 @@
             Psig_extension "foo"
             [
               signature_item (shortcut_ext_attr.ml[107,2116+2]..[107,2116+24])
-                Psig_module "M" (shortcut_ext_attr.ml[107,2116+19]..[107,2116+20])
+                Psig_module false "M" (shortcut_ext_attr.ml[107,2116+19]..[107,2116+20])
                   attribute "foo"
                     []
                 module_type (shortcut_ext_attr.ml[107,2116+23]..[107,2116+24])
@@ -933,7 +933,7 @@
             Psig_extension "foo"
             [
               signature_item (shortcut_ext_attr.ml[110,2188+2]..[110,2188+24])
-                Psig_module "M" (shortcut_ext_attr.ml[110,2188+19]..[110,2188+20])
+                Psig_module false "M" (shortcut_ext_attr.ml[110,2188+19]..[110,2188+20])
                   attribute "foo"
                     []
                 module_type (shortcut_ext_attr.ml[110,2188+23]..[110,2188+24])

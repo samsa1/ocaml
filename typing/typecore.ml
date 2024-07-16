@@ -2123,7 +2123,9 @@ let add_module_variables env module_variables =
         | _ -> Mp_present
       in
       let md =
-        { md_type = modl.mod_type; md_attributes = [];
+        { md_type = modl.mod_type;
+          md_impl = IIShadows;
+          md_attributes = [];
           md_loc = mv_name.loc;
           md_uid = mv_uid; }
       in
@@ -2593,7 +2595,7 @@ let rec final_subexpression exp =
   | Texp_try (e, _, _)
   | Texp_ifthenelse (_, e, _)
   | Texp_match (_, {c_rhs=e} :: _, _, _)
-  | Texp_letmodule (_, _, _, _, e)
+  | Texp_letmodule (_, _, _, _, _, e)
   | Texp_letexception (_, e)
   | Texp_open (_, e)
     -> final_subexpression e
@@ -2667,7 +2669,7 @@ let rec is_nonexpansive exp =
       Vars.fold (fun _ (mut,_,_) b -> decr count; b && mut = Immutable)
         vars true &&
       !count = 0
-  | Texp_letmodule (_, _, _, mexp, e)
+  | Texp_letmodule (_, _, _, _, mexp, e)
   | Texp_open ({ open_expr = mexp; _}, e) ->
       is_nonexpansive_mod mexp && is_nonexpansive e
   | Texp_pack mexp ->
@@ -2960,7 +2962,7 @@ let check_statement exp =
         | Texp_let (_, _, e)
         | Texp_sequence (_, e)
         | Texp_letexception (_, e)
-        | Texp_letmodule (_, _, _, _, e) ->
+        | Texp_letmodule (_, _, _, _, _, e) ->
             loop e
         | _ ->
             let loc =
@@ -3026,7 +3028,7 @@ let check_partial_application ~statement exp =
             | Texp_ifthenelse (_, e1, Some e2) ->
                 check e1; check e2
             | Texp_let (_, _, e) | Texp_sequence (_, e) | Texp_open (_, e)
-            | Texp_letexception (_, e) | Texp_letmodule (_, _, _, _, e) ->
+            | Texp_letexception (_, e) | Texp_letmodule (_, _, _, _, _, e) ->
                 check e
             | Texp_apply _ | Texp_send _ | Texp_new _ | Texp_letop _ ->
                 Location.prerr_warning exp_loc
@@ -4139,7 +4141,7 @@ and type_expect_
       | _ ->
           assert false
       end
-  | Pexp_letmodule(name, smodl, sbody) ->
+  | Pexp_letmodule(impl, name, smodl, sbody) ->
       let lv = get_current_level () in
       let (id, pres, modl, _, body) =
         with_local_level_generalize begin fun () ->
@@ -4157,6 +4159,7 @@ and type_expect_
               let md_shape = Shape.set_uid_if_none md_shape md_uid in
               let md =
                 { md_type = modl.mod_type; md_attributes = [];
+                  md_impl = if impl then IIImplicit else IIShadows;
                   md_loc = name.loc;
                   md_uid; }
               in
@@ -4188,7 +4191,7 @@ and type_expect_
         end
       in
       re {
-        exp_desc = Texp_letmodule(id, name, pres, modl, body);
+        exp_desc = Texp_letmodule(id, name, pres, impl, modl, body);
         exp_loc = loc; exp_extra = [];
         exp_type = body.exp_type;
         exp_attributes = sexp.pexp_attributes;
@@ -4824,7 +4827,7 @@ and type_function
                             ptyp_attributes = []; }
       in
       type_moddep_fun ~env ~name ~pack ~rest ~arg_label ~first ~in_function
-          ~ty_expected ~pparam_loc ~loc ~body_constraint ~body true
+          ~ty_expected ~pparam_loc ~loc ~body_constraint ~body IIImplicit true
   | { pparam_desc = Pparam_val (arg_label, None, pat); pparam_loc } :: rest
     when is_unpack pat && could_be_functor env ty_expected
                        && not (is_optional arg_label) ->
@@ -4837,7 +4840,7 @@ and type_function
         | _ -> assert false
       in
       type_moddep_fun ~env ~name ~pack ~rest ~arg_label ~first ~in_function
-          ~ty_expected ~pparam_loc ~loc ~body_constraint ~body false
+          ~ty_expected ~pparam_loc ~loc ~body_constraint ~body IIShadows false
   | { pparam_desc = Pparam_val (arg_label, default_arg, pat); pparam_loc }
       :: rest
     ->
@@ -5012,7 +5015,7 @@ and type_function
     exp_type, [], body, [], No_gadt
 
 and type_moddep_fun ~env ~name ~pack ~rest ~arg_label ~first ~in_function
-  ~ty_expected ~pparam_loc ~loc ~body_constraint ~body compact =
+  ~ty_expected ~pparam_loc ~loc ~body_constraint ~body md_impl compact =
     let type_pack pack =
       let pack = Typetexp.transl_simple_type env ~closed:false pack in
       let pck_ty = match pack.ctyp_desc with
@@ -5058,6 +5061,7 @@ and type_moddep_fun ~env ~name ~pack ~rest ~arg_label ~first ~in_function
   let pv_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
   let arg_md = {
     md_type = mty;
+    md_impl;
     md_attributes = [];
     md_loc = pparam_loc;
     md_uid = pv_uid;
@@ -5882,9 +5886,9 @@ and type_application env funct sargs =
             with Not_found ->
               try
                 let env_t = Env.add_module (Ident.of_unscoped id) Mp_present
-                                            me.mod_type env in
+                                            IILocal me.mod_type env in
                 let env_t0 = Env.add_module (Ident.of_unscoped id0) Mp_present
-                                            me.mod_type env in
+                                            IILocal me.mod_type env in
                 identifier_escape env_t [id] t;
                 identifier_escape env_t0 [id0] t0;
                 type_args ((l, arg)::args) t t0 remaining_sargs
@@ -6040,9 +6044,9 @@ and type_application env funct sargs =
           let me = !new_implicit_module ~loc:previous_arg_loc env mty
           in
           let env_id = Env.add_module (Ident.of_unscoped id) Mp_present
-                                      me.mod_type env in
+                                      IILocal me.mod_type env in
           let env_id0 = Env.add_module (Ident.of_unscoped id0) Mp_present
-                                        me.mod_type env in
+                                      IILocal me.mod_type env in
           identifier_escape env_id [id] t;
           identifier_escape env_id0 [id0] t0;
           let texp =

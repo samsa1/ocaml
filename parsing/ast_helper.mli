@@ -177,7 +177,7 @@ module Exp:
     val setinstvar: ?loc:loc -> ?attrs:attrs -> str -> expression -> expression
     val override: ?loc:loc -> ?attrs:attrs -> (str * expression) list
                   -> expression
-    val letmodule: ?loc:loc -> ?attrs:attrs -> str_opt -> module_expr
+    val letmodule: ?loc:loc -> ?attrs:attrs -> bool -> str_opt -> module_expr
                    -> expression -> expression
     val letexception:
       ?loc:loc -> ?attrs:attrs -> extension_constructor -> expression
@@ -336,7 +336,7 @@ module Str:
 module Md:
   sig
     val mk: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?text:text ->
-      str_opt -> module_type -> module_declaration
+      bool -> str_opt -> module_type -> module_declaration
   end
 
 (** Module substitutions *)
@@ -357,7 +357,7 @@ module Mtd:
 module Mb:
   sig
     val mk: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?text:text ->
-      str_opt -> module_expr -> module_binding
+      bool -> str_opt -> module_expr -> module_binding
   end
 
 (** Opens *)
