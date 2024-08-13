@@ -490,8 +490,14 @@ and value_description i ppf x =
   line i ppf "value_description %a %a\n" fmt_ident x.val_id fmt_location
        x.val_loc;
   attributes i ppf x.val_attributes;
-  core_type (i+1) ppf x.val_desc;
-  list (i+1) string ppf x.val_prim;
+  core_type (i+1) ppf x.val_desc
+
+and primitive_description i ppf x =
+  line i ppf "primitive_description %a %a\n" fmt_ident x.prim_id fmt_location
+       x.prim_loc;
+  attributes i ppf x.prim_attributes;
+  core_type (i+1) ppf x.prim_desc;
+  list (i+1) string ppf x.prim_prim
 
 and binding_op i ppf x =
   line i ppf "binding_op %a %a\n" fmt_path x.bop_op_path
@@ -771,6 +777,9 @@ and signature_item i ppf x =
   | Tsig_value vd ->
       line i ppf "Tsig_value\n";
       value_description i ppf vd;
+  | Tsig_primitive pd ->
+      line i ppf "Tsig_primitive\n";
+      primitive_description i ppf pd;
   | Tsig_type (rf, l) ->
       line i ppf "Tsig_type %a\n" fmt_rec_flag rf;
       list i type_declaration ppf l;
@@ -895,9 +904,9 @@ and structure_item i ppf x =
   | Tstr_value (rf, l) ->
       line i ppf "Tstr_value %a\n" fmt_rec_flag rf;
       list i (value_binding rf) ppf l;
-  | Tstr_primitive vd ->
+  | Tstr_primitive pd ->
       line i ppf "Tstr_primitive\n";
-      value_description i ppf vd;
+      primitive_description i ppf pd;
   | Tstr_type (rf, l) ->
       line i ppf "Tstr_type %a\n" fmt_rec_flag rf;
       list i type_declaration ppf l;
