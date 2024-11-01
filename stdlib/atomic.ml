@@ -54,3 +54,75 @@ let incr t =
   Loc.incr [%atomic.loc t.contents]
 let decr t =
   Loc.decr [%atomic.loc t.contents]
+
+module Array = struct
+  type !'a t =
+    'a array
+
+  external check_array_bound
+    : 'a t -> int -> unit
+    = "%check_array_bound"
+
+  external unsafe_index
+    : 'a t -> int -> 'a Loc.t
+    = "%atomic_unsafe_index"
+
+  external length
+    : 'a array -> int
+    = "%array_length"
+
+  external array_make
+    : int -> 'a -> 'a t
+    = "caml_array_make"
+
+  let[@inline] unsafe_get t i =
+    Loc.get (unsafe_index t i)
+  let[@inline] get t i =
+    check_array_bound t i;
+    unsafe_get t i
+
+  let[@inline] unsafe_set t i v =
+    Loc.set (unsafe_index t i) v
+  let[@inline] set t i v =
+    check_array_bound t i;
+    unsafe_set t i v
+
+  let[@inline] unsafe_exchange t i v =
+    Loc.exchange (unsafe_index t i) v
+  let[@inline] exchange t i v =
+    check_array_bound t i;
+    unsafe_exchange t i v
+
+  let[@inline] unsafe_compare_and_set t i old new_ =
+    Loc.compare_and_set (unsafe_index t i) old new_
+  let[@inline] compare_and_set t i old new_ =
+    check_array_bound t i;
+    unsafe_compare_and_set t i old new_
+
+  let[@inline] unsafe_fetch_and_add t i incr =
+    Loc.fetch_and_add (unsafe_index t i) incr
+  let[@inline] fetch_and_add t i incr =
+    check_array_bound t i;
+    unsafe_fetch_and_add t i incr
+
+  let make len v =
+    if len < 0 then
+      invalid_arg "Atomic.Array.make" ;
+    if Obj.(tag @@ repr v == double_tag) then
+      let t = array_make len (Obj.magic ()) in
+      for i = 0 to len - 1 do
+        unsafe_set t i v
+      done ;
+      t
+    else
+      array_make len v
+
+  let init len fn =
+    if len < 0 then
+      invalid_arg "Atomic_array.init" ;
+    let t = array_make len (Obj.magic ()) in
+    for i = 0 to len - 1 do
+      unsafe_set t i (fn i)
+    done ;
+    t
+end
