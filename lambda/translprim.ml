@@ -94,6 +94,7 @@ type prim =
   | Comparison of comparison * comparison_kind
   | Raise of Lambda.raise_kind
   | Raise_with_backtrace
+  | Todo
   | Lazy_force
   | Loc of loc_kind
   | Send
@@ -104,7 +105,7 @@ type prim =
   | Apply
   | Revapply
   | Atomic of atomic_op * atomic_kind
-  | Todo
+  | Atomic_index
   | Check_array_bound
 
 let used_primitives = Hashtbl.create 7
@@ -400,6 +401,7 @@ let primitives_table =
     "%atomic_exchange_loc", Atomic(Exchange, Loc);
     "%atomic_cas_loc", Atomic(Cas, Loc);
     "%atomic_fetch_add_loc", Atomic(Faa, Loc);
+    "%atomic_unsafe_index", Atomic_index;
     "%runstack", Primitive (Prunstack, 3);
     "%reperform", Primitive (Preperform, 2);
     "%perform", Primitive (Pperform, 1);
@@ -760,6 +762,9 @@ let check_array_bound loc array idx =
   let len = Lprim (Parraylength Pgenarray, [array], loc) in
   Lprim (Pcheckbound, [len; idx], loc)
 
+let lambda_of_atomic_index loc arg1 arg2 =
+  make_atomic_loc ~loc arg1 arg2
+
 let caml_restore_raw_backtrace =
   Primitive.simple ~name:"caml_restore_raw_backtrace" ~arity:2 ~alloc:false
 
@@ -833,6 +838,8 @@ let lambda_of_prim prim_name prim loc args arg_exps =
                            [Lvar vexn; bt],
                            loc),
                      Lprim(Praise Raise_reraise, [raise_arg], loc)))
+  | Todo, [arg] ->
+      raise_todo ~loc arg arg_exps
   | Lazy_force, [arg] ->
       Matching.inline_lazy_force arg loc
   | Loc kind, [] ->
@@ -871,14 +878,15 @@ let lambda_of_prim prim_name prim loc args arg_exps =
       }
   | Atomic (op, kind), args ->
       lambda_of_atomic prim_name loc op kind args
-  | Todo, [arg] ->
-      raise_todo ~loc arg arg_exps
+  | Atomic_index, [arg1; arg2] ->
+      lambda_of_atomic_index loc arg1 arg2
   | Check_array_bound, [arg1; arg2] ->
       check_array_bound loc arg1 arg2
-  | (Raise _ | Raise_with_backtrace
+  | (Raise _ | Raise_with_backtrace | Todo
     | Lazy_force | Loc _ | Primitive _ | Sys_argv | Comparison _
     | Send | Send_self | Send_cache | Frame_pointers | Identity
-    | Apply | Revapply | Todo
+    | Apply | Revapply
+    | Atomic_index
     | Check_array_bound
     ), _ ->
       raise(Error(to_location loc, Wrong_arity_builtin_primitive prim_name))
@@ -893,6 +901,7 @@ let check_primitive_arity loc p =
     | Comparison _ -> p.prim_arity = 2
     | Raise _ -> p.prim_arity = 1
     | Raise_with_backtrace -> p.prim_arity = 2
+    | Todo -> p.prim_arity = 1
     | Lazy_force -> p.prim_arity = 1
     | Loc _ -> p.prim_arity = 1 || p.prim_arity = 0
     | Send | Send_self -> p.prim_arity = 2
@@ -901,7 +910,7 @@ let check_primitive_arity loc p =
     | Identity -> p.prim_arity = 1
     | Apply | Revapply -> p.prim_arity = 2
     | Atomic (op, kind) -> p.prim_arity = atomic_arity op kind
-    | Todo -> p.prim_arity = 1
+    | Atomic_index -> p.prim_arity = 2
     | Check_array_bound -> p.prim_arity = 2
   in
   if not ok then raise(Error(loc, Wrong_arity_builtin_primitive p.prim_name))
@@ -979,10 +988,11 @@ let primitive_needs_event_after = function
   (* Primitives that may call an arbitrary OCaml function need an event *)
   | Lazy_force | Send | Send_self | Send_cache
   | Apply | Revapply -> true
-  | Raise _ | Raise_with_backtrace
+  | Raise _ | Raise_with_backtrace | Todo
   | Loc _
   | Frame_pointers | Identity
-  | Atomic (_, _) | Todo
+  | Atomic (_, _)
+  | Atomic_index
   | Check_array_bound
     -> false
 
