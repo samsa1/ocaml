@@ -310,11 +310,12 @@ static uintnat sweep_work_done_between_slices(void)
  *
  * After ephemeron marking is complete, all marking for this major GC
  * cycle is complete: the fate of all blocks on the heap has been
- * determined. Then each domain performs "ephemeron sweeping" by
- * iterating through its "todo" list (which only contains ephemerons
- * which are either unmarked themselves or which have an unmarked
- * key). Any ephemeron block which is not marked is
- * discarded. Ephemeron sweeping does not need to take place in
+ * determined. Then, in `Phase_sweep_ephe`, each domain performs
+ * "ephemeron sweeping" by iterating through all its ephemerons
+ * again. Any ephemeron block which is not marked is discarded; all
+ * surviving ephemerons are cleaned (removing keys which are not
+ * marked, and data values if they have any unmarked keys). Ephemeron
+ * sweeping cannot mark blocks so does not need to take place in
  * rounds.
 */
 
@@ -419,8 +420,8 @@ static void record_ephe_marking_done (uintnat round)
   caml_plat_unlock(&ephe_lock);
 }
 
-#define EPHE_MARK_DEFAULT 0
-#define EPHE_MARK_FORCE_ALIVE 1
+#define EPHE_MARK_DEFAULT false
+#define EPHE_MARK_FORCE_ALIVE true
 
 /* Scan the 'todo' ephemeron list for the current domain, for
  * ephemeron round `round`, looking for data values which the
@@ -433,56 +434,59 @@ static void record_ephe_marking_done (uintnat round)
  *
  * If `force_alive` is true (EPHE_MARK_FORCE_ALIVE) then mark all
  * ephemerons and their data values.
+ *
+ * Returns the remaining budget.
  */
 
 static intnat ephe_mark (intnat budget, uintnat round,
                          /* Forces ephemerons and their data to be alive */
-                         int force_alive)
+                         bool force_alive)
 {
-  value v, data, key, f, todo;
   value* prev_linkp;
-  header_t hd;
-  mlsize_t size, i;
   caml_domain_state* domain_state = Caml_state;
-  int alive_data;
-  intnat marked = 0, trivial_data = 0, made_live = 0;
+  size_t scanned = 0, preserved = 0;
 
   CAMLassert(caml_marking_started());
   if (domain_state->ephe_info->cursor.round == round &&
       !force_alive) {
     prev_linkp = domain_state->ephe_info->cursor.todop;
-    todo = *prev_linkp;
   } else {
-    todo = domain_state->ephe_info->todo;
     prev_linkp = &domain_state->ephe_info->todo;
   }
-  while (todo != 0 && budget > 0) {
-    v = todo;
-    todo = Ephe_link(v);
-    CAMLassert (Tag_val(v) == Abstract_tag);
-    hd = Hd_val(v);
-    data = Ephe_data(v);
-    alive_data = 1;
+  value next = *prev_linkp;
+  while (next != 0 && budget > 0) {
+
+    /* TODO: this reproduces much of caml_ephe_clean; can we share code? */
+
+    value ephe = next;
+    next = Ephe_link(ephe);
+    CAMLassert (Tag_val(ephe) == Abstract_tag);
+    header_t hd = Hd_val(ephe);
+    bool preserve_data = true;
+
+    /* TODO: move to the 'live' list if the data value is already
+     * marked? */
 
     if (force_alive)
-      caml_darken (domain_state, v, 0);
+      caml_darken (domain_state, ephe, 0);
 
     /* If ephemeron is unmarked, data is dead */
-    if (is_unmarked(v)) alive_data = 0;
+    if (is_unmarked(ephe)) preserve_data = false;
 
-    size = Wosize_hd(hd);
-    for (i = CAML_EPHE_FIRST_KEY; alive_data && i < size; i++) {
-      key = Ephe_key(v, i);
+    mlsize_t i, size = Wosize_hd(hd);
+    for (i = CAML_EPHE_FIRST_KEY; i < size; i++) {
+      if (!preserve_data) break;
+      value key = Field(ephe, i);
     ephemeron_again:
       if (key != caml_ephe_none && Is_block(key)) {
         if (Tag_val(key) == Forward_tag) {
-          f = Forward_val(key);
+          value f = Forward_val(key);
           if (Is_block(f)) {
             if (Tag_val(f) == Forward_tag || Tag_val(f) == Lazy_tag ||
                 Tag_val(f) == Forcing_tag || Tag_val(f) == Double_tag) {
               /* Do not short-circuit the pointer */
             } else {
-              Field(v, i) = key = f;
+              Field(ephe, i) = key = f;
               goto ephemeron_again;
             }
           }
@@ -490,46 +494,38 @@ static intnat ephe_mark (intnat budget, uintnat round,
         else {
           if (Tag_val (key) == Infix_tag) key -= Infix_offset_val (key);
           if (is_unmarked (key))
-            alive_data = 0;
+            preserve_data = false;
         }
       }
     }
 
-    bool keep;
-    if (data == caml_ephe_none || Is_long(data)) {
-      /* Not yet known whether this ephemeron's keys/block will be marked,
-         but since the data is trivial nothing will happen if they are,
-         so remove it from the todo list */
-      trivial_data++;
-      keep = false;
-    } else if (force_alive || alive_data) {
-      /* This ephemeron's keys & block are marked, so mark the data,
-         and remove it from the todo list */
-      caml_darken (domain_state, data, 0);
-      made_live++;
-      keep = false;
-    } else {
-      /* Leave this ephemeron on the todo list */
-      keep = true;
-    }
+    if (force_alive) preserve_data = true;
 
-    if (keep) {
-      prev_linkp = &Ephe_link(v);
+    if (preserve_data) {
+      value data = Ephe_data(ephe);
+      if (data != caml_ephe_none && Is_block(data)) {
+        caml_darken (domain_state, data, 0);
+      }
+      /* Move to 'live' list */
+      Ephe_link(ephe) = domain_state->ephe_info->live;
+      domain_state->ephe_info->live = ephe;
+      /* Remove from 'todo' list */
+      *prev_linkp = next;
+
+      ++ preserved;
     } else {
-      Ephe_link(v) = domain_state->ephe_info->live;
-      domain_state->ephe_info->live = v;
-      *prev_linkp = todo;
+      /* Leave this ephemeron on the 'todo' list */
+      prev_linkp = &Ephe_link(ephe);
     }
-    marked++;
-    budget -= mark_work_done_between_slices();
+    ++ scanned;
   }
 
-  caml_gc_log ("Mark Ephemeron: %s. Ephemeron round=%" CAML_PRIdNAT " "
-               "examined=%" CAML_PRIdNAT " trivial_data=%" CAML_PRIdNAT " "
-               "marked=%" CAML_PRIdNAT,
-               domain_state->ephe_info->cursor.round == round ?
-                 "Continued from cursor" : "Discarded cursor",
-               round, marked, trivial_data, made_live);
+  caml_gc_log
+  ("Mark Ephemeron: %s. Ephemeron round=%"CAML_PRIuNAT
+   " examined=%" CAML_PRIuSZT " preserved=%" CAML_PRIuSZT " ",
+   domain_state->ephe_info->cursor.round == round ?
+     "Continued from cursor" : "Discarded cursor",
+   round, scanned, preserved);
 
   domain_state->ephe_info->cursor.round = round;
   domain_state->ephe_info->cursor.todop = prev_linkp;
@@ -539,21 +535,24 @@ static intnat ephe_mark (intnat budget, uintnat round,
 
 static intnat ephe_sweep (caml_domain_state* domain_state, intnat budget)
 {
-  value v;
+  value ephe;
   CAMLassert (caml_gc_phase == Phase_sweep_ephe);
 
   while (domain_state->ephe_info->todo != 0 && budget > 0) {
-    v = domain_state->ephe_info->todo;
-    domain_state->ephe_info->todo = Ephe_link(v);
-    CAMLassert (Tag_val(v) == Abstract_tag);
+    /* pop the first ephemeron from the todo list */
+    ephe = domain_state->ephe_info->todo;
+    domain_state->ephe_info->todo = Ephe_link(ephe);
 
-    if (is_unmarked(v)) {
-      /* The whole array is dead, drop this ephemeron */
+    CAMLassert (Tag_val(ephe) == Abstract_tag);
+    if (is_unmarked(ephe)) {
+      /* The whole ephemeron is dead; simply drop it */
+      budget -= 1;
     } else {
-      caml_ephe_clean(v);
-      Ephe_link(v) = domain_state->ephe_info->live;
-      domain_state->ephe_info->live = v;
-      budget -= Whsize_val(v);
+      caml_ephe_clean(ephe);
+      /* Move to live list */
+      Ephe_link(ephe) = domain_state->ephe_info->live;
+      domain_state->ephe_info->live = ephe;
+      budget -= Whsize_val(ephe);
     }
   }
   return budget;
@@ -2139,7 +2138,7 @@ mark_again:
         caml_final_update_last(domain_state)) {
       /* This domain has updated finalise last values */
       (void)caml_atomic_counter_decr(&num_domains_to_final_update_last);
-      /* Nothing has been marked while updating last */
+      /* Updating last cannot cause any marking */
     }
 
     if (!caml_domain_is_terminating()){
