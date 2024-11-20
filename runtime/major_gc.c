@@ -256,25 +256,92 @@ static uintnat sweep_work_done_between_slices(void)
  * Ephemerons
  ******************************************************************************/
 
+/* Ephemerons are a generalization of weak pointers. See
+ * weak.[ch]. This is a potted summary of ephemeron semantics:
+ *
+ *     Each ephemeron is a block, and has a number of keys and a
+ *     single data value, all of which may be blocks.  An ephemeron
+ *     does not keep its keys alive. An ephemeron keeps its data value
+ *     alive iff the ephemeron itself, and _all_ of its keys, are
+ *     alive.
+ *
+ * Each domain maintains two linked lists, "todo" and "live", which
+ * together include all ephemerons created by that domain (or adopted
+ * from another domain which has since terminated). New ephemerons are
+ * created on a domain's "live" list. At the start of marking, the
+ * domain moves its "live" list to its "todo" list.
+ *
+ * During marking, a domain may scan its "todo list" in order to mark
+ * each ephemeron's data value if the ephemeron and all of its keys
+ * are marked. This scanning process is called "ephemeron marking"
+ * (although in fact the marking it does is of the _data values_ of
+ * the ephemerons). If an ephemeron's data value is marked in this
+ * process, the ephemeron is moved to the "live" list.
+ *
+ * If this "ephemeron marking" does mark a data value block, that
+ * block may itself be an ephemeron or an ephemeron key, or cause
+ * further marking including an ephemeron or key. So that may change
+ * the fate of an ephemeron (whether its data value survives),
+ * including one which has previously been examined during ephemeron
+ * marking by this or another domain. Thus, whichever domain owns
+ * _that_ ephemeron must scan its "todo" list again.
+ *
+ * For this reason, ephemeron marking in each major GC cycle proceeds
+ * in a number of "rounds". A new round is begun whenever a domain
+ * empties its mark stack. Ephemeron marking for a major GC cycle can
+ * only be concluded when every domain with ephemerons to mark reaches
+ * the end of ephemeron marking _for the same round_, without newly
+ * marking anything on that round.
+ *
+ * This process necessarily terminates as (a) it can only change
+ * blocks from unmarked to marked, (b) the heap is finite, and (c) a
+ * new round is only begun by marking at least one block. In practice
+ * it terminates very quickly.
+ *
+ * Whenever a domain starts ephemeron marking, it starts in "the
+ * current round" - the round most recently begun by any domain
+ * emptying its mark stack. If all a domain's ephemeron's data values
+ * survive, so its "todo" list is empty, it doesn't need to do any more
+ * ephemeron marking on any round.
+ *
+ * Ephemeron marking is incremental, concurrent, and parallel. Each
+ * domain has a "cursor" to record its current position on its own
+ * "todo" list.
+ *
+ * After ephemeron marking is complete, all marking for this major GC
+ * cycle is complete: the fate of all blocks on the heap has been
+ * determined. Then each domain performs "ephemeron sweeping" by
+ * iterating through its "todo" list (which only contains ephemerons
+ * which are either unmarked themselves or which have an unmarked
+ * key). Any ephemeron block which is not marked is
+ * discarded. Ephemeron sweeping does not need to take place in
+ * rounds.
+*/
+
 extern value caml_ephe_none; /* See weak.c */
 
 static struct {
   atomic_uintnat num_domains_todo;
-  /* Number of domains that need to scan their ephemerons in the current major
-   * GC cycle. This field is decremented when ephe_info->todo list at a domain
-   * becomes empty.  */
+  /* Number of domains that need to mark their ephemerons in the
+   * current major GC cycle. This field is decremented when a domain's
+   * todo list becomes empty.  */
+
   atomic_uintnat round;
-  /* Ephemeron cycle count */
+  /* Current ephemeron round number */
+
   atomic_uintnat num_domains_done;
-  /* Number of domains that have marked their ephemerons in the current
-   * ephemeron cycle. */
+  /* Number of domains that have marked all their ephemerons in the
+   * current ephemeron round. */
 } ephe_round_info;
-  /* In the first major cycle, there is no ephemeron marking to be done. */
+/* In the first major cycle, there is no ephemeron marking to be done. */
 
 /* ephe_round_info is always updated with the critical section protected by
  * ephe_lock or in the global barrier. However, the fields may be read without
  * the lock. */
 static caml_plat_mutex ephe_lock = CAML_PLAT_MUTEX_INITIALIZER;
+
+/* Move to the next global ephemeron round. Called whenever any domain
+ * finishes marking. */
 
 static void ephe_next_round (void)
 {
@@ -287,6 +354,10 @@ static void ephe_next_round (void)
 
   caml_plat_unlock(&ephe_lock);
 }
+
+/* Record that a domain's "todo" list has been empty during the
+ * current major cycle. Triggers a fresh ephemeron round, with fewer
+ * ephemeron-marking domains. */
 
 static void ephe_todo_list_emptied (void)
 {
@@ -322,18 +393,24 @@ static void prepare_for_ephe_marking(caml_domain_state *domain)
   domain->ephe_info->cursor.round = 0;
 }
 
-/* Record that ephemeron marking was done for the given ephemeron round. */
+/* Record that a domain finished ephemeron marking for the given
+ * ephemeron round, without adding anything to its mark stack. */
+
 static void record_ephe_marking_done (uintnat round)
 {
   CAMLassert (round <=
               caml_atomic_counter_value(&ephe_round_info.round));
   CAMLassert (Caml_state->marking_done);
 
-  if (round < caml_atomic_counter_value(&ephe_round_info.round))
+  if (round < caml_atomic_counter_value(&ephe_round_info.round)) {
+    /* The world has already moved on to some other round */
     return;
+  }
 
+  /* Domain has finished marking ephemerons for the current round */
   caml_plat_lock_blocking(&ephe_lock);
   if (round == caml_atomic_counter_value(&ephe_round_info.round)) {
+    /* Round hasn't just advanced. */
     Caml_state->ephe_info->round = round;
     (void)caml_atomic_counter_incr(&ephe_round_info.num_domains_done);
     CAMLassert(caml_atomic_counter_value(&ephe_round_info.num_domains_done) <=
@@ -344,6 +421,19 @@ static void record_ephe_marking_done (uintnat round)
 
 #define EPHE_MARK_DEFAULT 0
 #define EPHE_MARK_FORCE_ALIVE 1
+
+/* Scan the 'todo' ephemeron list for the current domain, for
+ * ephemeron round `round`, looking for data values which the
+ * ephemeron preserves. Any such ephemerons are moved to the 'live'
+ * list.
+ *
+ * If this domain has already scanned some ephemerons for this round,
+ * continue from where it left off (using the cursor). Otherwise,
+ * start from the head of the todo list.
+ *
+ * If `force_alive` is true (EPHE_MARK_FORCE_ALIVE) then mark all
+ * ephemerons and their data values.
+ */
 
 static intnat ephe_mark (intnat budget, uintnat round,
                          /* Forces ephemerons and their data to be alive */
