@@ -2911,8 +2911,8 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
           Builtin_attributes.warning_scope attrs
             (fun () -> Typecore.type_expression env sexpr)
         in
-        if funct_body = AppT && not (Typecore.is_nonexpansive expr) then
-          raise (Error (expr.exp_loc, env,
+        if funct_body = AppT && not (Typecore.is_nonexpansive ~pure:true expr)
+        then raise (Error (expr.exp_loc, env,
                         Not_allowed_in_functor_body Expansive));
         Tstr_eval (expr, attrs), [], shape_map, env
     | Pstr_value(rec_flag, sdefs) ->
@@ -2924,7 +2924,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         in
         if funct_body = AppT then
           List.iter (fun d ->
-            if not (Typecore.is_nonexpansive d.vb_expr)
+            if not (Typecore.is_nonexpansive ~pure:true d.vb_expr)
             then raise (Error (d.vb_loc, env,
                   Not_allowed_in_functor_body Expansive))) defs;
         (* Note: Env.find_value does not trigger the value_used event. Values
@@ -3421,7 +3421,7 @@ let type_open_descr ?used_slot env od =
 let type_str_item env pstri =
   let si, _, _, new_env =
     type_str_item
-      ~toplevel:false ~funct_body:false ~names:(Signature_names.create ())
+      ~toplevel:false ~funct_body:Gen ~names:(Signature_names.create ())
       None env Shape.Map.empty pstri
   in
   si, new_env
