@@ -1877,7 +1877,7 @@ let rec tree_of_modtype ?(ellipsis=false) = function
 and tree_of_functor_parameter = function
   | Unit ->
       None, fun k -> k
-  | Named (param, ty_arg) ->
+  | Named (b, param, ty_arg) ->
       let name, env =
         match param with
         | None -> None, fun env -> env
@@ -1885,7 +1885,7 @@ and tree_of_functor_parameter = function
             Some (Ident.name id),
             Env.add_module ~noalias:true id Mp_present ty_arg
       in
-      Some (name, tree_of_modtype ~ellipsis:false ty_arg), env
+      Some (b, name, tree_of_modtype ~ellipsis:false ty_arg), env
 
 and tree_of_signature sg =
   wrap_env (fun env -> env)(fun sg ->

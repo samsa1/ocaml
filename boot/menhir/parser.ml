@@ -22264,7 +22264,7 @@ module Tables = struct
           let _startpos = _startpos__1_ in
           (
 # 1414 "parsing/parser.mly"
-      ( _startpos, Named (x, mty) )
+      ( _startpos, Named (Impure, x, mty) )
 # 22269 "parsing/parser.ml"
            : (Lexing.position * Parsetree.functor_parameter))
         in
@@ -35521,7 +35521,7 @@ module Tables = struct
           let _1 =
             let _1 = 
 # 1767 "parsing/parser.mly"
-        ( Pmty_functor(Named (mknoloc None, _1), _3) )
+        ( Pmty_functor(Named (Impure, mknoloc None, _1), _3) )
 # 35526 "parsing/parser.ml"
              in
             let _endpos__1_ = _endpos__3_ in

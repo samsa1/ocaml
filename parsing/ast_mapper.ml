@@ -319,8 +319,8 @@ end
 
 let map_functor_param sub = function
   | Unit -> Unit
-  | Named (s, mt) ->
-      Named (map_loc map_string_opt sub s, sub.module_type sub mt)
+  | Named (k, s, mt) ->
+      Named (k, map_loc map_string_opt sub s, sub.module_type sub mt)
 
 module MT = struct
   (* Type expressions for the module language *)
