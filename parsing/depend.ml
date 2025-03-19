@@ -331,7 +331,7 @@ and add_modtype bv mty =
       let bv =
         match param with
         | Unit -> bv
-        | Named (id, mty1) ->
+        | Named (_, id, mty1) ->
           add_modtype bv mty1;
           match id.txt with
           | None -> bv
@@ -469,7 +469,7 @@ and add_module_expr bv modl =
       let bv =
         match param with
         | Unit -> bv
-        | Named (id, mty) ->
+        | Named (_, id, mty) ->
           add_modtype bv mty;
           match id.txt with
           | None -> bv
