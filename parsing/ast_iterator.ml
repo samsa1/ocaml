@@ -280,7 +280,7 @@ end
 
 let iter_functor_param sub = function
   | Unit -> ()
-  | Named (name, mty) ->
+  | Named (_, name, mty) ->
     iter_loc iter_string_opt sub name;
     sub.module_type sub mty
 

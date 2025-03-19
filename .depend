@@ -1020,6 +1020,7 @@ typing/includemod.cmo : \
     typing/ctype.cmi \
     parsing/builtin_attributes.cmi \
     typing/btype.cmi \
+    parsing/asttypes.cmi \
     typing/includemod.cmi
 typing/includemod.cmx : \
     typing/types.cmx \
@@ -1043,6 +1044,7 @@ typing/includemod.cmx : \
     typing/ctype.cmx \
     parsing/builtin_attributes.cmx \
     typing/btype.cmx \
+    parsing/asttypes.cmx \
     typing/includemod.cmi
 typing/includemod.cmi : \
     typing/types.cmi \
@@ -1150,7 +1152,8 @@ typing/oprint.cmx : \
     typing/oprint.cmi
 typing/oprint.cmi : \
     typing/outcometree.cmi \
-    utils/format_doc.cmi
+    utils/format_doc.cmi \
+    parsing/asttypes.cmi
 typing/out_type.cmo : \
     parsing/unit_info.cmi \
     typing/types.cmi \
@@ -1588,6 +1591,7 @@ typing/subst.cmo : \
     typing/ident.cmi \
     utils/clflags.cmi \
     typing/btype.cmi \
+    parsing/asttypes.cmi \
     parsing/ast_mapper.cmi \
     typing/subst.cmi
 typing/subst.cmx : \
@@ -1601,6 +1605,7 @@ typing/subst.cmx : \
     typing/ident.cmx \
     utils/clflags.cmx \
     typing/btype.cmx \
+    parsing/asttypes.cmx \
     parsing/ast_mapper.cmx \
     typing/subst.cmi
 typing/subst.cmi : \
@@ -1608,7 +1613,8 @@ typing/subst.cmi : \
     typing/path.cmi \
     parsing/parsetree.cmi \
     parsing/location.cmi \
-    typing/ident.cmi
+    typing/ident.cmi \
+    parsing/asttypes.cmi
 typing/tast_iterator.cmo : \
     typing/typedtree.cmi \
     parsing/parsetree.cmi \
@@ -9623,6 +9629,7 @@ ocamldoc/odoc_module.cmo : \
     ocamldoc/odoc_exception.cmi \
     ocamldoc/odoc_class.cmi \
     utils/misc.cmi \
+    parsing/asttypes.cmi \
     ocamldoc/odoc_module.cmi
 ocamldoc/odoc_module.cmx : \
     typing/types.cmx \
@@ -9634,6 +9641,7 @@ ocamldoc/odoc_module.cmx : \
     ocamldoc/odoc_exception.cmx \
     ocamldoc/odoc_class.cmx \
     utils/misc.cmx \
+    parsing/asttypes.cmx \
     ocamldoc/odoc_module.cmi
 ocamldoc/odoc_module.cmi : \
     typing/types.cmi \
@@ -9644,7 +9652,8 @@ ocamldoc/odoc_module.cmi : \
     ocamldoc/odoc_extension.cmi \
     ocamldoc/odoc_exception.cmi \
     ocamldoc/odoc_class.cmi \
-    utils/misc.cmi
+    utils/misc.cmi \
+    parsing/asttypes.cmi
 ocamldoc/odoc_name.cmo : \
     parsing/unit_info.cmi \
     otherlibs/str/str.cmi \
@@ -9944,6 +9953,7 @@ ocamldoc/odoc_to_text.cmo : \
     ocamldoc/odoc_module.cmi \
     ocamldoc/odoc_messages.cmi \
     ocamldoc/odoc_info.cmi \
+    parsing/asttypes.cmi \
     ocamldoc/odoc_to_text.cmi
 ocamldoc/odoc_to_text.cmx : \
     otherlibs/str/str.cmx \
@@ -9952,6 +9962,7 @@ ocamldoc/odoc_to_text.cmx : \
     ocamldoc/odoc_module.cmx \
     ocamldoc/odoc_messages.cmx \
     ocamldoc/odoc_info.cmx \
+    parsing/asttypes.cmx \
     ocamldoc/odoc_to_text.cmi
 ocamldoc/odoc_to_text.cmi : \
     typing/types.cmi \

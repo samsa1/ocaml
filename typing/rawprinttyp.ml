@@ -224,6 +224,10 @@ let raw_value_desc ppf vd =
     | Val_self _ -> "Val_self"
     | Val_anc _  -> "Val_anc")
 
+let raw_purity ppf = function
+  | Pure -> fprintf ppf "Pure"
+  | Impure -> fprintf ppf "Impure"
+
 let rec raw_sig_item ppf sg =
   match sg with
     Sig_value (id, vd, _vis) ->
@@ -264,7 +268,8 @@ and modtype ppf mty =
 
 and raw_func_param ppf = function
     Unit -> fprintf ppf "Unit"
-  | Named (ido, mty) ->
-      fprintf ppf "@[<hov>Named(@,%a,@,%a)@]"
+  | Named (purity, ido, mty) ->
+      fprintf ppf "@[<hov>Named(@,%a,@,%a,@,%a)@]"
+        raw_purity purity
         (raw_option Ident.print) ido
         modtype mty
