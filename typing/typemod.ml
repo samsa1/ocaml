@@ -2435,6 +2435,10 @@ let check_package_closed ~loc ~env ~typ fl =
 
 let not_principal msg = Warnings.Not_principal (Format_doc.Doc.msg msg)
 
+type funct_body =
+  | Gen
+  | App
+
 let rec type_module ?(alias=false) ~strengthen ~funct_body anchor env smod =
   let delayed () =
     Builtin_attributes.warning_scope smod.pmod_attributes
@@ -2516,7 +2520,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
       let t_arg, ty_arg, newenv, funct_shape_param, funct_body =
         match arg_opt with
         | Unit ->
-          Unit, Types.Unit, env, Shape.for_unnamed_functor_param, false
+          Unit, Types.Unit, env, Shape.for_unnamed_functor_param, Gen
         | Named (param, smty) ->
           let mty = transl_modtype_functor_arg env smty in
           let scope = Ctype.create_scope () in
@@ -2540,7 +2544,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
               Some id, newenv, id
           in
           Named (id, param, mty), Types.Named (id, mty.mty_type), newenv,
-          var, true
+          var, App
       in
       let body, body_shape =
         type_module ~strengthen:true ~funct_body None newenv sbody
@@ -2590,7 +2594,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
             Error.log_and_raise smod.pmod_loc env
               (Not_a_packed_module exp.exp_type)
       in
-      if funct_body && Mtype.contains_type env mty then
+      if funct_body <> Gen && Mtype.contains_type env mty then
         Error.log_or_raise smod.pmod_loc env Not_allowed_in_functor_body;
       { mod_desc = Tmod_unpack(exp, mty);
         mod_type = mty;
@@ -2661,7 +2665,7 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
           else
             Error.log_and_raise app_view.f_loc env Apply_generative;
       end;
-      if funct_body && Mtype.contains_type env funct.mod_type then
+      if funct_body <> Gen && Mtype.contains_type env funct.mod_type then
         Error.log_or_raise apply_loc env Not_allowed_in_functor_body;
       { mod_desc = Tmod_apply_unit funct;
         mod_type = mty_res;
@@ -3195,14 +3199,14 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
 
 let type_toplevel_phrase env s =
   Env.reset_required_globals ();
-  type_structure ~toplevel:true ~funct_body:false None env s
+  type_structure ~toplevel:true ~funct_body:Gen None env s
 
 let type_module_alias =
-  type_module ~alias:true ~strengthen:true ~funct_body:false None
+  type_module ~alias:true ~strengthen:true ~funct_body:Gen None
 let type_module =
-  type_module ~strengthen:true ~funct_body:false None
+  type_module ~strengthen:true ~funct_body:Gen None
 let type_structure =
-  type_structure ~funct_body:false None
+  type_structure ~funct_body:Gen None
 
 (* Normalize types in a signature *)
 
@@ -3348,7 +3352,7 @@ let type_package env m pack =
 (* Fill in the forward declarations *)
 
 let type_open_decl ?used_slot env od =
-  type_open_decl ?used_slot ?toplevel:None ~funct_body:false
+  type_open_decl ?used_slot ?toplevel:None ~funct_body:Gen
     (Signature_names.create ()) env od
 
 let type_open_descr ?used_slot env od =
