@@ -386,7 +386,7 @@ type module_type =
 
 and functor_parameter =
   | Unit
-  | Named of Ident.t option * module_type
+  | Named of pure_flag * Ident.t option * module_type
 
 and module_presence =
   | Mp_present

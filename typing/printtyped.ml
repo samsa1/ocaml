@@ -96,6 +96,11 @@ let fmt_closed_flag f x =
   | Closed -> fprintf f "Closed"
   | Open -> fprintf f "Open"
 
+let fmt_pure_flag f x =
+  match x with
+  | Pure -> fprintf f "Pure"
+  | Impure -> fprintf f "Impure"
+
 let fmt_rec_flag f x =
   match x with
   | Nonrecursive -> fprintf f "Nonrec"
@@ -750,8 +755,8 @@ and module_type i ppf x =
   | Tmty_functor (Unit, mt2) ->
       line i ppf "Tmty_functor ()\n";
       module_type i ppf mt2;
-  | Tmty_functor (Named (s, _, mt1), mt2) ->
-      line i ppf "Tmty_functor \"%a\"\n" fmt_modname s;
+  | Tmty_functor (Named (is_pure, s, _, mt1), mt2) ->
+      line i ppf "Tmty_functor %a \"%a\"\n" fmt_pure_flag is_pure fmt_modname s;
       module_type i ppf mt1;
       module_type i ppf mt2;
   | Tmty_with (mt, l) ->
@@ -862,8 +867,8 @@ and module_expr i ppf x =
   | Tmod_functor (Unit, me) ->
       line i ppf "Tmod_functor ()\n";
       module_expr i ppf me;
-  | Tmod_functor (Named (s, _, mt), me) ->
-      line i ppf "Tmod_functor \"%a\"\n" fmt_modname s;
+  | Tmod_functor (Named (is_pure, s, _, mt), me) ->
+      line i ppf "Tmod_functor %a \"%a\"\n" fmt_pure_flag is_pure fmt_modname s;
       module_type i ppf mt;
       module_expr i ppf me;
   | Tmod_apply (me1, me2, _) ->
