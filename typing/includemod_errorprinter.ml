@@ -426,8 +426,9 @@ module Functor_suberror = struct
   open Err
 
   let param_id x = match x.With_shorthand.item with
-    | Types.Named (_, (Some _ as x),_) -> x
-    | Types.(Unit | Named(_, None,_)) -> None
+    | Types.Named (p, (Some _ as x),_) -> (p, x)
+    | Types.Unit -> (Asttypes.Impure, None)
+    | Types.Named(p, None,_) -> (p, None)
 
 
 (** Print a list of functor parameters with style while adjusting the printing
@@ -440,7 +441,7 @@ module Functor_suberror = struct
     got: (X: sig module type T end) (Y:X.T) (X:sig module type T end) (Z:X.T)
     expect: (_: sig end) (Y:X.T) (_:sig end) (Z:X.T)
 *)
-  let pretty_params sep proj printer patch =
+  let pretty_params print_arrow sep proj printer patch =
     let pp_param (x,param) =
       let sty = Diffing.(style @@ classify x) in
       Fmt.dprintf "%a%t%a"
@@ -449,9 +450,14 @@ module Functor_suberror = struct
         Fmt.pp_close_stag ()
     in
     let rec pp_params = function
-      | [] -> ignore
-      | [_,param] -> pp_param param
-      | (id,param) :: q ->
+      | [] -> if print_arrow then Fmt.dprintf "@ -> ..." else ignore
+      | [(p, _),param] ->
+        if print_arrow then
+          Fmt.dprintf "%t@ %s ..."
+            (pp_param param)
+            (if p = Asttypes.Pure then "=>" else "->")
+        else pp_param param
+      | ((_, id),param) :: q ->
           Fmt.dprintf "%t%a%t"
             (pp_param param) sep () (hide_id id q)
     and hide_id id q =
@@ -470,7 +476,7 @@ module Functor_suberror = struct
           Some (param_id mty,(x, mty))
       | Delete _ -> None
     in
-    pretty_params space extract With_shorthand.qualified_param d
+    pretty_params true space extract With_shorthand.qualified_param d
 
   let drop_inserted_suffix patch =
     let rec drop = function
@@ -493,7 +499,7 @@ module Functor_suberror = struct
           Some (param_id mty,(x,mty))
       | Insert _ -> None
       in
-      pretty_params space extract With_shorthand.qualified_param d
+      pretty_params true space extract With_shorthand.qualified_param d
 
     let insert mty =
       Fmt.dprintf
@@ -519,13 +525,20 @@ module Functor_suberror = struct
            @[%t@]%t"
           g e (more ())
 
-      let incompatible = function
-        | Types.Unit ->
+      let incompatible given expected =
+        match (given, expected) with
+        | (Types.Named (Impure, _, _), Types.Named (Pure, _, _)) ->
+            Fmt.dprintf
+              "The functor was expected to be pure at this position"
+        | Types.Unit, Types.Named _ ->
             Fmt.dprintf
               "The functor was expected to be applicative at this position"
-        | Types.Named _ ->
+        | Types.Named _, Types.Unit ->
             Fmt.dprintf
               "The functor was expected to be generative at this position"
+        | (Types.Unit, Types.Unit)
+        | (Types.Named _, Types.Named _) ->
+            assert false (* valid subtyping *)
 
       let patch env got expected =
         Includemod.Functor_inclusion_diff.diff env got expected
@@ -544,10 +557,10 @@ module Functor_suberror = struct
         | Delete mty
         | Keep (mty,_,_)
         | Change (mty,_,_) as x ->
-            Some (None,(x,mty))
+            Some ((Asttypes.Impure, None),(x,mty))
         | Insert _ -> None
       in
-      pretty_params space extract With_shorthand.arg d
+      pretty_params false space extract With_shorthand.arg d
 
     let delete mty =
       Fmt.dprintf
@@ -590,7 +603,8 @@ module Functor_suberror = struct
         (dmodtype mty) e (more ())
 
 
-    let incompatible = function
+    let incompatible given _expected =
+      match given with
       | Unit ->
           Fmt.dprintf
             "The functor was expected to be applicative at this position"
@@ -861,8 +875,8 @@ and compare_functor_params ~expansion_token ~env ~before ~ctx {got;expected;_} =
   let main =
     Fmt.dprintf
       "@[<hv 2>Modules do not match:@ \
-       @[%t@ -> ...@]@;<1 -2>is not included in@ \
-       @[%t@ -> ...@]@]"
+       @[%t@]@;<1 -2>is not included in@ \
+       @[%t@]@]"
       actual expected
   in
   let msgs = dwith_context ctx main :: before in
@@ -938,8 +952,8 @@ and functor_arg_diff ~expansion_token env (patch: _ Diffing.change) =
   | Insert mty -> Functor_suberror.Inclusion.insert mty
   | Delete mty -> Functor_suberror.Inclusion.delete mty
   | Keep (x, y, _) ->  Functor_suberror.Inclusion.ok x y
-  | Change (_, _, Err.Incompatible_params (i,_)) ->
-      Functor_suberror.Inclusion.incompatible i
+  | Change (_, _, Err.Incompatible_params (i, i2)) ->
+      Functor_suberror.Inclusion.incompatible i i2
   | Change (g, e,  Err.Mismatch mty_diff) ->
       let more () =
         subcase_list @@
@@ -953,8 +967,8 @@ let functor_app_diff ~expansion_token env  (patch: _ Diffing.change) =
   | Insert mty ->  Functor_suberror.App.insert mty
   | Delete mty ->  Functor_suberror.App.delete mty
   | Keep (x, y, _) ->  Functor_suberror.App.ok x y
-  | Change (_, _, Err.Incompatible_params (i,_)) ->
-      Functor_suberror.App.incompatible i
+  | Change (_, _, Err.Incompatible_params (i, i2)) ->
+      Functor_suberror.App.incompatible i i2
   | Change (g, e,  Err.Mismatch mty_diff) ->
       let more () =
         subcase_list @@
@@ -1017,8 +1031,9 @@ let report_apply_error_doc ~loc env (app_name, mty_f, args) =
   match d with
   (* We specialize the one change and one argument case to remove the
      presentation of the functor arguments *)
-  | [ _,  Change (_, _, Err.Incompatible_params (i,_)) ] ->
-      Location.errorf ~loc ~footnote "%t" (Functor_suberror.App.incompatible i)
+  | [ _,  Change (_, _, Err.Incompatible_params (i,i2)) ] ->
+      Location.errorf ~loc ~footnote "%t"
+        (Functor_suberror.App.incompatible i i2)
   | [ _, Change (g, e,  Err.Mismatch mty_diff) ] ->
       let more () =
         subcase_list @@
@@ -1070,7 +1085,7 @@ let report_apply_error_doc ~loc env (app_name, mty_f, args) =
         Location.errorf ~loc ~sub ~footnote
           "@[<hv>%t@ \
            These arguments:@;<1 2>@[%t@]@ \
-           do not match these parameters:@;<1 2>@[%t@ -> ...@]@]"
+           do not match these parameters:@;<1 2>@[%t@]@]"
           intro
           actual expected
 
