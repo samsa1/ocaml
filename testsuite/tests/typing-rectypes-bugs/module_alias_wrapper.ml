@@ -32,7 +32,7 @@ let hang (f : any -> bool) (v : any) : bool =
 module Empty : sig end
 module Empty_wrapper : sig module Empty = Empty end
 module Make :
-  sig end -> sig type (_, 't) open_t = A : 't -> (int, 't) open_t end
+  sig end => sig type (_, 't) open_t = A : 't -> (int, 't) open_t end
 type ('a, 't) open_t =
   ('a, 't) Make(Empty_wrapper.Empty).open_t =
     A : 't -> (int, 't) open_t

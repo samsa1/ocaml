@@ -21,7 +21,7 @@ end)
 
 [%%expect{|
 module S :
-  (M : sig type t end) ->
+  (M : sig type t end) =>
     sig type 'a u = M.t constraint 'a = M.t val id : M.t u -> M.t u end
 module A :
   sig type 'a u = 'a constraint 'a = unit val id : unit u -> unit u end
@@ -32,7 +32,7 @@ module B :
   end
 |}, Principal{|
 module S :
-  (M : sig type t end) ->
+  (M : sig type t end) =>
     sig type 'a u = M.t constraint 'a = M.t val id : M.t u -> M.t u end
 module A :
   sig type 'a u = unit constraint 'a = unit val id : unit u -> unit u end

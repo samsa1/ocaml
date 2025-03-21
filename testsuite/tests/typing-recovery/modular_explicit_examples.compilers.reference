@@ -80,7 +80,7 @@ File "modular_explicit_examples.ml", lines 102-105, characters 14-12:
 104 |           let map f (A x) = (A (f x))
 105 |         end)........
   This functor has type
-  (M1 : Map) (M2 : Map) ->
+  (M1 : Map) (M2 : Map) =>
     sig
       type 'a t = 'a M1.t M2.t
       val map : ('a -> 'b) -> 'a M1.t M2.t -> 'b M1.t M2.t

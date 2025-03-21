@@ -162,7 +162,7 @@ module Example1 :
               val default : unit -> t
               val read_from_path : string -> t
             end)
-    -> sig val config : Config.t Lazy.Mutexed.t end
+  -> sig val config : Config.t Lazy.Mutexed.t end
 |}]
 
 module Example2 = struct
