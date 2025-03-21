@@ -440,7 +440,7 @@ module type T = sig
 end with module X0 := F(X)
 [%%expect{|
 module X : sig end
-module F : sig end -> sig module X : sig end end
+module F : sig end => sig module X : sig end end
 Lines 3-6, characters 16-26:
 3 | ................sig
 4 |   module X0 : sig end
@@ -460,7 +460,7 @@ module type T = sig
 end with module X0 := F(X)
 [%%expect{|
 module X : sig end
-module F : sig end -> sig module X : sig end end
+module F : sig end => sig module X : sig end end
 Lines 3-6, characters 16-26:
 3 | ................sig
 4 |   module X0 : sig module X : sig end end
@@ -481,7 +481,7 @@ module type T = sig
 end with module X0.X := F(X)
 [%%expect{|
 module X : sig end
-module F : sig end -> sig module X : sig end end
+module F : sig end => sig module X : sig end end
 Lines 3-6, characters 16-28:
 3 | ................sig
 4 |   module X0 : sig module X : sig end end
@@ -501,7 +501,7 @@ module type T = sig
 end with module X0.X := F(X)
 [%%expect{|
 module X : sig end
-module F : sig end -> sig module X : sig end end
+module F : sig end => sig module X : sig end end
 Lines 3-6, characters 16-28:
 3 | ................sig
 4 |   module X0 : sig module X : sig end end
@@ -584,7 +584,7 @@ module M = struct
 end
 [%%expect{|
 module X : sig end
-module F : sig end -> sig type t end
+module F : sig end => sig type t end
 Lines 4-8, characters 33-26:
 4 | .................................(sig
 5 |     module X0 : sig end
@@ -607,7 +607,7 @@ module ShoudFail : sig end = struct
 end
 [%%expect{|
 module X : sig end
-module F : sig end -> sig type t end
+module F : sig end => sig type t end
 Lines 4-8, characters 18-26:
 4 | ..................(sig
 5 |     module X0 : sig end

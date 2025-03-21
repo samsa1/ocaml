@@ -301,7 +301,7 @@ let s_list_array = map (module MapCombine(List)(Array))
 
 [%%expect{|
 module MapCombine :
-  (M1 : Map) (M2 : Map) ->
+  (M1 : Map) (M2 : Map) =>
     sig
       type 'a t = 'a M1.t M2.t
       val map : ('a -> 'b) -> 'a M1.t M2.t -> 'b M1.t M2.t
@@ -328,7 +328,7 @@ Lines 3-6, characters 14-12:
 5 |           let map f (A x) = (A (f x))
 6 |         end)........
 Error: This functor has type
-       "(M1 : Map) (M2 : Map) ->
+       "(M1 : Map) (M2 : Map) =>
          sig
            type 'a t = 'a M1.t M2.t
            val map : ('a -> 'b) -> 'a M1.t M2.t -> 'b M1.t M2.t
