@@ -167,7 +167,7 @@ module Constraint(F:sig type 'a t end-> sig type 'a t end) = struct
 end
 [%%expect {|
 module Constraint :
-  (F : sig type 'a t end -> sig type 'a t end) ->
+  (F : sig type 'a t end -> sig type 'a t end) =>
     sig
       type 'a x = 'b constraint 'a = 'b * 'b
       module rec Fixed :
