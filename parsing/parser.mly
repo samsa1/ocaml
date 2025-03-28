@@ -1426,10 +1426,21 @@ parse_any_longident:
        later processed using [fold_left]. *)
 ;
 
+functor_args_named:
+    named_functor_arg
+      { [$1] }
+  | functor_args named_functor_arg
+      { $2 :: $1 }
+;
+
 functor_arg:
     (* An anonymous and untyped argument. *)
     LPAREN RPAREN
       { $startpos, Unit }
+  | named_functor_arg
+      { $1 }
+;
+%inline named_functor_arg:
   | (* An argument accompanied with an explicit type. *)
     LPAREN x = mkrhs(module_name) COLON mty = module_type RPAREN
       { $startpos, Named (Impure, x, mty) }
@@ -1466,9 +1477,12 @@ module_expr:
       { unclosed "struct" $loc($1) "end" $loc($4) }
   | SIG error
       { expecting $loc($1) "struct" }
-  | FUNCTOR attrs = attributes args = functor_args p = farrow me = module_expr
-      { let p = if contains_pure attrs then Pure else p in
+  | FUNCTOR attrs = attributes args = functor_args MINUSGREATER me = module_expr
+      { let p = if contains_pure attrs then Pure else Impure in
         wrap_mod_attrs ~loc:$sloc attrs (mk_functor p args me) }
+  | FUNCTOR attrs = attributes args = functor_args_named EQUALGREATER
+    me = module_expr
+    { wrap_mod_attrs ~loc:$sloc attrs (mk_functor Pure args me) }
   | me = paren_module_expr
       { me }
   | me = module_expr attr = attribute
@@ -1770,15 +1784,21 @@ module_type:
       { unclosed "sig" $loc($1) "end" $loc($4) }
   | STRUCT error
       { expecting $loc($1) "sig" }
-  | FUNCTOR attrs = attributes args = functor_args
-    p = farrow mty = module_type
+  | FUNCTOR attrs = attributes args = functor_args MINUSGREATER
+      mty = module_type
       %prec below_WITH
-      { let pure = if (contains_pure attrs) then Pure else p in
+      { let pure = if (contains_pure attrs) then Pure else Impure in
         wrap_mty_attrs ~loc:$sloc attrs (mk_functor_typ pure args mty) }
-  | args = functor_args
-    p = farrow mty = module_type
+  | FUNCTOR attrs = attributes args = functor_args_named EQUALGREATER
+      mty = module_type
       %prec below_WITH
-      { mk_functor_typ p args mty }
+      { wrap_mty_attrs ~loc:$sloc attrs (mk_functor_typ Pure args mty) }
+  | args = functor_args MINUSGREATER mty = module_type
+      %prec below_WITH
+      { mk_functor_typ Impure args mty }
+  | args = functor_args_named EQUALGREATER mty = module_type
+      %prec below_WITH
+      { mk_functor_typ Pure args mty }
   | MODULE TYPE OF attributes module_expr %prec below_LBRACKETAT
       { mkmty ~loc:$sloc ~attrs:$4 (Pmty_typeof $5) }
   | LPAREN module_type RPAREN
