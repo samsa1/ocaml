@@ -293,7 +293,7 @@ let iter_on_occurrences
       | Tmod_implicit { desc = Timod_unknown _ } ->
           Misc.fatal_error "Cmt_Format.module_expr"
       | Tmod_structure _ | Tmod_functor _ | Tmod_apply _ | Tmod_apply_unit _
-      | Tmod_constraint _ | Tmod_unpack _
+      | Tmod_apply_type _ | Tmod_constraint _ | Tmod_unpack _
       | Tmod_implicit { desc = Timod_found _ } -> ());
       default_iterator.module_expr sub me);
 
@@ -389,7 +389,7 @@ let index_occurrences binary_annots =
       | Longident.Ldot (lid', _), Path.Pdot (path', _) ->
         reduce_and_store ~namespace lid path;
         index_components module_ lid' path'
-      | Longident.Lapply (lid', lid''), Path.Papply (path', path'') ->
+      | Longident.Lapply (_, lid', lid''), Path.Papply (_, path', path'') ->
         index_components module_ lid'' path'';
         index_components module_ lid' path'
       | Longident.Lident _, _ ->

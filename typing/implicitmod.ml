@@ -85,7 +85,8 @@ end = struct
   and module_type env mty =
     match Env.scrape_alias env mty with
     | Mty_signature s -> signature env mini s
-    | Mty_functor (Unit, mty2) -> module_type env mty2
+    | Mty_functor (Unit, mty2)
+    | Mty_functor (Newtype _, mty2) -> module_type env mty2
     | Mty_functor (Named (_, id, mty1), mty2) ->
       let d_mty1 = module_type env mty1 in
       let env =
@@ -130,6 +131,10 @@ let rec extract_arguments env args mty =
   | Mty_signature _ -> (args, mty)
   | Mty_functor (Unit, mty) ->
     extract_arguments env (Unit :: args) mty
+  | Mty_functor (Newtype id as param, mty) ->
+    let decl = Ctype.new_local_type ~loc:Location.none Definition in
+    let env = Env.add_type ~check:true id decl env in
+    extract_arguments env (param :: args) mty
   | Mty_functor (Named (_, n, arg_ty) as param, mty) ->
     let env = match n with
       | None -> env
@@ -146,6 +151,7 @@ let rec prepare_args env args =
   | Unit :: rest ->
       let args, env = prepare_args env rest in
       (None :: args, env)
+  | Newtype _id :: _rest -> assert false
   | Named (_, id, arg_ty) :: rest ->
       let args, env = prepare_args env rest in
       let arg_ty = open_module_type env arg_ty in

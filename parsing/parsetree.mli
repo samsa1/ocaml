@@ -896,6 +896,7 @@ and module_type_desc =
 
 and functor_parameter =
   | Unit  (** [()] *)
+  | Newtype of string loc
   | Named of pure_flag * string option loc * bool * module_type
       (** [Named(is_pure, name, MT)] represents:
             - [(X : MT)] when [name] is [Some X],
@@ -1040,6 +1041,7 @@ and module_expr_desc =
   | Pmod_functor of functor_parameter * module_expr
       (** [functor(X : MT1) -> ME] *)
   | Pmod_apply of module_expr * module_expr (** [ME1(ME2)] *)
+  | Pmod_apply_type of module_expr * core_type (** [ME1(type t)] *)
   | Pmod_apply_unit of module_expr (** [ME1()] *)
   | Pmod_constraint of module_expr option * module_type
       (** [(ME : MT)] or [(_ : MT)] *)

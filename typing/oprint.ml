@@ -32,8 +32,9 @@ let rec print_ident ppf =
     Oide_ident s -> print_lident ppf s.printed_name
   | Oide_dot (id, s) ->
       print_ident ppf id; pp_print_char ppf '.'; print_lident ppf s
-  | Oide_apply (id1, id2) ->
-      fprintf ppf "%a(%a)" print_ident id1 print_ident id2
+  | Oide_apply (k, id1, id2) ->
+      fprintf ppf "%a(%s%a)" print_ident id1 (Longident.string_of_kind k)
+        print_ident id2
 
 let out_ident = ref print_ident
 
@@ -563,9 +564,9 @@ let constructor_of_extension_constructor
 
 let split_anon_functor_arguments params =
   let rec uncollect_anonymous_suffix acc rest = match acc with
-    | Some (b, None, mty_arg) :: acc ->
+    | Some (None, (Some _ as mty_arg)) :: acc ->
         uncollect_anonymous_suffix acc
-          (Some (b, None, mty_arg) :: rest)
+          (Some (None, mty_arg) :: rest)
     | _ :: _ | [] ->
         (acc, rest)
   in
@@ -580,19 +581,22 @@ and print_out_functor_parameters ppf l =
   let print_nonanon_arg ppf = function
     | None ->
         fprintf ppf "()"
-    | Some (Impure, param, mty) ->
+    | Some (param, None) ->
+        fprintf ppf "(type %s)"
+          (Option.value param ~default:"_")
+    | Some (param, Some (Impure, mty)) ->
         fprintf ppf "(%s : %a)@ ->"
           (Option.value param ~default:"_")
           print_out_module_type mty
-    | Some (Pure, param, mty) ->
+    | Some (param, Some (Pure, mty)) ->
         fprintf ppf "(%s : %a)"
           (Option.value param ~default:"_")
           print_out_module_type mty
   in
   let rec print_args ppf = function
     | [] -> ()
-    | Some (is_pure, None, mty_arg) :: l ->
-        let arr = if is_pure = Pure then "=>" else "->" in
+    | Some (None, Some (is_pure, mty_arg)) :: l ->
+         let arr = if is_pure = Pure then "=>" else "->" in
         fprintf ppf "%a %s@ %a"
           print_simple_out_module_type mty_arg
           arr
@@ -602,7 +606,8 @@ and print_out_functor_parameters ppf l =
         let rec pp_arrow ppf = function
           | [] -> assert false
           | [None] -> fprintf ppf "@ ->"
-          | [Some (p, _, _)] -> if p = Pure then fprintf ppf "@ =>"
+          | [Some (_, Some (p, _))] -> if p = Pure then fprintf ppf "@ =>"
+          | [Some (_, None)] -> fprintf ppf "@ =>"
           | _ :: tl -> pp_arrow ppf tl
         in
         fprintf ppf "@[%a@]%a@ %a"
