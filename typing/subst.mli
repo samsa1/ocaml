@@ -166,6 +166,7 @@ module Lazy : sig
 
   and functor_parameter =
     | Unit
+    | Newtype of Ident.t
     | Named of Asttypes.pure_flag * Ident.t option * modtype
 
 

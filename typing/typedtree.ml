@@ -279,6 +279,7 @@ and module_type_constraint =
 
 and functor_parameter =
   | Unit
+  | Newtype of Ident.t * string loc
   | Named of pure_flag * Ident.t option * string option loc * bool * module_type
 
 and module_expr_desc =
@@ -287,6 +288,7 @@ and module_expr_desc =
   | Tmod_functor of functor_parameter * module_expr
   | Tmod_apply of module_expr * module_expr * module_coercion
   | Tmod_apply_unit of module_expr
+  | Tmod_apply_type of module_expr * core_type
   | Tmod_constraint of
       module_expr * Types.module_type * module_type_constraint * module_coercion
   | Tmod_unpack of expression * Types.module_type
@@ -923,20 +925,30 @@ let map_apply_arg f = function
 
 exception Not_a_path
 
+let path_of_type typ =
+  match typ.ctyp_desc with
+  | Ttyp_constr (p, _, []) -> p
+  | _ -> raise Not_a_path
+
 let rec path_of_module mexp =
   match mexp.mod_desc with
   | Tmod_ident (p,_) -> p
   | Tmod_apply(funct, arg, _coercion) when !Clflags.applicative_functors ->
-      Path.Papply(path_of_module funct, path_of_module arg)
+      Path.Papply(Longident.Kmod, path_of_module funct, path_of_module arg)
   | Tmod_constraint (mexp, _, _, _) ->
       path_of_module mexp
+  | Tmod_apply_type(funct, arg) when !Clflags.applicative_functors ->
+      Path.Papply(Longident.Ktype, path_of_module funct, path_of_type arg)
   | Tmod_implicit { desc = Timod_found me } -> path_of_module me
   | (Tmod_structure _ | Tmod_functor _ | Tmod_apply_unit _ | Tmod_unpack _ |
-    Tmod_apply _ | Tmod_implicit _) ->
+    Tmod_apply _ | Tmod_apply_type _ | Tmod_implicit _) ->
     raise Not_a_path
 
 let path_of_module mexp =
- try Some (path_of_module mexp) with Not_a_path -> None
+  try Some (path_of_module mexp) with Not_a_path -> None
+
+let path_of_type ty =
+  try Some (path_of_type ty) with Not_a_path -> None
 
 let remove_module_constraint me =
   match me.mod_desc with

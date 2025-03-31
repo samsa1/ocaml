@@ -5,6 +5,10 @@ Working version
 
 ### Language features:
 
+- #XXXXX: Added support for type arguments to modules :
+  `M(type int)` and `functor (type a) -> ...`
+  (Samuel Vivien, review by ...)
+
 ### Runtime system:
 
 - #14486, #14530: Add FreeBSD frame pointers support for AMD64 and ARM64.

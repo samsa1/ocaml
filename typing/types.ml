@@ -392,6 +392,7 @@ type module_type =
 
 and functor_parameter =
   | Unit
+  | Newtype of Ident.t
   | Named of pure_flag * Ident.t option * module_type
 
 and module_presence =

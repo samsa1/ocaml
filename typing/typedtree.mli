@@ -457,6 +457,7 @@ and module_type_constraint =
 
 and functor_parameter =
   | Unit
+  | Newtype of Ident.t * string loc
   | Named of pure_flag * Ident.t option * string option loc * bool * module_type
 
 and module_expr_desc =
@@ -465,6 +466,7 @@ and module_expr_desc =
   | Tmod_functor of functor_parameter * module_expr
   | Tmod_apply of module_expr * module_expr * module_coercion
   | Tmod_apply_unit of module_expr
+  | Tmod_apply_type of module_expr * core_type
   | Tmod_constraint of
       module_expr * Types.module_type * module_type_constraint * module_coercion
     (** ME          (constraint = Tmodtype_implicit)
@@ -956,6 +958,7 @@ val map_apply_arg:
   ('a -> ' b) -> ('a, 'omitted) arg_or_omitted ->  ('b, 'omitted) arg_or_omitted
 
 val path_of_module : module_expr -> Path.t option
+val path_of_type : core_type -> Path.t option
 
 val remove_module_constraint : module_expr -> module_expr
 
