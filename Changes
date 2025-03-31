@@ -28,6 +28,10 @@ Working version
   (Ulysse Gérard, Leo White, review by Florian Angeletti, Samuel Vivien, Gabriel
   Scherer and Jacques Garrigue)
 
+- #XXXXX: Added support for type arguments to modules :
+  `M(type int)` and `functor (type a) -> ...`
+  (Samuel Vivien, review by ...)
+
 ### Runtime system:
 
 - #13616: Change free list representation in shared heap

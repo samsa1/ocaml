@@ -52,6 +52,7 @@ module Error = struct
     | Anonymous
     | Named of Path.t
     | Unit
+    | Newtype of Path.t option
     | Empty_struct
      (** For backward compatibility's sake, an empty struct can be implicitly
          converted to an unit module  *)
@@ -638,6 +639,11 @@ and functor_param ~core ~direction ~loc env subst param1 param2 =
   match param1, param2 with
   | Unit, Unit ->
       Ok Tcoerce_none, env, subst
+  | Newtype id1, Newtype id2 ->
+    let decl = Ctype.new_local_type ~loc Definition in
+    let env = Env.add_type ~check:true id1 decl env in
+    let subst = Subst.add_type id2 (Pident id1) subst in
+    Ok Tcoerce_none, env, subst
   | Named (b1, name1, arg1), Named (b2, name2, arg2)
     when b1 = Asttypes.Pure || b2 = Asttypes.Impure ->
       let arg2' = Subst.modtype Keep subst arg2 in
@@ -1064,6 +1070,12 @@ exception Apply_error of {
     mty_f : module_type ;
     args : (Error.functor_arg_descr * module_type) list ;
   }
+exception Type_expected_param of {
+    loc : Location.t ;
+    env : Env.t ;
+    path : Path.t ;
+    arity : int ;
+  }
 
 let check_modtype_inclusion_raw ~loc env mty1 path1 mty2 =
   let aliasable = Env.is_aliasable path1 env in
@@ -1080,21 +1092,35 @@ let check_modtype_inclusion ~loc env mty1 path1 mty2 =
 let check_functor_application_in_path
     ~errors ~loc ~lid_whole_app ~f0_path ~args
     ~arg_path ~arg_mty ~param_mty env =
-  match check_modtype_inclusion_raw ~loc env arg_mty arg_path param_mty with
-  | Ok _ -> ()
-  | Error _errs ->
-      if errors then
-        let prepare_arg (arg_path, arg_mty) =
-          let aliasable = Env.is_aliasable arg_path env in
+  let fail () =
+    let prepare_arg (arg_path, arg_mty) =
+      let aliasable = Env.is_aliasable arg_path env in
+      match arg_mty with
+      | Env.Mod arg_mty ->
           let smd = Mtype.strengthen ~aliasable env arg_mty arg_path in
           (Error.Named arg_path, smd)
-        in
-        let mty_f = (Env.find_module f0_path env).md_type in
-        let args = List.map prepare_arg args in
-        let app_name = Full_application_path lid_whole_app in
-        raise (Apply_error {loc; env; app_name; mty_f; args})
-      else
-        raise Not_found
+      | Env.Type _ -> (Error.Newtype (Some arg_path), Mty_signature [])
+    in
+    let mty_f = (Env.find_module f0_path env).md_type in
+    let args = List.map prepare_arg args in
+    let app_name = Full_application_path lid_whole_app in
+    raise (Apply_error {loc; env; app_name; mty_f; args})
+  in
+  match param_mty, arg_mty with
+  | Some param_mty, Env.Mod arg_mty ->
+    begin
+      match check_modtype_inclusion_raw ~loc env arg_mty arg_path param_mty with
+      | Ok _ -> ()
+      | Error _errs ->
+          if errors then fail ()
+          else
+            raise Not_found
+    end
+  | None, Env.Type td ->
+    if td.type_arity <> 0
+    then raise (Type_expected_param {loc; env; path = arg_path;
+                                     arity = td.type_arity })
+  | _ -> fail ()
 
 let () =
   Env.check_functor_application := check_functor_application_in_path
@@ -1138,6 +1164,7 @@ module Functor_inclusion_diff = struct
 
   let param_name = function
       | Named(_,x,_) -> x
+      | Newtype x -> Some x
       | Unit -> None
 
   let weight: Diff.change -> _ = function
@@ -1183,6 +1210,11 @@ module Functor_inclusion_diff = struct
     let env = Env.add_module id Mp_present IILocal arg' state.env in
     { state with env }
 
+  let bindt id state =
+    let decl = Ctype.new_local_type ~loc:Location.none Definition in
+    let env = Env.add_type ~check:true id decl state.env in
+    { state with env }
+
   let rec update (d:Diff.change) st =
     match d with
     | Insert (Unit | Named (_,None,_))
@@ -1191,6 +1223,9 @@ module Functor_inclusion_diff = struct
     | Keep (_,Unit,_) ->
         (* No named abstract parameters: we keep the same environment *)
         st, [||]
+    | Insert (Newtype id) | Delete (Newtype id) ->
+        (* one named parameter to bind *)
+        st |> bindt id |> expand_params
     | Insert (Named (_, Some id, arg)) | Delete (Named (_, Some id, arg)) ->
         (* one named parameter to bind *)
         st |> bind id arg |> expand_params
@@ -1205,6 +1240,14 @@ module Functor_inclusion_diff = struct
           equate_one_functor_param st.subst st.env arg name1 name2
         in
         expand_params { st with env; subst }
+    | Keep (Newtype id1, Newtype id2, _) ->
+        let decl = Ctype.new_local_type ~loc:Location.none Definition in
+        let env = Env.add_type ~check:true id1 decl st.env in
+        let subst = Subst.add_type id2 (Pident id1) st.subst in
+        expand_params { st with env; subst }
+    | Keep (Newtype _, Named _, _)
+    | Keep (Named _, Newtype _, _) ->
+        fatal_error "Includemod.Functor_inclusion_diff.update"
 
   type inclusion_env = { i_env:Env.t; i_subst:Subst.t }
   let diff {i_env=env; i_subst=subst} (l1,res1) (l2,_) =
@@ -1251,13 +1294,15 @@ module Functor_app_diff = struct
         begin
           let desc1 : Error.functor_arg_descr = fst param1 in
           match desc1, I.param_name param2 with
-          | (Unit | Empty_struct | Anonymous) , None
+          | (Unit | Empty_struct | Anonymous | Newtype None) , None
             -> 0
+          | Newtype (Some (Path.Pident n1)), Some n2
           | Named (Path.Pident n1), Some n2
             when String.equal (Ident.name n1) (Ident.name n2)
             -> 0
-          | Named _, Some _ -> 1
-          | Named _,  None | (Unit | Empty_struct | Anonymous), Some _ -> 1
+          | (Named _ | Newtype (Some _)), Some _ -> 1
+          | (Named _ | Newtype (Some _)),  None
+          | (Unit | Empty_struct | Anonymous | Newtype None), Some _ -> 1
         end
 
   let update (d: Diff.change) (st:Defs.state) =
@@ -1277,8 +1322,15 @@ module Functor_app_diff = struct
            parameter might add. *)
         let mty = Subst.modtype Keep st.subst param_ty in
         let env =
-          Env.add_module ~noalias:true param Mp_present IILocal mty st.env
-        in
+          Env.add_module ~noalias:true param Mp_present IILocal mty st.env in
+        I.expand_params { st with env }
+    | Insert(Newtype param)
+    | Change(_, Newtype param, _ ) ->
+        (* Change is Delete + Insert: we add the Inserted parameter to the
+           environment to track equalities with external components that the
+           parameter might add. *)
+        let decl = Ctype.new_local_type ~loc:Location.none Definition in
+        let env = Env.add_type ~check:true param decl st.env in
         I.expand_params { st with env }
     | Keep ((Named arg,  _mty) , Named (_, Some param, _param), _) ->
         let res =
@@ -1291,6 +1343,17 @@ module Functor_app_diff = struct
         in
         let subst = Subst.add_module param arg st.subst in
         I.expand_params { st with subst; res }
+    | Keep ((Newtype (Some arg), _), Newtype param, _) ->
+        let res =
+          Option.map (fun res ->
+              let scope = Ctype.create_scope () in
+              let subst = Subst.add_type param arg Subst.identity in
+              Subst.modtype (Rescope scope) subst res
+            )
+            st.res
+        in
+        let subst = Subst.add_type param arg st.subst in
+        I.expand_params { st with subst; res }
     | Keep (((Anonymous|Empty_struct), mty),
             Named (_, Some param, _param), _) ->
         let mty' = Subst.modtype Keep st.subst mty in
@@ -1298,6 +1361,14 @@ module Functor_app_diff = struct
           Env.add_module ~noalias:true param Mp_present IILocal mty' st.env in
         let res = Option.map (Mtype.nondep_supertype env [param]) st.res in
         I.expand_params { st with env; res}
+    | Keep ((Newtype None, _), Newtype param, _) ->
+        let decl = Ctype.new_local_type ~loc:Location.none Definition in
+        let env = Env.add_type ~check:true param decl st.env in
+        let res = Option.map (Mtype.nondep_supertype env [param]) st.res in
+        I.expand_params { st with env; res}
+    | Keep (((Named _ | Anonymous | Empty_struct), _), Newtype _, _)
+    | Keep ((Newtype _, _), Named _, _) ->
+        fatal_error "Includemod.Functor_app_diff.update"
 
   let diff env ~f ~args =
     let {Error.params; res} = retrieve_functor_params env f in
@@ -1307,8 +1378,11 @@ module Functor_app_diff = struct
           let loc = Location.none in
           let res = match (arg:Error.functor_arg_descr), param with
             | (Unit|Empty_struct), Unit -> Ok Tcoerce_none
-            | Unit, Named _ | (Anonymous | Named _), Unit ->
+            | (Unit | Anonymous | Named _ | Empty_struct), Newtype _
+            | (Unit | Newtype _), Named _
+            | (Anonymous | Named _ | Newtype _), Unit ->
                 Result.Error (Error.Incompatible_params(arg,param))
+            | Newtype _, Newtype _ -> Ok Tcoerce_none
             | ( Anonymous | Named _ | Empty_struct ), Named (_, _, param) ->
                let direction=Directionality.unknown ~mark:false in
                 match
