@@ -27,7 +27,7 @@
 type out_name = { mutable printed_name: string }
 
 type out_ident =
-  | Oide_apply of out_ident * out_ident
+  | Oide_apply of Longident.arg_kind * out_ident * out_ident
   | Oide_dot of out_ident * string
   | Oide_ident of out_name
 
@@ -123,7 +123,9 @@ and out_class_sig_item =
 
 type out_module_type =
   | Omty_abstract
-  | Omty_functor of (string option * out_module_type) option * out_module_type
+  | Omty_functor of
+      (string option * (Asttypes.pure_flag * out_module_type) option) option *
+        out_module_type
   | Omty_ident of out_ident
   | Omty_signature of out_sig_item list
   | Omty_alias of out_ident
@@ -136,7 +138,7 @@ and out_sig_item =
         out_rec_status
   | Osig_typext of out_extension_constructor * out_ext_status
   | Osig_modtype of string * out_module_type
-  | Osig_module of string * out_module_type * out_rec_status
+  | Osig_module of string * bool * out_module_type * out_rec_status
   | Osig_type of out_type_decl * out_rec_status
   | Osig_value of out_val_decl
   | Osig_ellipsis

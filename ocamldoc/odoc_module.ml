@@ -47,7 +47,7 @@ and module_alias = {
 
 and module_parameter = {
     mp_name : string ; (** the name *)
-    mp_type : Types.module_type option ; (** the type *)
+    mp_type : (Asttypes.pure_flag * Types.module_type) option ; (** the type *)
     mp_type_code : string ; (** the original code *)
     mp_kind : module_type_kind ; (** the way the parameter was built *)
   }
@@ -58,6 +58,7 @@ and module_kind =
   | Module_functor of module_parameter * module_kind
   | Module_apply of module_kind * module_kind
   | Module_apply_unit of module_kind
+  | Module_apply_type of module_kind * Types.type_expr
   | Module_with of module_type_kind * string
   | Module_constraint of module_kind * module_type_kind
   | Module_typeof of string (** by now only the code of the module expression *)
@@ -243,6 +244,7 @@ let module_elements ?(trans=true) m =
       | Module_functor (_, k)
       | Module_apply (k, _) -> iter_kind k
       | Module_apply_unit k -> iter_kind k
+      | Module_apply_type (k, _) -> iter_kind k
       | Module_with (tk,_) ->
           module_type_elements ~trans: trans
             { mt_name = "" ; mt_info = None ; mt_type = None ;
@@ -378,6 +380,7 @@ and module_parameters ?(trans=true) m =
     | Module_struct _
     | Module_apply _
     | Module_apply_unit _
+    | Module_apply_type _
     | Module_with _
     | Module_typeof _
     | Module_unpack _ -> []

@@ -301,7 +301,7 @@ let s_list_array = map (module MapCombine(List)(Array))
 
 [%%expect{|
 module MapCombine :
-  (M1 : Map) (M2 : Map) ->
+  (M1 : Map) (M2 : Map) =>
     sig
       type 'a t = 'a M1.t M2.t
       val map : ('a -> 'b) -> 'a M1.t M2.t -> 'b M1.t M2.t

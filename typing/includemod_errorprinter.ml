@@ -62,8 +62,9 @@ module Context = struct
         Fmt.fprintf ppf " :@ %a" context_mty cxt
   and argname = function
     | Types.Unit -> ""
-    | Types.Named (None, _) -> "_"
-    | Types.Named (Some id, _) -> Ident.name id
+    | Types.Newtype id -> Ident.name id
+    | Types.Named (_, None, _) -> "_"
+    | Types.Named (_, Some id, _) -> Ident.name id
 
   let alt_pp ppf cxt =
     if cxt = [] then () else
@@ -168,7 +169,7 @@ module Runtime_coercion = struct
             find env (Context.Module id :: ctx) q md.md_type
         | _ -> raise Not_found
         end
-    | Mty_functor(Named (_,mt) as arg,_), InArg :: q ->
+    | Mty_functor(Named (_,_,mt) as arg,_), InArg :: q ->
         find env (Context.Arg arg :: ctx) q mt
     | Mty_functor(arg, mt), InBody :: q ->
         find env (Context.Body arg :: ctx) q mt
@@ -297,6 +298,7 @@ module With_shorthand = struct
 
   type functor_param =
     | Unit
+    | Newtype of Ident.t
     | Named of (Ident.t option * Types.module_type t)
 
   (** Shorthand generation *)
@@ -355,7 +357,8 @@ module With_shorthand = struct
 
   let functor_param (ua : _ named) = match ua.item with
     | Types.Unit -> Unit
-    | Types.Named (from, mty) ->
+    | Types.Newtype id -> Newtype id
+    | Types.Named (_, from, mty) ->
         Named (from, modtype { ua with item = mty })
 
   (** Printing of arguments with shorthands *)
@@ -368,6 +371,7 @@ module With_shorthand = struct
 
   let definition x = match functor_param x with
     | Unit -> Fmt.dprintf "()"
+    | Newtype _ -> Fmt.dprintf "type"
     | Named(_,short_mty) ->
         match short_mty with
         | Original mty -> dmodtype mty
@@ -377,11 +381,13 @@ module With_shorthand = struct
 
   let param x = match functor_param x with
     | Unit -> Fmt.dprintf "()"
+    | Newtype _ -> Fmt.dprintf "type"
     | Named (_, short_mty) ->
         pp dmodtype short_mty
 
   let qualified_param x = match functor_param x with
     | Unit -> Fmt.dprintf "()"
+    | Newtype p -> Fmt.dprintf "(type %s)" (Ident.name p)
     | Named (None, Original (Mty_signature []) ) ->
         Fmt.dprintf "(sig end)"
     | Named (None, short_mty) ->
@@ -401,6 +407,10 @@ module With_shorthand = struct
           "%a@ :@ %t"
           Printtyp.path p
           (pp_orig dmodtype mty)
+    | Newtype (Some p) ->
+        Fmt.dprintf "(type %a)" Printtyp.path p
+    | Newtype None ->
+        Fmt.dprintf "(type ?)"
     | Anonymous ->
         let short_mty = modtype { ua with item = mty } in
         begin match short_mty with
@@ -415,6 +425,10 @@ module With_shorthand = struct
     | Unit -> Fmt.dprintf "()"
     | Empty_struct -> Fmt.dprintf "(struct end)"
     | Named p -> fun ppf -> Printtyp.path ppf p
+    | Newtype (Some p) ->
+        Fmt.dprintf "(type %a)" Printtyp.path p
+    | Newtype None ->
+        Fmt.dprintf "(type ?)"
     | Anonymous ->
         let short_mty = modtype { ua with item=mty } in
         pp dmodtype short_mty
@@ -423,11 +437,12 @@ end
 
 
 module Functor_suberror = struct
-  open Err
 
   let param_id x = match x.With_shorthand.item with
-    | Types.Named (Some _ as x,_) -> x
-    | Types.(Unit | Named(None,_)) -> None
+    | Types.Named (p, (Some _ as x),_) -> (p, x)
+    | Types.Unit -> (Asttypes.Impure, None)
+    | Types.Newtype p -> (Asttypes.Pure, Some p)
+    | Types.Named(p, None,_) -> (p, None)
 
 
 (** Print a list of functor parameters with style while adjusting the printing
@@ -440,7 +455,7 @@ module Functor_suberror = struct
     got: (X: sig module type T end) (Y:X.T) (X:sig module type T end) (Z:X.T)
     expect: (_: sig end) (Y:X.T) (_:sig end) (Z:X.T)
 *)
-  let pretty_params sep proj printer patch =
+  let pretty_params print_arrow sep proj printer patch =
     let pp_param (x,param) =
       let sty = Diffing.(style @@ classify x) in
       Fmt.dprintf "%a%t%a"
@@ -449,9 +464,14 @@ module Functor_suberror = struct
         Fmt.pp_close_stag ()
     in
     let rec pp_params = function
-      | [] -> ignore
-      | [_,param] -> pp_param param
-      | (id,param) :: q ->
+      | [] -> if print_arrow then Fmt.dprintf "@ -> ..." else ignore
+      | [(p, _),param] ->
+        if print_arrow then
+          Fmt.dprintf "%t@ %s ..."
+            (pp_param param)
+            (if p = Asttypes.Pure then "=>" else "->")
+        else pp_param param
+      | ((_, id),param) :: q ->
           Fmt.dprintf "%t%a%t"
             (pp_param param) sep () (hide_id id q)
     and hide_id id q =
@@ -470,7 +490,7 @@ module Functor_suberror = struct
           Some (param_id mty,(x, mty))
       | Delete _ -> None
     in
-    pretty_params space extract With_shorthand.qualified_param d
+    pretty_params true space extract With_shorthand.qualified_param d
 
   let drop_inserted_suffix patch =
     let rec drop = function
@@ -493,7 +513,7 @@ module Functor_suberror = struct
           Some (param_id mty,(x,mty))
       | Insert _ -> None
       in
-      pretty_params space extract With_shorthand.qualified_param d
+      pretty_params true space extract With_shorthand.qualified_param d
 
     let insert mty =
       Fmt.dprintf
@@ -519,13 +539,27 @@ module Functor_suberror = struct
            @[%t@]%t"
           g e (more ())
 
-      let incompatible = function
-        | Types.Unit ->
+      let incompatible given expected =
+        match (given, expected) with
+        | (Types.Named (Impure, _, _), Types.Named (Pure, _, _)) ->
+            Fmt.dprintf
+              "The functor was expected to be pure at this position"
+        | (Types.Unit, Types.Named _) ->
             Fmt.dprintf
               "The functor was expected to be applicative at this position"
-        | Types.Named _ ->
+        | ((Types.Named _ | Types.Newtype _), Types.Unit) ->
             Fmt.dprintf
               "The functor was expected to be generative at this position"
+        | (Types.Newtype _, Types.Named _) ->
+          Fmt.dprintf
+            "The functor expected a module argument at this position"
+        | ((Types.Named _ | Types.Unit), Types.Newtype _) ->
+            Fmt.dprintf
+              "The functor expected a type argument at this position"
+        | (Types.Unit, Types.Unit)
+        | (Types.Newtype _, Types.Newtype _)
+        | (Types.Named _, Types.Named _) ->
+            assert false (* valid subtyping *)
 
       let patch env got expected =
         Includemod.Functor_inclusion_diff.diff env got expected
@@ -544,10 +578,10 @@ module Functor_suberror = struct
         | Delete mty
         | Keep (mty,_,_)
         | Change (mty,_,_) as x ->
-            Some (None,(x,mty))
+            Some ((Asttypes.Impure, None),(x,mty))
         | Insert _ -> None
       in
-      pretty_params space extract With_shorthand.arg d
+      pretty_params false space extract With_shorthand.arg d
 
     let delete mty =
       Fmt.dprintf
@@ -582,7 +616,8 @@ module Functor_suberror = struct
       let _arg, mty = g.With_shorthand.item in
       let e = match e.With_shorthand.item with
         | Types.Unit -> Fmt.dprintf "()"
-        | Types.Named(_, mty) -> dmodtype mty
+        | Types.Newtype _ -> Fmt.dprintf "type"
+        | Types.Named(_, _, mty) -> dmodtype mty
       in
       Fmt.dprintf
         "Modules do not match:@ @[%t@]@;<1 -2>\
@@ -590,14 +625,22 @@ module Functor_suberror = struct
         (dmodtype mty) e (more ())
 
 
-    let incompatible = function
-      | Unit ->
+    let incompatible given expected =
+      match ((given : Err.functor_arg_descr), expected) with
+      | (Unit, Types.Named _) ->
           Fmt.dprintf
             "The functor was expected to be applicative at this position"
-      | Named _ | Anonymous ->
+      | ((Named _ | Anonymous | Newtype _), Types.Unit) ->
           Fmt.dprintf
             "The functor was expected to be generative at this position"
-      | Empty_struct ->
+      | (_, Types.Newtype _) ->
+          Fmt.dprintf
+            "The functor expected a type argument at this position"
+      | (Newtype _, Types.Named _) ->
+          Fmt.dprintf
+            "The functor expected a module argument at this position"
+      | (Empty_struct, _) | (Unit, Types.Unit)
+      | ((Named _ | Anonymous), Types.Named _) ->
           (* an empty structure can be used in both applicative and generative
              context *)
           assert false
@@ -861,8 +904,8 @@ and compare_functor_params ~expansion_token ~env ~before ~ctx {got;expected;_} =
   let main =
     Fmt.dprintf
       "@[<hv 2>Modules do not match:@ \
-       @[%t@ -> ...@]@;<1 -2>is not included in@ \
-       @[%t@ -> ...@]@]"
+       @[%t@]@;<1 -2>is not included in@ \
+       @[%t@]@]"
       actual expected
   in
   let msgs = dwith_context ctx main :: before in
@@ -938,8 +981,8 @@ and functor_arg_diff ~expansion_token env (patch: _ Diffing.change) =
   | Insert mty -> Functor_suberror.Inclusion.insert mty
   | Delete mty -> Functor_suberror.Inclusion.delete mty
   | Keep (x, y, _) ->  Functor_suberror.Inclusion.ok x y
-  | Change (_, _, Err.Incompatible_params (i,_)) ->
-      Functor_suberror.Inclusion.incompatible i
+  | Change (_, _, Err.Incompatible_params (i, i2)) ->
+      Functor_suberror.Inclusion.incompatible i i2
   | Change (g, e,  Err.Mismatch mty_diff) ->
       let more () =
         subcase_list @@
@@ -953,8 +996,8 @@ let functor_app_diff ~expansion_token env  (patch: _ Diffing.change) =
   | Insert mty ->  Functor_suberror.App.insert mty
   | Delete mty ->  Functor_suberror.App.delete mty
   | Keep (x, y, _) ->  Functor_suberror.App.ok x y
-  | Change (_, _, Err.Incompatible_params (i,_)) ->
-      Functor_suberror.App.incompatible i
+  | Change (_, _, Err.Incompatible_params (i, i2)) ->
+      Functor_suberror.App.incompatible i i2
   | Change (g, e,  Err.Mismatch mty_diff) ->
       let more () =
         subcase_list @@
@@ -1011,14 +1054,19 @@ let report_error_doc err =
     ~footnote:Out_type.Ident_conflicts.err_msg
    "%a" err_msgs err
 
+let report_type_expected_error ~loc arity path =
+  Location.errorf ~loc "The type constructor %a expects %d argument(s)"
+      Printtyp.type_path path arity
+
 let report_apply_error_doc ~loc env (app_name, mty_f, args) =
   let footnote = Out_type.Ident_conflicts.err_msg in
   let d = Functor_suberror.App.patch env ~f:mty_f ~args in
   match d with
   (* We specialize the one change and one argument case to remove the
      presentation of the functor arguments *)
-  | [ _,  Change (_, _, Err.Incompatible_params (i,_)) ] ->
-      Location.errorf ~loc ~footnote "%t" (Functor_suberror.App.incompatible i)
+  | [ _,  Change (_, _, Err.Incompatible_params (i,i2)) ] ->
+      Location.errorf ~loc ~footnote "%t"
+        (Functor_suberror.App.incompatible i i2)
   | [ _, Change (g, e,  Err.Mismatch mty_diff) ] ->
       let more () =
         subcase_list @@
@@ -1070,7 +1118,7 @@ let report_apply_error_doc ~loc env (app_name, mty_f, args) =
         Location.errorf ~loc ~sub ~footnote
           "@[<hv>%t@ \
            These arguments:@;<1 2>@[%t@]@ \
-           do not match these parameters:@;<1 2>@[%t@ -> ...@]@]"
+           do not match these parameters:@;<1 2>@[%t@]@]"
           intro
           actual expected
 
@@ -1085,6 +1133,10 @@ let register () =
       | Includemod.Apply_error {loc; env; app_name; mty_f; args} ->
           Some (Printtyp.wrap_printing_env env ~error:true (fun () ->
               report_apply_error_doc ~loc env (app_name, mty_f, args))
+            )
+      | Includemod.Type_expected_param {loc; env; path; arity} ->
+          Some (Printtyp.wrap_printing_env env ~error:true (fun () ->
+              report_type_expected_error ~loc arity path)
             )
       | _ -> None
     )

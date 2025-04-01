@@ -89,6 +89,7 @@ val find_module: Path.t -> t -> module_declaration
 val find_modtype: Path.t -> t -> modtype_declaration
 val find_class: Path.t -> t -> class_declaration
 val find_cltype: Path.t -> t -> class_type_declaration
+val find_structures: signature -> t -> Path.t Misc.Stdlib.String.Map.t
 
 val find_strengthened_module:
   aliasable:bool -> Path.t -> t -> module_type
@@ -322,9 +323,9 @@ val add_extension:
   check:bool -> ?shape:Shape.t -> rebind:bool -> Ident.t ->
   extension_constructor -> t -> t
 val add_module: ?noalias:bool -> ?shape:Shape.t ->
-  Ident.t -> module_presence -> module_type -> t -> t
+  Ident.t -> module_presence -> is_implicit -> module_type -> t -> t
 val add_module_lazy: update_summary:bool ->
-  Ident.t -> module_presence -> Subst.Lazy.modtype -> t -> t
+  Ident.t -> module_presence -> is_implicit -> Subst.Lazy.modtype -> t -> t
 val add_module_declaration: ?noalias:bool -> ?shape:Shape.t -> check:bool ->
   Ident.t -> module_presence -> module_declaration -> t -> t
 val add_module_declaration_lazy: update_summary:bool ->
@@ -384,7 +385,7 @@ val enter_extension:
   extension_constructor -> t -> Ident.t * t
 val enter_module:
   scope:int -> ?noalias:bool -> string -> module_presence ->
-  module_type -> t -> Ident.t * t
+  is_implicit -> module_type -> t -> Ident.t * t
 val enter_module_declaration:
   scope:int -> ?noalias:bool -> ?shape:Shape.t -> string -> module_presence ->
   module_declaration -> t -> Ident.t * t
@@ -493,13 +494,17 @@ val set_value_used_callback:
 val set_type_used_callback:
     type_declaration -> ((unit -> unit) -> unit) -> unit
 
+type mod_arg =
+  | Mod of module_type
+  | Type of type_declaration
+
 (* Forward declaration to break mutual recursion with Includemod. *)
 val check_functor_application:
   (errors:bool -> loc:Location.t ->
    lid_whole_app:Longident.t ->
-   f0_path:Path.t -> args:(Path.t * Types.module_type) list ->
-   arg_path:Path.t -> arg_mty:Types.module_type ->
-   param_mty:Types.module_type ->
+   f0_path:Path.t -> args:(Path.t * mod_arg) list ->
+   arg_path:Path.t -> arg_mty:mod_arg ->
+   param_mty:Types.module_type option ->
    t -> unit) ref
 (* Forward declaration to break mutual recursion with Typemod. *)
 val check_well_formed_module:

@@ -44,18 +44,28 @@ let rec strengthen_lazy ~aliasable env mty p =
   match scrape_lazy env mty with
     MtyL_signature sg ->
       MtyL_signature(strengthen_lazy_sig ~aliasable env sg p)
-  | MtyL_functor(Named (Some param, arg), res)
+  | MtyL_functor(Named (b, Some param, arg), res)
     when !Clflags.applicative_functors ->
       let env =
-        Env.add_module_lazy ~update_summary:false param Mp_present arg env
+        Env.add_module_lazy ~update_summary:false param Mp_present
+                            IILocal arg env
       in
-      MtyL_functor(Named (Some param, arg),
-        strengthen_lazy ~aliasable:false env res (Papply(p, Pident param)))
-  | MtyL_functor(Named (None, arg), res)
+      let path = Papply(Longident.Kmod, p, Pident param) in
+      MtyL_functor(Named (b, Some param, arg),
+        strengthen_lazy ~aliasable:false env res path)
+  | MtyL_functor(Named (b, None, arg), res)
     when !Clflags.applicative_functors ->
       let param = Ident.create_scoped ~scope:(Path.scope p) "Arg" in
-      MtyL_functor(Named (Some param, arg),
-        strengthen_lazy ~aliasable:false env res (Papply(p, Pident param)))
+      let path = Papply(Longident.Kmod, p, Pident param) in
+      MtyL_functor(Named (b, Some param, arg),
+        strengthen_lazy ~aliasable:false env res path)
+  | MtyL_functor(Newtype param, res)
+    when !Clflags.applicative_functors ->
+      let decl = Ctype.new_local_type ~loc:Location.none Definition in
+      let env = Env.add_type ~check:true param decl env in
+      let path = Papply(Longident.Ktype, p, Pident param) in
+      MtyL_functor(Newtype param,
+        strengthen_lazy ~aliasable:false env res path)
   | mty ->
       mty
 
@@ -208,16 +218,22 @@ let rec nondep_mty_with_presence env va ids pres mty =
       pres, mty
   | Mty_functor(Unit, res) ->
       pres, Mty_functor(Unit, nondep_mty env va ids res)
-  | Mty_functor(Named (param, arg), res) ->
+  | Mty_functor (Newtype id, res) ->
+      let decl = Ctype.new_local_type ~loc:Location.none Definition in
+      let res_env = Env.add_type ~check:true id decl env in
+      let mty = Mty_functor (Newtype id, nondep_mty res_env va ids res) in
+      pres, mty
+  | Mty_functor(Named (b, param, arg), res) ->
       let var_inv =
         match va with Co -> Contra | Contra -> Co | Strict -> Strict in
       let res_env =
         match param with
         | None -> env
-        | Some param -> Env.add_module ~noalias:true param Mp_present arg env
+        | Some param -> Env.add_module ~noalias:true param Mp_present
+                                        IILocal arg env
       in
       let mty =
-        Mty_functor(Named (param, nondep_mty env var_inv ids arg),
+        Mty_functor(Named (b, param, nondep_mty env var_inv ids arg),
                     nondep_mty res_env va ids res)
       in
       pres, mty
@@ -407,13 +423,13 @@ let contains_type env mty =
 
 let rec get_prefixes = function
   | Pident _ -> Path.Set.empty
-  | Pdot (p, _) | Papply (p, _) | Pextra_ty (p, _)
+  | Pdot (p, _) | Papply (_, p, _) | Pextra_ty (p, _)
     -> Path.Set.add p (get_prefixes p)
 
 let rec get_arg_paths = function
   | Pident _ -> Path.Set.empty
   | Pdot (p, _) | Pextra_ty (p, _) -> get_arg_paths p
-  | Papply (p1, p2) ->
+  | Papply (_, p1, p2) ->
       Path.Set.add p2
         (Path.Set.union (get_prefixes p2)
            (Path.Set.union (get_arg_paths p1) (get_arg_paths p2)))
@@ -513,7 +529,7 @@ and remove_aliases_sig env args sg =
             remove_aliases_mty env args pres mty
       in
       Sig_module(id, pres, {md with md_type = mty} , rs, priv) ::
-      remove_aliases_sig (Env.add_module id pres mty env) args rem
+      remove_aliases_sig (Env.add_module id pres IILocal mty env) args rem
   | Sig_modtype(id, mtd, priv) :: rem ->
       Sig_modtype(id, mtd, priv) ::
       remove_aliases_sig (Env.add_modtype id mtd env) args rem

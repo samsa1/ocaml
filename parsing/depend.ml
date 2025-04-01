@@ -66,7 +66,7 @@ let rec add_path bv ?(p=[]) = function
         prerr_endline "";*)
       add_names free
   | Ldot(l, s) -> add_path bv ~p:(s.txt::p) l.txt
-  | Lapply(l1, l2) -> add_path bv l1.txt; add_path bv l2.txt
+  | Lapply(_, l1, l2) -> add_path bv l1.txt; add_path bv l2.txt
 
 let open_module bv lid =
   match lookup_map lid bv with
@@ -330,8 +330,8 @@ and add_modtype bv mty =
   | Pmty_functor(param, mty2) ->
       let bv =
         match param with
-        | Unit -> bv
-        | Named (id, mty1) ->
+        | Unit | Newtype _ -> bv
+        | Named (_, id, _, mty1) ->
           add_modtype bv mty1;
           match id.txt with
           | None -> bv
@@ -461,8 +461,8 @@ and add_module_expr bv modl =
   | Pmod_functor(param, modl) ->
       let bv =
         match param with
-        | Unit -> bv
-        | Named (id, mty) ->
+        | Unit | Newtype _ -> bv
+        | Named (_, id, _, mty) ->
           add_modtype bv mty;
           match id.txt with
           | None -> bv
@@ -472,10 +472,13 @@ and add_module_expr bv modl =
   | Pmod_apply (mod1, mod2) ->
       add_module_expr bv mod1;
       add_module_expr bv mod2
+  | Pmod_apply_type (mod1, ty2) ->
+      add_module_expr bv mod1;
+      add_type bv ty2
   | Pmod_apply_unit mod1 ->
       add_module_expr bv mod1
   | Pmod_constraint(modl, mty) ->
-      add_module_expr bv modl; add_modtype bv mty
+      add_opt add_module_expr bv modl; add_modtype bv mty
   | Pmod_unpack(e) ->
       add_expr bv e
   | Pmod_extension e ->

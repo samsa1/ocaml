@@ -16,7 +16,7 @@
 type t =
     Pident of Ident.t
   | Pdot of t * string
-  | Papply of t * t
+  | Papply of Longident.arg_kind * t * t
   | Pextra_ty of t * extra_ty
 and extra_ty =
   | Pcstr_ty of string
@@ -29,7 +29,7 @@ let rec same_aux ident_cmp p1 p2 =
     (Pident id1, Pident id2) -> ident_cmp id1 id2
   | (Pdot(p1, s1), Pdot(p2, s2)) ->
       s1 = s2 && same_aux p1 p2
-  | (Papply(fun1, arg1), Papply(fun2, arg2)) ->
+  | (Papply(_, fun1, arg1), Papply(_, fun2, arg2)) ->
       same_aux fun1 fun2 && same_aux arg1 arg2
   | (Pextra_ty (p1, t1), Pextra_ty (p2, t2)) ->
       let same_extra = match t1, t2 with
@@ -50,7 +50,7 @@ let rec compare p1 p2 =
   | (Pdot(p1, s1), Pdot(p2, s2)) ->
       let h = compare p1 p2 in
       if h <> 0 then h else String.compare s1 s2
-  | (Papply(fun1, arg1), Papply(fun2, arg2)) ->
+  | (Papply(_, fun1, arg1), Papply(_, fun2, arg2)) ->
       let h = compare fun1 fun2 in
       if h <> 0 then h else compare arg1 arg2
   | (Pextra_ty (p1, t1), Pextra_ty (p2, t2)) ->
@@ -77,7 +77,7 @@ and compare_extra t1 t2 =
 let rec find_free_opt ids = function
     Pident id -> List.find_opt (Ident.same id) ids
   | Pdot(p, _) | Pextra_ty (p, _) -> find_free_opt ids p
-  | Papply(p1, p2) -> begin
+  | Papply(_, p1, p2) -> begin
       match find_free_opt ids p1 with
       | None -> find_free_opt ids p2
       | Some _ as res -> res
@@ -91,7 +91,7 @@ let exists_free ids p =
 let rec scope = function
     Pident id -> Ident.scope id
   | Pdot(p, _) | Pextra_ty (p, _) -> scope p
-  | Papply(p1, p2) -> Int.max (scope p1) (scope p2)
+  | Papply(_, p1, p2) -> Int.max (scope p1) (scope p2)
 
 let subst id_map p =
   let changed = ref false in
@@ -103,7 +103,7 @@ let subst id_map p =
     end
   | Pdot(p, s) -> Pdot(aux p, s)
   | Pextra_ty(p, e) -> Pextra_ty(aux p, e)
-  | Papply(p1, p2) -> Papply(aux p1, aux p2)
+  | Papply(k, p1, p2) -> Papply(k, aux p1, aux p2)
   in
   let p' = aux p in
   if !changed then p' else p
@@ -120,7 +120,7 @@ let check_for_unbound_unscoped_idents idl p =
             else raise (Escape us)
         end
     | Pdot (p, _) | Pextra_ty (p, _) -> aux p
-    | Papply (p1, p2) -> aux p1; aux p2
+    | Papply (_, p1, p2) -> aux p1; aux p2
   in match aux p with
     | () -> None
     | exception Escape id -> Some id
@@ -135,14 +135,17 @@ let rec name ?(paren=kfalse) = function
   | Pdot(p, s) | Pextra_ty (p, Pcstr_ty s) ->
       let s = maybe_escape s in
       name ~paren p ^ if paren s then ".( " ^ s ^ " )" else "." ^ s
-  | Papply(p1, p2) -> name ~paren p1 ^ "(" ^ name ~paren p2 ^ ")"
+  | Papply(k, p1, p2) ->
+      name ~paren p1 ^ "(" ^ Longident.string_of_kind k ^ name ~paren p2 ^ ")"
   | Pextra_ty (p, Pext_ty) -> name ~paren p
 
 let rec print ppf = function
   | Pident id -> Ident.print_with_scope ppf id
   | Pdot(p, s) | Pextra_ty (p, Pcstr_ty s) ->
       Format_doc.fprintf ppf "%a.%s" print p s
-  | Papply(p1, p2) -> Format_doc.fprintf ppf "%a(%a)" print p1 print p2
+  | Papply(k, p1, p2) ->
+      Format_doc.fprintf ppf "%a(%s%a)" print p1
+          (Longident.string_of_kind k) print p2
   | Pextra_ty (p, Pext_ty) -> print ppf p
 
 let rec head = function
@@ -167,14 +170,14 @@ let heads p =
   let rec heads p acc = match p with
     | Pident id -> id :: acc
     | Pdot (p, _) | Pextra_ty (p, _) -> heads p acc
-    | Papply(p1, p2) ->
+    | Papply(_, p1, p2) ->
         heads p1 (heads p2 acc)
   in heads p []
 
 let rec last = function
   | Pident id -> Ident.name id
   | Pdot(_, s) | Pextra_ty (_, Pcstr_ty s) -> s
-  | Papply(_, p) | Pextra_ty (p, Pext_ty) -> last p
+  | Papply(_, _, p) | Pextra_ty (p, Pext_ty) -> last p
 
 let is_constructor_typath p =
   match p with

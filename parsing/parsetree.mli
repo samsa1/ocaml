@@ -899,8 +899,9 @@ and module_type_desc =
 
 and functor_parameter =
   | Unit  (** [()] *)
-  | Named of string option loc * module_type
-      (** [Named(name, MT)] represents:
+  | Newtype of string loc
+  | Named of pure_flag * string option loc * bool * module_type
+      (** [Named(is_pure, name, MT)] represents:
             - [(X : MT)] when [name] is [Some X],
             - [(_ : MT)] when [name] is [None] *)
 
@@ -943,6 +944,7 @@ and signature_item_desc =
 and module_declaration =
     {
      pmd_name: string option loc;
+     pmd_impl: bool;
      pmd_type: module_type;
      pmd_attributes: attributes;  (** [... [\@\@id1] [\@\@id2]] *)
      pmd_loc: Location.t;
@@ -1042,8 +1044,10 @@ and module_expr_desc =
   | Pmod_functor of functor_parameter * module_expr
       (** [functor(X : MT1) -> ME] *)
   | Pmod_apply of module_expr * module_expr (** [ME1(ME2)] *)
+  | Pmod_apply_type of module_expr * core_type (** [ME1(type t)] *)
   | Pmod_apply_unit of module_expr (** [ME1()] *)
-  | Pmod_constraint of module_expr * module_type  (** [(ME : MT)] *)
+  | Pmod_constraint of module_expr option * module_type
+      (** [(ME : MT)] or [(_ : MT)] *)
   | Pmod_unpack of expression  (** [(val E)] *)
   | Pmod_extension of extension  (** [[%id]] *)
 
@@ -1114,6 +1118,7 @@ and value_binding =
 and module_binding =
     {
      pmb_name: string option loc;
+     pmb_impl: bool;
      pmb_expr: module_expr;
      pmb_attributes: attributes;
      pmb_loc: Location.t;

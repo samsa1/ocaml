@@ -42,7 +42,7 @@ and included_module = {
 and module_alias = { ma_name : Name.t; mutable ma_module : mmt option; }
 and module_parameter = {
   mp_name : string;
-  mp_type : Types.module_type option;
+  mp_type : (Asttypes.pure_flag * Types.module_type) option;
   mp_type_code : string;
   mp_kind : module_type_kind;
 }
@@ -52,6 +52,7 @@ and module_kind =
   | Module_functor of module_parameter * module_kind
   | Module_apply of module_kind * module_kind
   | Module_apply_unit of module_kind
+  | Module_apply_type of module_kind * Types.type_expr
   | Module_with of module_type_kind * string
   | Module_constraint of module_kind * module_type_kind
   | Module_typeof of string

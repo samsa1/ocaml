@@ -131,6 +131,7 @@ module Lazy : sig
   type module_decl =
     {
       mdl_type: modtype;
+      mdl_impl: is_implicit;
       mdl_attributes: Parsetree.attributes;
       mdl_loc: Location.t;
       mdl_uid: Uid.t;
@@ -165,7 +166,8 @@ module Lazy : sig
 
   and functor_parameter =
     | Unit
-    | Named of Ident.t option * modtype
+    | Newtype of Ident.t
+    | Named of Asttypes.pure_flag * Ident.t option * modtype
 
 
   val of_module_decl : Types.module_declaration -> module_decl

@@ -84,10 +84,10 @@ let rec map_loc_lid sub lid =
   | Ldot (lid, id) ->
       let lid = { lid with txt = map_loc_lid sub lid.txt } in
       Ldot (map_loc sub lid, map_loc sub id)
-  | Lapply (lid, lid') ->
+  | Lapply (k, lid, lid') ->
     let lid = { lid with txt = map_loc_lid sub lid.txt } in
     let lid' = { lid' with txt = map_loc_lid sub lid'.txt } in
-     Lapply(map_loc sub lid, map_loc sub lid')
+     Lapply(k, map_loc sub lid, map_loc sub lid')
 
 let map_loc_lid sub {loc; txt} =
   let txt = map_loc_lid sub txt in
@@ -566,7 +566,9 @@ let class_description sub x =
 
 let functor_parameter sub = function
   | Unit -> Unit
-  | Named (id, s, mtype) -> Named (id, map_loc sub s, sub.module_type sub mtype)
+  | Newtype (id, s) -> Newtype (id, map_loc sub s)
+  | Named (b, id, s, i, mtype) ->
+    Named (b, id, map_loc sub s, i, sub.module_type sub mtype)
 
 let module_type sub x =
   let mty_loc = sub.location sub x.mty_loc in
@@ -642,6 +644,11 @@ let module_expr sub x =
         )
     | Tmod_apply_unit mexp1 ->
         Tmod_apply_unit (sub.module_expr sub mexp1)
+    | Tmod_apply_type (mexp1, ty2) ->
+        Tmod_apply_type (
+          sub.module_expr sub mexp1,
+          sub.typ sub ty2
+        )
     | Tmod_constraint (mexpr, mt, Tmodtype_implicit, c) ->
         Tmod_constraint (sub.module_expr sub mexpr, mt, Tmodtype_implicit,
                          sub.module_coercion sub c)
@@ -658,6 +665,11 @@ let module_expr sub x =
             sub.expr sub exp,
             mty
           )
+    | Tmod_implicit ({ desc = Timod_found me } as imod) ->
+        imod.desc <- Timod_found (sub.module_expr sub me);
+        Tmod_implicit imod
+    | Tmod_implicit ({ desc = Timod_unknown _}) ->
+        assert false
   in
   let mod_attributes = sub.attributes sub x.mod_attributes in
   {x with mod_loc; mod_desc; mod_env; mod_attributes}

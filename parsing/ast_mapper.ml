@@ -110,10 +110,10 @@ let rec map_lid sub lid =
       let lid = map_loc_lid sub lid in
       let id = map_loc map_string sub id in
       Ldot (lid, id)
-  | Lapply (lid, lid') ->
+  | Lapply (k, lid, lid') ->
     let lid = map_loc_lid sub lid in
     let lid' = map_loc_lid sub lid' in
-    Lapply(lid, lid')
+    Lapply(k, lid, lid')
 
 and map_loc_lid sub loc_lid =
   map_loc map_lid sub loc_lid
@@ -322,8 +322,9 @@ end
 
 let map_functor_param sub = function
   | Unit -> Unit
-  | Named (s, mt) ->
-      Named (map_loc map_string_opt sub s, sub.module_type sub mt)
+  | Newtype ty -> Newtype (map_loc map_string sub ty)
+  | Named (k, s, i, mt) ->
+      Named (k, map_loc map_string_opt sub s, i, sub.module_type sub mt)
 
 module MT = struct
   (* Type expressions for the module language *)
@@ -406,10 +407,12 @@ module M = struct
           (sub.module_expr sub body)
     | Pmod_apply (m1, m2) ->
         apply ~loc ~attrs (sub.module_expr sub m1) (sub.module_expr sub m2)
+    | Pmod_apply_type (m1, t2) ->
+        apply_type ~loc ~attrs (sub.module_expr sub m1) (sub.typ sub t2)
     | Pmod_apply_unit m1 ->
         apply_unit ~loc ~attrs (sub.module_expr sub m1)
     | Pmod_constraint (m, mty) ->
-        constraint_ ~loc ~attrs (sub.module_expr sub m)
+        constraint_ ~loc ~attrs (Option.map (sub.module_expr sub) m)
                     (sub.module_type sub mty)
     | Pmod_unpack e -> unpack ~loc ~attrs (sub.expr sub e)
     | Pmod_extension x -> extension ~loc ~attrs (sub.extension sub x)
@@ -721,8 +724,9 @@ let default_mapper =
     binding_op = E.map_binding_op;
 
     module_declaration =
-      (fun this {pmd_name; pmd_type; pmd_attributes; pmd_loc} ->
+      (fun this {pmd_name; pmd_impl; pmd_type; pmd_attributes; pmd_loc} ->
          Md.mk
+            pmd_impl
            (map_loc map_string_opt this pmd_name)
            (this.module_type this pmd_type)
            ~attrs:(this.attributes this pmd_attributes)
@@ -748,8 +752,8 @@ let default_mapper =
       );
 
     module_binding =
-      (fun this {pmb_name; pmb_expr; pmb_attributes; pmb_loc} ->
-         Mb.mk (map_loc map_string_opt this pmb_name)
+      (fun this {pmb_name; pmb_impl; pmb_expr; pmb_attributes; pmb_loc} ->
+         Mb.mk pmb_impl (map_loc map_string_opt this pmb_name)
            (this.module_expr this pmb_expr)
            ~attrs:(this.attributes this pmb_attributes)
            ~loc:(this.location this pmb_loc)

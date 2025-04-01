@@ -44,6 +44,7 @@ let parse_mod_use_file name lb =
   [ Ptop_def
       [ Str.module_
           (Mb.mk
+             false
              (Location.mknoloc (Some modname))
              (Mod.structure items)
           )
@@ -209,7 +210,6 @@ let typecheck_phrase ppf oldenv sstr =
   let (str, sg, sn, shape, newenv) =
     Typemod.type_toplevel_phrase oldenv sstr
   in
-  if !Clflags.dump_typedtree then Printtyped.implementation ppf str;
   let sg' = Typemod.Signature_names.simplify newenv sn sg in
   Includemod.check_implementation oldenv sg sg';
   Typecore.force_delayed_checks ();
