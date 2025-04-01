@@ -183,6 +183,10 @@ OCaml 5.5.0
 
 ### Code generation and optimizations:
 
+- #13919: optimize `lazy v` when `v` is a structured constant, so that
+  `Lazy.from_val v` should not be necessary anymore in most cases.
+  (Gabriel Scherer, review by ???)
+
 ### Standard library:
 
 - #14437: Add String.split_{first,last,all} and String.rsplit_all
