@@ -74,7 +74,7 @@ let rec iter_loc_lid sub lid =
   | Lident _ -> ()
   | Ldot (lid, id) ->
       iter_loc sub lid; iter_loc_lid sub lid.txt; iter_loc sub id
-  | Lapply (lid, lid') ->
+  | Lapply (_, lid, lid') ->
       iter_loc sub lid; iter_loc_lid sub lid.txt;
       iter_loc sub lid'; iter_loc_lid sub lid'.txt
 
@@ -434,7 +434,8 @@ let class_description sub x =
 
 let functor_parameter sub = function
   | Unit -> ()
-  | Named (_, s, mtype) -> iter_loc sub s; sub.module_type sub mtype
+  | Newtype (_, s) -> iter_loc sub s
+  | Named (_, _, s, mtype) -> iter_loc sub s; sub.module_type sub mtype
 
 let module_type sub {mty_loc; mty_desc; mty_env; mty_attributes; _} =
   sub.location sub mty_loc;
@@ -505,6 +506,9 @@ let module_expr sub {mod_loc; mod_desc; mod_env; mod_attributes; _} =
       sub.module_coercion sub c
   | Tmod_apply_unit mexp1 ->
       sub.module_expr sub mexp1;
+  | Tmod_apply_type (mexp1, ty2) ->
+      sub.module_expr sub mexp1;
+      sub.typ sub ty2
   | Tmod_constraint (mexpr, _, Tmodtype_implicit, c) ->
       sub.module_expr sub mexpr;
       sub.module_coercion sub c
@@ -513,6 +517,8 @@ let module_expr sub {mod_loc; mod_desc; mod_env; mod_attributes; _} =
       sub.module_type sub mtype;
       sub.module_coercion sub c
   | Tmod_unpack (exp, _) -> sub.expr sub exp
+  | Tmod_implicit { desc = Timod_found mexpr} -> sub.module_expr sub mexpr
+  | Tmod_implicit { desc = Timod_unknown _ } -> assert false
 
 let module_binding sub ({mb_loc; mb_name; mb_expr; mb_attributes; _} as mb) =
   sub.item_declaration sub (Module_binding mb);

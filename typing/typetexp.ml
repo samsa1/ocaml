@@ -742,7 +742,7 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
         let scoped_ident =
           Ident.create_scoped ~scope:(Ctype.get_current_level()) name.txt
         in
-        let env = Env.add_module scoped_ident Mp_present mty env in
+        let env = Env.add_module scoped_ident Mp_present IILocal mty env in
         let cty = transl_type env ~policy ~row_context st in
         let ctyp_type =
           instance_funct ~p_out:(Pident (Ident.of_unscoped ident))

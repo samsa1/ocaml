@@ -107,7 +107,7 @@ let rec iter_lid sub lid =
   | Ldot (lid, id) ->
     iter_loc_lid sub lid;
     iter_loc iter_string sub id
-  | Lapply (lid, lid') ->
+  | Lapply (_, lid, lid') ->
     iter_loc_lid sub lid;
     iter_loc_lid sub lid'
 
@@ -279,7 +279,9 @@ end
 
 let iter_functor_param sub = function
   | Unit -> ()
-  | Named (name, mty) ->
+  | Newtype ty ->
+    iter_loc iter_string sub ty
+  | Named (_, name, mty) ->
     iter_loc iter_string_opt sub name;
     sub.module_type sub mty
 
@@ -357,10 +359,13 @@ module M = struct
     | Pmod_apply (m1, m2) ->
         sub.module_expr sub m1;
         sub.module_expr sub m2
+    | Pmod_apply_type (m1, t2) ->
+        sub.module_expr sub m1;
+        sub.typ sub t2
     | Pmod_apply_unit m1 ->
         sub.module_expr sub m1
     | Pmod_constraint (m, mty) ->
-        sub.module_expr sub m; sub.module_type sub mty
+        Option.iter (sub.module_expr sub) m; sub.module_type sub mty
     | Pmod_unpack e -> sub.expr sub e
     | Pmod_extension x -> sub.extension sub x
 

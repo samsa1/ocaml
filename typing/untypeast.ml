@@ -92,8 +92,8 @@ let rec lident_of_path =
   let noloc_lident_of_path p = mknoloc (lident_of_path p) in
   function
   | Path.Pident id -> Longident.Lident (Ident.name id)
-  | Path.Papply (p1, p2) ->
-      Longident.Lapply (noloc_lident_of_path p1, noloc_lident_of_path p2)
+  | Path.Papply (k, p1, p2) ->
+      Longident.Lapply (k, noloc_lident_of_path p1, noloc_lident_of_path p2)
   | Path.Pdot (p, s) | Path.Pextra_ty (p, Pcstr_ty s) ->
       Longident.Ldot (noloc_lident_of_path p, mknoloc s)
   | Path.Pextra_ty (p, _) -> lident_of_path p
@@ -206,6 +206,7 @@ let module_binding sub mb =
   let loc = sub.location sub mb.mb_loc in
   let attrs = sub.attributes sub mb.mb_attributes in
   Mb.mk ~loc ~attrs
+    (mb.mb_impl)
     (map_loc sub mb.mb_name)
     (sub.module_expr sub mb.mb_expr)
 
@@ -634,6 +635,7 @@ let module_declaration sub md =
   let loc = sub.location sub md.md_loc in
   let attrs = sub.attributes sub md.md_attributes in
   Md.mk ~loc ~attrs
+    md.md_impl
     (map_loc sub md.md_name)
     (sub.module_type sub md.md_type)
 
@@ -669,7 +671,8 @@ let class_type_declaration sub = class_infos sub.class_type sub
 let functor_parameter sub : functor_parameter -> Parsetree.functor_parameter =
   function
   | Unit -> Unit
-  | Named (_, name, mtype) -> Named (name, sub.module_type sub mtype)
+  | Newtype (_, name) -> Newtype name
+  | Named (b, _, name, mtype) -> Named (b, name, sub.module_type sub mtype)
 
 let module_type (sub : mapper) mty =
   let loc = sub.location sub mty.mty_loc in
@@ -723,14 +726,21 @@ let module_expr (sub : mapper) mexpr =
                           sub.module_expr sub mexp2)
           | Tmod_apply_unit mexp1 ->
               Pmod_apply_unit (sub.module_expr sub mexp1)
+          | Tmod_apply_type (mexp1, ty) ->
+              Pmod_apply_type (sub.module_expr sub mexp1,
+                               sub.typ sub ty)
           | Tmod_constraint (mexpr, _, Tmodtype_explicit mtype, _) ->
-              Pmod_constraint (sub.module_expr sub mexpr,
+              Pmod_constraint (Some (sub.module_expr sub mexpr),
                 sub.module_type sub mtype)
           | Tmod_constraint (_mexpr, _, Tmodtype_implicit, _) ->
               assert false
           | Tmod_unpack (exp, _pack) ->
               Pmod_unpack (sub.expr sub exp)
               (* TODO , sub.package_type sub pack) *)
+          | Tmod_implicit { desc = Timod_found me } ->
+              (sub.module_expr sub me).pmod_desc
+          | Tmod_implicit { desc = Timod_unknown _ } ->
+              assert false
         in
         Mod.mk ~loc ~attrs desc
 

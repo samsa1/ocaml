@@ -64,7 +64,7 @@ module Make :
              type t
              val uniq : ('a, [ `Rec of 'a ] X.t) eq -> ('a, t) eq
            end)
-    ->
+  ->
     sig
       module Id : sig type 'a t = 'b constraint 'a = [ `Rec of 'b ] end
       module Bad :

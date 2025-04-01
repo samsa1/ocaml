@@ -127,8 +127,11 @@ let execute_phrase print_outcome ppf phr =
       let lam = Translmod.transl_toplevel_definition str in
       Warnings.check_fatal ();
       begin try
+        let dump_typedtree_before = !Clflags.dump_typedtree in
         toplevel_env := newenv;
         let res = load_lambda ppf lam in
+        if dump_typedtree_before && !Clflags.dump_typedtree then
+          Printtyped.implementation ppf str;
         let out_phr =
           match res with
           | Result v ->

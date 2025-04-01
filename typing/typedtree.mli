@@ -457,7 +457,8 @@ and module_type_constraint =
 
 and functor_parameter =
   | Unit
-  | Named of Ident.t option * string option loc * module_type
+  | Newtype of Ident.t * string loc
+  | Named of pure_flag * Ident.t option * string option loc * module_type
 
 and module_expr_desc =
     Tmod_ident of Path.t * Longident.t loc
@@ -465,12 +466,22 @@ and module_expr_desc =
   | Tmod_functor of functor_parameter * module_expr
   | Tmod_apply of module_expr * module_expr * module_coercion
   | Tmod_apply_unit of module_expr
+  | Tmod_apply_type of module_expr * core_type
   | Tmod_constraint of
       module_expr * Types.module_type * module_type_constraint * module_coercion
     (** ME          (constraint = Tmodtype_implicit)
         (ME : MT)   (constraint = Tmodtype_explicit MT)
      *)
   | Tmod_unpack of expression * Types.module_type
+  | Tmod_implicit of implicit_module
+
+and implicit_module =
+  { mutable desc : implicit_module_desc;
+  }
+
+and implicit_module_desc =
+  | Timod_unknown of (unit -> module_expr)
+  | Timod_found of module_expr
 
 and structure = {
   str_items : structure_item list;
@@ -503,6 +514,7 @@ and structure_item_desc =
 and module_binding =
     {
      mb_id: Ident.t option; (** [None] for [module _ = struct ... end] *)
+     mb_impl: bool;
      mb_name: string option loc;
      mb_uid: Uid.t;
      mb_presence: Types.module_presence;
@@ -595,6 +607,7 @@ and signature_item_desc =
 and module_declaration =
     {
      md_id: Ident.t option;
+     md_impl: bool;
      md_name: string option loc;
      md_uid: Uid.t;
      md_presence: Types.module_presence;
@@ -944,6 +957,11 @@ val split_pattern:
 val map_apply_arg:
   ('a -> ' b) -> ('a, 'omitted) arg_or_omitted ->  ('b, 'omitted) arg_or_omitted
 
+val path_of_type : core_type -> Path.t option
 val path_of_module : module_expr -> Path.t option
 
 val remove_module_constraint : module_expr -> module_expr
+
+type implicit_module_solver = implicit_module
+val solve_implicit : implicit_module_solver -> unit
+val mod_desc : module_expr -> module_expr_desc

@@ -279,9 +279,11 @@ module Mod:
       functor_parameter -> module_expr -> module_expr
     val apply: ?loc:loc -> ?attrs:attrs -> module_expr -> module_expr ->
       module_expr
-    val apply_unit: ?loc:loc -> ?attrs:attrs -> module_expr -> module_expr
-    val constraint_: ?loc:loc -> ?attrs:attrs -> module_expr -> module_type ->
+    val apply_type: ?loc:loc -> ?attrs:attrs -> module_expr -> core_type ->
       module_expr
+    val apply_unit: ?loc:loc -> ?attrs:attrs -> module_expr -> module_expr
+    val constraint_: ?loc:loc -> ?attrs:attrs -> module_expr option ->
+      module_type -> module_expr
     val unpack: ?loc:loc -> ?attrs:attrs -> expression -> module_expr
     val extension: ?loc:loc -> ?attrs:attrs -> extension -> module_expr
   end
@@ -337,7 +339,7 @@ module Str:
 module Md:
   sig
     val mk: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?text:text ->
-      str_opt -> module_type -> module_declaration
+      bool -> str_opt -> module_type -> module_declaration
   end
 
 (** Module substitutions *)
@@ -358,7 +360,7 @@ module Mtd:
 module Mb:
   sig
     val mk: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?text:text ->
-      str_opt -> module_expr -> module_binding
+      bool -> str_opt -> module_expr -> module_binding
   end
 
 (** Opens *)

@@ -809,13 +809,15 @@ module Analyser =
     (** Get a name from a module expression, or "struct ... end" if the module expression
        is not an ident of a constraint on an ident. *)
     let rec tt_name_from_module_expr mod_expr =
-      match mod_expr.Typedtree.mod_desc with
+      match Typedtree.mod_desc mod_expr with
         Typedtree.Tmod_ident (p,_) -> Name.from_path p
       | Typedtree.Tmod_constraint (m_exp, _, _, _) -> tt_name_from_module_expr m_exp
+      | Typedtree.Tmod_implicit _ -> assert false
       | Typedtree.Tmod_structure _
       | Typedtree.Tmod_functor _
       | Typedtree.Tmod_apply _
       | Typedtree.Tmod_apply_unit _
+      | Typedtree.Tmod_apply_type _
       | Typedtree.Tmod_unpack _ ->
           Odoc_messages.struct_end
 
@@ -1696,7 +1698,7 @@ module Analyser =
              match param2, param with
              | Parsetree.Unit, Typedtree.Unit ->
                Location.none, "*", Module_type_struct [], None
-             | Parsetree.Named (_, pmty), Typedtree.Named (ident, _, mty) ->
+             | Parsetree.Named (_, _, pmty), Typedtree.Named (p, ident, _, mty) ->
                let loc =  pmty.Parsetree.pmty_loc in
                let mp_name = Option.fold ~none:"*" ~some:Name.from_ident ident in
                let mp_kind =
@@ -1704,7 +1706,7 @@ module Analyser =
                    mty.mty_type
                in
                let mp_type = Odoc_env.subst_module_type env mty.mty_type in
-               loc, mp_name, mp_kind, Some mp_type
+               loc, mp_name, mp_kind, Some (p, mp_type)
              | _, _ -> assert false
            in
            let loc_start = loc.Location.loc_start.Lexing.pos_cnum in
@@ -1774,7 +1776,24 @@ module Analyser =
           in
           { m_base with m_kind = Module_apply_unit m1.m_kind }
 
-      | (Parsetree.Pmod_constraint (p_module_expr2, p_modtype),
+      | (Parsetree.Pmod_apply_type (p_module_expr1, _p_type2),
+         Typedtree.Tmod_apply_type (tt_module_expr1, tt_type2))
+      | (Parsetree.Pmod_apply_type (p_module_expr1, _p_type2),
+         Typedtree.Tmod_constraint
+           ({ Typedtree.mod_desc = Typedtree.Tmod_apply_type (tt_module_expr1, tt_type2)}, _,
+            _, _)
+        ) ->
+          let m1 = analyse_module
+              env
+              current_module_name
+              module_name
+              None
+              p_module_expr1
+              tt_module_expr1
+          in
+          { m_base with m_kind = Module_apply_type (m1.m_kind, tt_type2.ctyp_type) }
+
+      | (Parsetree.Pmod_constraint (Some p_module_expr2, p_modtype),
          Typedtree.Tmod_constraint (tt_module_expr2, tt_modtype, _, _)) ->
           let m_base2 = analyse_module
               env
@@ -1834,6 +1853,9 @@ module Analyser =
             m_type = Odoc_env.subst_module_type env tt_modtype ;
             m_kind = Module_unpack (code, alias) ;
           }
+
+      | (Parsetree.Pmod_constraint (None, _), _) ->
+          raise (Failure "analyse_module: infered implicit.")
 
       | (_parsetree, _typedtree) ->
           raise (Failure "analyse_module: parsetree and typedtree don't match.")

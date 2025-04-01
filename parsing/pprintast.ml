@@ -175,9 +175,10 @@ module Doc = struct
     | Lident s -> ident_of_name ~kind f s
     | Ldot(y,s) ->
         protect_longident ~kind f (any_longident ~kind:Other) y.txt s.txt
-    | Lapply (y,s) ->
-        Format_doc.fprintf f "%a(%a)"
+    | Lapply (k, y,s) ->
+        Format_doc.fprintf f "%a(%s%a)"
           (any_longident ~kind:Other) y.txt
+          (Longident.string_of_kind k)
           (any_longident ~kind:Other) s.txt
 
   let value_longident ppf l = any_longident ~kind:Value ppf l
@@ -231,6 +232,22 @@ module Doc = struct
       | _ -> None
     in
     nominal_exp empty t
+
+  let rec module_expr ppf x =
+    match x.pmod_desc with
+    | Pmod_structure _ -> Format_doc.fprintf ppf "<struct>"
+    | Pmod_constraint _ -> Format_doc.fprintf ppf "<constraint>"
+    | Pmod_ident li -> Format_doc.fprintf ppf "%a" longident li.txt
+    | Pmod_functor _ -> Format_doc.fprintf ppf "<functor>"
+    | Pmod_apply (me1, me2) ->
+        Format_doc.fprintf ppf "%a(%a)" module_expr me1 module_expr me2
+    | Pmod_apply_type (me1, _t2) ->
+        Format_doc.fprintf ppf "%a(type _)" module_expr me1
+    | Pmod_apply_unit me1 ->
+        Format_doc.fprintf ppf "%a()" module_expr me1
+    | Pmod_unpack _ -> Format_doc.fprintf ppf "<val>"
+    | Pmod_extension _ -> Format_doc.fprintf ppf "<ext>"
+
 end
 
 let value_longident ppf l = Format_doc.compat Doc.value_longident ppf l
@@ -1283,14 +1300,17 @@ and module_type ctxt f x =
     match x.pmty_desc with
     | Pmty_functor (Unit, mt2) ->
         pp f "@[<hov2>() ->@ %a@]" (module_type ctxt) mt2
-    | Pmty_functor (Named (s, mt1), mt2) ->
+    | Pmty_functor (Newtype ty, mt2) ->
+      pp f "@[<hov2>(type %s) =>@ %a@]" ty.txt (module_type ctxt) mt2
+    | Pmty_functor (Named (is_pure, s, mt1), mt2) ->
+        let arr = if is_pure = Pure then "=>" else "->" in
         begin match s.txt with
         | None ->
-            pp f "@[<hov2>%a@ ->@ %a@]"
-              (module_type1 ctxt) mt1 (module_type ctxt) mt2
+            pp f "@[<hov2>%a@ %s@ %a@]"
+              (module_type1 ctxt) mt1 arr (module_type ctxt) mt2
         | Some name ->
-            pp f "@[<hov2>(%s@ :@ %a)@ ->@ %a@]" name
-              (module_type ctxt) mt1 (module_type ctxt) mt2
+            pp f "@[<hov2>(%s@ :@ %a)@ %s@ %a@]" name
+              (module_type ctxt) mt1 arr (module_type ctxt) mt2
         end
     | Pmty_with (mt, []) -> module_type ctxt f mt
     | Pmty_with (mt, l) ->
@@ -1441,6 +1461,10 @@ and signature_item ctxt f x : unit =
       item_extension ctxt f e;
       item_attributes ctxt f a
 
+and module_expr_opt ctxt f = function
+  | None -> pp f "_"
+  | Some me -> module_expr ctxt f me
+
 and module_expr ctxt f x =
   if x.pmod_attributes <> [] then
     pp f "((%a)%a)" (module_expr ctxt) {x with pmod_attributes=[]}
@@ -1451,19 +1475,24 @@ and module_expr ctxt f x =
           (list (structure_item ctxt) ~sep:"@\n") s;
     | Pmod_constraint (me, mt) ->
         pp f "@[<hov2>(%a@ :@ %a)@]"
-          (module_expr ctxt) me
+          (module_expr_opt ctxt) me
           (module_type ctxt) mt
     | Pmod_ident (li) ->
         pp f "%a" longident_loc li;
     | Pmod_functor (Unit, me) ->
         pp f "functor ()@;->@;%a" (module_expr ctxt) me
-    | Pmod_functor (Named (s, mt), me) ->
-        pp f "functor@ (%s@ :@ %a)@;->@;%a"
+    | Pmod_functor (Newtype ty, me) ->
+        pp f "functor (type %s)@;->@;%a" ty.txt (module_expr ctxt) me
+    | Pmod_functor (Named (is_pure, s, mt), me) ->
+        let arr = if is_pure = Pure then "=>" else "->" in
+        pp f "functor@ (%s@ :@ %a)@;%s@;%a"
           (Option.value s.txt ~default:"_")
-          (module_type ctxt) mt (module_expr ctxt) me
+          (module_type ctxt) mt arr (module_expr ctxt) me
     | Pmod_apply (me1, me2) ->
         pp f "(%a)(%a)" (module_expr ctxt) me1 (module_expr ctxt) me2
         (* Cf: #7200 *)
+    | Pmod_apply_type (me1, ty2) ->
+      pp f "(%a)(%a)" (module_expr ctxt) me1 (core_type ctxt) ty2
     | Pmod_apply_unit me1 ->
         pp f "(%a)()" (module_expr ctxt) me1
     | Pmod_unpack e ->
@@ -1566,21 +1595,27 @@ and structure_item ctxt f x =
   | Pstr_typext te -> type_extension ctxt f te
   | Pstr_exception ed -> exception_declaration ctxt f ed
   | Pstr_module x ->
+      let rec use_rec_module = function
+        | {pmod_desc = Pmod_functor(Named (Impure, _, _), _)} -> true
+        | {pmod_desc = Pmod_functor(_, me)} -> use_rec_module me
+        | _ -> false
+      in
       let rec module_helper = function
         | {pmod_desc=Pmod_functor(arg_opt,me'); pmod_attributes = []} ->
             begin match arg_opt with
-            | Unit -> pp f "()"
-            | Named (s, mt) ->
+            | Unit -> pp f "()"; module_helper me'
+            | Newtype ty -> pp f "(type %s)" ty.txt; module_helper me'
+            | Named (p, s, mt) ->
               pp f "(%s:%a)" (Option.value s.txt ~default:"_")
-                (module_type ctxt) mt
-            end;
-            module_helper me'
+                (module_type ctxt) mt;
+              if p = Pure then module_helper me' else me'
+            end
         | me -> me
       in
       pp f "@[<hov2>module %s%a@]%a"
         (Option.value x.pmb_name.txt ~default:"_")
         (fun f me ->
-           let me = module_helper me in
+           let me = if use_rec_module me then module_helper me else me in
            match me with
            | {pmod_desc=
                 Pmod_constraint
@@ -1589,7 +1624,7 @@ and structure_item ctxt f x =
                                | Pmty_signature (_));_} as mt));
               pmod_attributes = []} ->
                pp f " :@;%a@;=@;%a@;"
-                 (module_type ctxt) mt (module_expr ctxt) me'
+                 (module_type ctxt) mt (module_expr_opt ctxt) me'
            | _ -> pp f " =@ %a" (module_expr ctxt) me
         ) x.pmb_expr
         (item_attributes ctxt) x.pmb_attributes
@@ -1661,7 +1696,7 @@ and structure_item ctxt f x =
             pp f "@[<hov2>@ and@ %s:%a@ =@ %a@]%a"
               (Option.value pmb.pmb_name.txt ~default:"_")
               (module_type ctxt) typ
-              (module_expr ctxt) expr
+              (module_expr_opt ctxt) expr
               (item_attributes ctxt) pmb.pmb_attributes
         | pmb ->
             pp f "@[<hov2>@ and@ %s@ =@ %a@]%a"
@@ -1674,7 +1709,7 @@ and structure_item ctxt f x =
           pp f "@[<hv>@[<hov2>module@ rec@ %s:%a@ =@ %a@]%a@ %a@]"
             (Option.value pmb.pmb_name.txt ~default:"_")
             (module_type ctxt) typ
-            (module_expr ctxt) expr
+            (module_expr_opt ctxt) expr
             (item_attributes ctxt) pmb.pmb_attributes
             (fun f l2 -> List.iter (aux f) l2) l2
       | pmb :: l2 ->

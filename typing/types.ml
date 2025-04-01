@@ -370,6 +370,12 @@ type visibility =
   | Exported
   | Hidden
 
+type is_implicit =
+  | IIImplicit
+  | IIShadows
+  | IILocal
+  | IIFail
+
 type module_type =
     Mty_ident of Path.t
   | Mty_signature of signature
@@ -378,7 +384,8 @@ type module_type =
 
 and functor_parameter =
   | Unit
-  | Named of Ident.t option * module_type
+  | Newtype of Ident.t
+  | Named of pure_flag * Ident.t option * module_type
 
 and module_presence =
   | Mp_present
@@ -399,6 +406,7 @@ and signature_item =
 and module_declaration =
   {
     md_type: module_type;
+    md_impl: is_implicit;
     md_attributes: Parsetree.attributes;
     md_loc: Location.t;
     md_uid: Uid.t;

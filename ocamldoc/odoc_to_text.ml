@@ -434,6 +434,10 @@ class virtual to_text =
 
     (** Return [text] value for a list of module parameters. *)
     method text_of_module_parameter_list l =
+      let string_of_pure_flag = function
+        | Asttypes.Pure -> "Pure"
+        | Asttypes.Impure -> "Impure"
+      in
       match l with
         [] ->
           []
@@ -445,8 +449,8 @@ class virtual to_text =
               (List.map
                  (fun (p, desc_opt) ->
                    begin match p.mp_type with None -> [Raw ""]
-                   | Some mty ->
-                       [Code (p.mp_name^" : ")] @
+                   | Some (pure, mty) ->
+                       [Code (p.mp_name^" :" ^ string_of_pure_flag pure ^" ")] @
                        (self#text_of_module_type mty)
                    end @
                    (match desc_opt with
@@ -554,6 +558,13 @@ class virtual to_text =
           (if with_def_syntax then [Code " = "] else []) @
           (self#text_of_module_kind ~with_def_syntax: false k1) @
           [Code "()"]
+
+      | Module_apply_type (k1, t2) ->
+          (if with_def_syntax then [Code " = "] else []) @
+          (self#text_of_module_kind ~with_def_syntax: false k1) @
+          [Code " (type "] @
+          [Code (self#normal_type "" t2)] @
+          [Code " ) "]
 
       | Module_with (tk, code) ->
           (if with_def_syntax then [Code " : "] else []) @

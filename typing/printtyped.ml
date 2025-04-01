@@ -36,8 +36,11 @@ let rec fmt_longident_aux f x =
   match x with
   | Longident.Lident (s) -> fprintf f "%s" s;
   | Longident.Ldot (y, s) -> fprintf f "%a.%s" fmt_longident_aux y.txt s.txt;
-  | Longident.Lapply (y, z) ->
-      fprintf f "%a(%a)" fmt_longident_aux y.txt fmt_longident_aux z.txt
+  | Longident.Lapply (k, y, z) ->
+      fprintf f "%a(%s%a)"
+        fmt_longident_aux y.txt
+        (Longident.string_of_kind k)
+        fmt_longident_aux z.txt
 
 let fmt_longident f x = fprintf f "\"%a\"" fmt_longident_aux x.txt
 
@@ -52,8 +55,11 @@ let rec fmt_path_aux f x =
   | Path.Pident (s) -> fprintf f "%a" fmt_ident s
   | Path.Pdot (y, s) | Path.(Pextra_ty (y, Pcstr_ty s)) ->
       fprintf f "%a.%s" fmt_path_aux y s
-  | Path.Papply (y, z) ->
-      fprintf f "%a(%a)" fmt_path_aux y fmt_path_aux z
+  | Path.Papply (k, y, z) ->
+      fprintf f "%a(%s%a)"
+        fmt_path_aux y
+        (Longident.string_of_kind k)
+        fmt_path_aux z
   | Path.Pextra_ty (y, Pext_ty) -> fmt_path_aux f y
 
 let fmt_path f x = fprintf f "\"%a\"" fmt_path_aux x
@@ -95,6 +101,11 @@ let fmt_closed_flag f x =
   match x with
   | Closed -> fprintf f "Closed"
   | Open -> fprintf f "Open"
+
+let fmt_pure_flag f x =
+  match x with
+  | Pure -> fprintf f "Pure"
+  | Impure -> fprintf f "Impure"
 
 let fmt_rec_flag f x =
   match x with
@@ -750,8 +761,11 @@ and module_type i ppf x =
   | Tmty_functor (Unit, mt2) ->
       line i ppf "Tmty_functor ()\n";
       module_type i ppf mt2;
-  | Tmty_functor (Named (s, _, mt1), mt2) ->
-      line i ppf "Tmty_functor \"%a\"\n" fmt_modname s;
+  | Tmty_functor (Newtype (ty, _), mt2) ->
+    line i ppf "Tmty_functor (type %a)\n" Ident.print ty;
+    module_type i ppf mt2;
+  | Tmty_functor (Named (is_pure, s, _, mt1), mt2) ->
+      line i ppf "Tmty_functor %a \"%a\"\n" fmt_pure_flag is_pure fmt_modname s;
       module_type i ppf mt1;
       module_type i ppf mt2;
   | Tmty_with (mt, l) ->
@@ -862,8 +876,11 @@ and module_expr i ppf x =
   | Tmod_functor (Unit, me) ->
       line i ppf "Tmod_functor ()\n";
       module_expr i ppf me;
-  | Tmod_functor (Named (s, _, mt), me) ->
-      line i ppf "Tmod_functor \"%a\"\n" fmt_modname s;
+  | Tmod_functor (Newtype (ty, _), me) ->
+    line i ppf "Tmod_functor (type %a)\n" Ident.print ty;
+    module_expr i ppf me;
+  | Tmod_functor (Named (is_pure, s, _, mt), me) ->
+      line i ppf "Tmod_functor %a \"%a\"\n" fmt_pure_flag is_pure fmt_modname s;
       module_type i ppf mt;
       module_expr i ppf me;
   | Tmod_apply (me1, me2, _) ->
@@ -873,6 +890,10 @@ and module_expr i ppf x =
   | Tmod_apply_unit me1 ->
       line i ppf "Tmod_apply_unit\n";
       module_expr i ppf me1;
+  | Tmod_apply_type (me1, ty2) ->
+      line i ppf "Tmod_apply_type\n";
+      module_expr i ppf me1;
+      core_type i ppf ty2;
   | Tmod_constraint (me, _, Tmodtype_explicit mt, _) ->
       line i ppf "Tmod_constraint\n";
       module_expr i ppf me;
@@ -881,6 +902,18 @@ and module_expr i ppf x =
   | Tmod_unpack (e, _) ->
       line i ppf "Tmod_unpack\n";
       expression i ppf e;
+  | Tmod_implicit ime ->
+      line i ppf "Tmod_implicit\n";
+      implicit_module i ppf ime
+
+and implicit_module i ppf ime =
+  let i = i + 1 in
+  match ime.desc with
+  | Timod_found me ->
+      line i ppf "Timod_found\n";
+      module_expr i ppf me
+  | Timod_unknown _ ->
+      line i ppf "Timod_unknown\n"
 
 and structure i ppf x = list i structure_item ppf x.str_items
 

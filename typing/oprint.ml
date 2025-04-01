@@ -32,8 +32,9 @@ let rec print_ident ppf =
     Oide_ident s -> print_lident ppf s.printed_name
   | Oide_dot (id, s) ->
       print_ident ppf id; pp_print_char ppf '.'; print_lident ppf s
-  | Oide_apply (id1, id2) ->
-      fprintf ppf "%a(%a)" print_ident id1 print_ident id2
+  | Oide_apply (k, id1, id2) ->
+      fprintf ppf "%a(%s%a)" print_ident id1 (Longident.string_of_kind k)
+        print_ident id2
 
 let out_ident = ref print_ident
 
@@ -575,7 +576,7 @@ let constructor_of_extension_constructor
 
 let split_anon_functor_arguments params =
   let rec uncollect_anonymous_suffix acc rest = match acc with
-    | Some (None, mty_arg) :: acc ->
+    | Some (None, (Some _ as mty_arg)) :: acc ->
         uncollect_anonymous_suffix acc
           (Some (None, mty_arg) :: rest)
     | _ :: _ | [] ->
@@ -588,24 +589,42 @@ let rec print_out_module_type ppf mty =
   print_out_functor ppf mty
 
 and print_out_functor_parameters ppf l =
+  let open Asttypes in
   let print_nonanon_arg ppf = function
     | None ->
         fprintf ppf "()"
-    | Some (param, mty) ->
+    | Some (param, None) ->
+        fprintf ppf "(type %s)"
+          (Option.value param ~default:"_")
+    | Some (param, Some (Impure, mty)) ->
+        fprintf ppf "(%s : %a)@ ->"
+          (Option.value param ~default:"_")
+          print_out_module_type mty
+    | Some (param, Some (Pure, mty)) ->
         fprintf ppf "(%s : %a)"
           (Option.value param ~default:"_")
           print_out_module_type mty
   in
   let rec print_args ppf = function
     | [] -> ()
-    | Some (None, mty_arg) :: l ->
-        fprintf ppf "%a ->@ %a"
+    | Some (None, Some (is_pure, mty_arg)) :: l ->
+         let arr = if is_pure = Pure then "=>" else "->" in
+        fprintf ppf "%a %s@ %a"
           print_simple_out_module_type mty_arg
+          arr
           print_args l
     | _ :: _ as non_anonymous_functor ->
         let args, anons = split_anon_functor_arguments non_anonymous_functor in
-        fprintf ppf "@[%a@]@ ->@ %a"
+        let rec pp_arrow ppf = function
+          | [] -> assert false
+          | [None] -> fprintf ppf "@ ->"
+          | [Some (_, Some (p, _))] -> if p = Pure then fprintf ppf "@ =>"
+          | [Some (_, None)] -> fprintf ppf "@ =>"
+          | _ :: tl -> pp_arrow ppf tl
+        in
+        fprintf ppf "@[%a@]%a@ %a"
           (pp_print_list ~pp_sep:pp_print_space print_nonanon_arg) args
+          pp_arrow args
           print_args anons
   in
   print_args ppf l
@@ -677,10 +696,13 @@ and print_out_sig_item ppf =
       fprintf ppf "@[<2>module type %s@]" name
   | Osig_modtype (name, mty) ->
       fprintf ppf "@[<2>module type %s =@ %a@]" name !out_module_type mty
-  | Osig_module (name, Omty_alias id, _) ->
-      fprintf ppf "@[<2>module %s =@ %a@]" name print_ident id
-  | Osig_module (name, mty, rs) ->
-      fprintf ppf "@[<2>%s %s :@ %a@]"
+  | Osig_module (name, is_impl, Omty_alias id, _) ->
+      fprintf ppf "@[<2>%smodule %s =@ %a@]"
+        (if is_impl then "implicit " else "")
+        name print_ident id
+  | Osig_module (name, is_impl, mty, rs) ->
+      fprintf ppf "@[<2>%s%s %s :@ %a@]"
+        (if is_impl then "implicit " else "")
         (match rs with Orec_not -> "module"
                      | Orec_first -> "module rec"
                      | Orec_next -> "and")
