@@ -190,3 +190,6 @@ module Lazy : sig
   val force_signature_once : signature -> signature_item list
   val force_signature_item : signature_item -> Types.signature_item
 end
+
+(* Forward declaration, to be filled in by Btype_utils.newty2 *)
+val newty2 : (level:int -> type_desc -> type_expr) ref

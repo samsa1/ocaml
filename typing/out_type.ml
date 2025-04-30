@@ -22,6 +22,7 @@ open Path
 open Asttypes
 open Types
 open Btype
+open Btype_utils
 open Outcometree
 
 module String = Misc.Stdlib.String
@@ -2037,7 +2038,7 @@ let hide_variant_name t =
   | Tvariant row ->
       let Row {fields; more; name; fixed; closed} = row_repr row in
       if name = None then t else
-      Btype.newty2 ~level:(get_level t)
+      Btype_utils.newty2 ~level:(get_level t)
         (Tvariant
            (create_row ~fields ~fixed ~closed ~name:None
               ~more:(Ctype.newvar2 (get_level more))))
