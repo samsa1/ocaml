@@ -517,6 +517,8 @@ type t = {
   types: (type_data, type_data) IdTbl.t;
   modules: (module_entry, module_data) IdTbl.t;
   modtypes: (modtype_data, modtype_data) IdTbl.t;
+  implicit_modules:
+      (int * Ident.t NameMap.t) * (int * Ident.t NameMap.t) NameMap.t;
   classes: (class_data, class_data) IdTbl.t;
   cltypes: (cltype_data, cltype_data) IdTbl.t;
   not_aliasable: unit Ident.tbl;
@@ -721,6 +723,7 @@ let empty = {
   values = IdTbl.empty; constrs = TycompTbl.empty;
   labels = TycompTbl.empty; types = IdTbl.empty;
   modules = IdTbl.empty; modtypes = IdTbl.empty;
+  implicit_modules = ((0, NameMap.empty), NameMap.empty);
   classes = IdTbl.empty; cltypes = IdTbl.empty;
   summary = Env_empty; local_constraints = Path.Map.empty;
   flags = 0;
@@ -793,9 +796,9 @@ let strengthen =
          aliasable:bool -> t -> Subst.Lazy.modtype ->
          Path.t -> Subst.Lazy.modtype)
 
-let md md_type =
+let md md_impl md_type =
   {md_type; md_attributes=[]; md_loc=Location.none
-  ;md_uid = Uid.internal_not_actually_unique}
+  ;md_impl; md_uid = Uid.internal_not_actually_unique}
 
 (* Print addresses *)
 
@@ -887,6 +890,7 @@ let add_persistent_structure id env =
       else
         env.modules
     in
+    assert ((fst (fst env.implicit_modules)) = 0);
     { env with modules; summary }
   end
 
@@ -917,6 +921,7 @@ let sign_of_cmi ~freshen { Persistent_env.Persistent_signature.cmi; _ } =
   in
   let md =
     { md_type =  Mty_signature sign;
+      md_impl = IIShadows;
       md_loc = Location.none;
       md_attributes = [];
       md_uid = Uid.of_compilation_unit_id id;
@@ -1087,9 +1092,25 @@ let find_module ~alias path env =
       Subst.Lazy.force_module_decl data.mda_declaration
   | Papply(p1, p2) ->
       let fc = find_functor_components p1 env in
-      if alias then md (fc.fcomp_res)
-      else md (modtype_of_functor_appl fc p1 p2)
+      if alias then md IIShadows (fc.fcomp_res)
+      else md IIShadows (modtype_of_functor_appl fc p1 p2)
   | Pextra_ty _ -> raise Not_found
+
+let find_structures sg env =
+  let open Types in
+  let (all, mapping) = env.implicit_modules in
+  let get_name = function
+    | Sig_type (id, _, _, _) | Sig_value (id, _, _)
+    | Sig_typext (id, _, _, _) | Sig_module (id, _, _, _, _)
+    | Sig_modtype (id, _, _) | Sig_class (id, _, _, _)
+    | Sig_class_type (id, _, _, _) -> Ident.name id
+  in
+  try
+    snd (List.fold_left (fun (s, tbl) bind ->
+        let (s2, tbl2) = NameMap.find (get_name bind) mapping in
+        if s2 < s then (s2, tbl2) else (s, tbl)
+      ) all sg)
+  with Not_found -> NameMap.empty
 
 let find_module_lazy ~alias path env =
   match path with
@@ -1103,8 +1124,8 @@ let find_module_lazy ~alias path env =
   | Papply(p1, p2) ->
       let fc = find_functor_components p1 env in
       let md =
-        if alias then md (fc.fcomp_res)
-        else md (modtype_of_functor_appl fc p1 p2)
+        if alias then md IIShadows (fc.fcomp_res)
+        else md IIShadows (modtype_of_functor_appl fc p1 p2)
       in
       Subst.Lazy.of_module_decl md
   | Pextra_ty _ -> raise Not_found
@@ -1710,6 +1731,62 @@ let module_declaration_address env id presence md =
   | Mp_present ->
       Lazy_backtrack.create_forced (Aident id)
 
+let implicit_shadowing name (((size, all), field_map) as implicits) =
+  if NameMap.mem name all
+  then
+    let remove (size, map) = (size - 1, NameMap.remove name map) in
+    let remove_if_mem ((_, map) as p) =
+      if NameMap.mem name map then remove p else p
+    in
+    (remove (size, all), NameMap.map remove_if_mem field_map)
+  else implicits
+
+let update_implicit_modules_name name mda implicits =
+  match mda.mda_declaration.mdl_impl with
+  | IIFail -> assert false
+  | IILocal -> implicits
+  | IIShadows -> implicit_shadowing name implicits
+  | IIImplicit -> assert false
+
+let update_map id (size, mapping) =
+  (size + 1, NameMap.add (Ident.name id) id mapping)
+
+let update_field id field_map field_name =
+  let (size, set) = try NameMap.find field_name field_map
+    with Not_found -> (0, NameMap.empty)
+  in
+  let set = NameMap.add (Ident.name id) id set in
+  NameMap.add field_name (size + 1, set) field_map
+
+let get_field_name = function
+  | Subst.Lazy.SigL_value (id, _, _)
+  | Subst.Lazy.SigL_type (id, _, _, _)
+  | Subst.Lazy.SigL_typext (id, _, _, _)
+  | Subst.Lazy.SigL_module (id, _, _, _, _)
+  | Subst.Lazy.SigL_modtype (id, _, _)
+  | Subst.Lazy.SigL_class (id, _, _, _)
+  | Subst.Lazy.SigL_class_type (id, _, _, _) -> Ident.name id
+
+let rec get_fields env = function
+  | Subst.Lazy.MtyL_ident p ->
+      get_fields env (find_modtype_expansion_lazy p env)
+  | Subst.Lazy.MtyL_signature s ->
+      List.map get_field_name (Subst.Lazy.force_signature_once s)
+  | Subst.Lazy.MtyL_functor (_, md) -> get_fields env md
+  | Subst.Lazy.MtyL_alias p ->
+      get_fields env (find_module_lazy p env).mdl_type
+
+let get_fields env mda = get_fields env mda.mda_declaration.mdl_type
+
+let update_implicit_modules env id mda implicits =
+  match mda.mda_declaration.mdl_impl with
+  | IIImplicit ->
+      let (s, field_map) = implicit_shadowing (Ident.name id) implicits in
+      let fields = get_fields env mda in
+      let field_map = List.fold_left (update_field id) field_map fields in
+      (update_map id s, field_map)
+  | _ -> update_implicit_modules_name (Ident.name id) mda implicits
+
 let rec components_of_module_maker
           {cm_env; cm_prefixing_subst;
            cm_path; cm_addr; cm_mty; cm_shape} : _ result =
@@ -2124,6 +2201,7 @@ and store_module ?(update_summary=true) ~check
     else Env_module (env.summary, id, presence, force_module_decl md) in
   { env with
     modules = IdTbl.add id (Mod_local mda) env.modules;
+    implicit_modules = update_implicit_modules env id mda env.implicit_modules;
     summary }
 
 and store_modtype ?(update_summary=true) id info shape env =
@@ -2260,11 +2338,13 @@ and add_cltype ?shape id ty env =
   let shape = shape_or_leaf ty.clty_uid shape in
   store_cltype id ty shape env
 
-let add_module ?noalias ?shape id presence mty env =
-  add_module_declaration ~check:false ?noalias ?shape id presence (md mty) env
+let add_module ?noalias ?shape id presence impl mty env =
+  add_module_declaration ~check:false ?noalias ?shape id
+      presence (md impl mty) env
 
-let add_module_lazy ~update_summary id presence mty env =
+let add_module_lazy ~update_summary id presence impl mty env =
   let md = Subst.Lazy.{mdl_type = mty;
+                       mdl_impl = impl;
                        mdl_attributes = [];
                        mdl_loc = Location.none;
                        mdl_uid = Uid.internal_not_actually_unique}
@@ -2320,8 +2400,8 @@ let enter_cltype ~scope name desc env =
   let env = store_cltype id desc (Shape.leaf desc.clty_uid) env in
   (id, env)
 
-let enter_module ~scope ?noalias s presence mty env =
-  enter_module_declaration ~scope ?noalias s presence (md mty) env
+let enter_module ~scope ?noalias s presence impl mty env =
+  enter_module_declaration ~scope ?noalias s presence (md impl mty) env
 
 (* Insertion of all components of a signature *)
 
@@ -2398,9 +2478,14 @@ let enter_unbound_module name reason env =
   let id = Ident.create_local name in
   { env with
     modules = IdTbl.add id (Mod_unbound reason) env.modules;
+    implicit_modules = implicit_shadowing name env.implicit_modules;
     summary = Env_module_unbound(env.summary, name, reason) }
 
 (* Open a signature path *)
+
+let lookup_module' : (?use:bool -> loc:Location.t -> Longident.t -> t ->
+                      Path.t * module_declaration) ref =
+  ref (fun ?use:_ ~loc:_ _ -> assert false)
 
 let add_components slot root env0 comps =
   let add_l w comps env0 =
@@ -2431,7 +2516,7 @@ let add_components slot root env0 comps =
   let modules =
     add (fun x -> `Module x) comps.comp_modules env0.modules
   in
-  { env0 with
+  let env0 = { env0 with
     summary = Env_open(env0.summary, root);
     constrs;
     labels;
@@ -2441,7 +2526,12 @@ let add_components slot root env0 comps =
     classes;
     cltypes;
     modules;
-  }
+  } in
+  let implicit_modules =
+    NameMap.fold update_implicit_modules_name
+      comps.comp_modules env0.implicit_modules
+  in
+  { env0 with implicit_modules }
 
 let open_signature slot root env0 : (_,_) result =
   match get_components_res (find_module_components root env0) with
@@ -2476,6 +2566,7 @@ let remove_last_open root env0 =
   | summary ->
       let rem_l tbl = TycompTbl.remove_last_open root tbl
       and rem tbl = IdTbl.remove_last_open root tbl in
+      let () = assert (fst (fst env0.implicit_modules) = 0) in
       Some { env0 with
              summary;
              constrs = rem_l env0.constrs;
@@ -2485,7 +2576,8 @@ let remove_last_open root env0 =
              modtypes = rem env0.modtypes;
              classes = rem env0.classes;
              cltypes = rem env0.cltypes;
-             modules = rem env0.modules; }
+             modules = rem env0.modules;
+             implicit_modules = env0.implicit_modules (* HERE : TODO *); }
   | exception Exit ->
       None
 
@@ -2988,7 +3080,7 @@ and lookup_module ~errors ~use ~loc lid env =
       path, md
   | Lapply _ as lid ->
       let path_f, comp_f, path_arg = lookup_apply ~errors ~use ~loc lid env in
-      let md = md (modtype_of_functor_appl comp_f path_f path_arg) in
+      let md = md IIShadows (modtype_of_functor_appl comp_f path_f path_arg) in
       Papply(path_f, path_arg), md
 
 and lookup_dot_module ~errors ~use ~loc l s env =
@@ -3242,6 +3334,7 @@ let lookup_module_path ?(use=true) ~loc ~load lid env =
 
 let lookup_module ?(use=true) ~loc lid env =
   lookup_module ~errors:true ~use ~loc lid env
+let () = lookup_module' := lookup_module
 
 let lookup_value ?(use=true) ~loc lid env =
   check_value_name (Longident.last lid) loc;

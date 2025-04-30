@@ -503,6 +503,7 @@ and structure_item_desc =
 and module_binding =
     {
      mb_id: Ident.t option; (** [None] for [module _ = struct ... end] *)
+     mb_impl: bool;
      mb_name: string option loc;
      mb_uid: Uid.t;
      mb_presence: Types.module_presence;
@@ -595,6 +596,7 @@ and signature_item_desc =
 and module_declaration =
     {
      md_id: Ident.t option;
+     md_impl: bool;
      md_name: string option loc;
      md_uid: Uid.t;
      md_presence: Types.module_presence;

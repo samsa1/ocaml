@@ -322,6 +322,7 @@ and structure_item_desc =
 and module_binding =
     {
      mb_id: Ident.t option;
+     mb_impl: bool;
      mb_name: string option loc;
      mb_uid: Uid.t;
      mb_presence: module_presence;
@@ -403,6 +404,7 @@ and signature_item_desc =
 and module_declaration =
     {
      md_id: Ident.t option;
+     md_impl: bool;
      md_name: string option loc;
      md_uid: Uid.t;
      md_presence: module_presence;
