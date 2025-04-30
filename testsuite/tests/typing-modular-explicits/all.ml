@@ -70,8 +70,11 @@ val add_impl : ?add:{A : Add} -> A.t -> A.t -> A.t = <fun>
 let seven = add_impl 3 4
 
 [%%expect{|
-Uncaught exception: Failure("Implicit inference not implemented")
-
+Line 1, characters 12-20:
+1 | let seven = add_impl 3 4
+                ^^^^^^^^
+Error: Inference of signature sig type t = 'a val add : t -> t -> t end
+       failed as no solution was found.
 |}]
 
 (* Fails because argument was explicit *)
@@ -95,8 +98,11 @@ val seven_explicit : Int.t = 7
 let seven_fail2 = add_lbl 3 4
 
 [%%expect{|
-Uncaught exception: Failure("Implicit inference not implemented")
-
+Line 1, characters 18-25:
+1 | let seven_fail2 = add_lbl 3 4
+                      ^^^^^^^
+Error: Inference of signature sig type t = 'a val add : t -> t -> t end
+       failed as no solution was found.
 |}]
 
 
