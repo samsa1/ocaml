@@ -281,6 +281,13 @@ let check_package_closed :
    (string list * type_expr) list -> unit) ref =
   ref (fun ~loc:_ ~env:_ ~typ:_ _ -> assert false)
 
+(* Forward declaration, to be filled in by Typemod.new_implicit_module *)
+
+let new_implicit_module :
+  (?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
+   Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr) ref =
+  ref (fun ?attributes:_ ~loc:_ _ -> assert false)
+
 (* Forward declaration, to be filled in by Typeclass.class_structure *)
 let type_object =
   ref (fun _env _s -> assert false :
@@ -3385,7 +3392,31 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                     raise (Error (loc, env,
                                   Cannot_unify_tfunctor_to_tarrow trace))
               end
-            | None -> failwith "Implicit inference not implemented"
+            | None ->
+                let previous_arg_loc = previous_arg_loc rev_args ~funct in
+                let mty =
+                  Ctype.modtype_of_package env previous_arg_loc tfun.pack
+                in
+                let modimpl, me =
+                  !new_implicit_module ~loc:previous_arg_loc env mty
+                in
+                try
+                  Typedtree.solve_implicit modimpl;
+                  identifier_escape l true tfun.pack  env tfun.id me.mod_type tfun.ty;
+                  identifier_escape l true tfun0.pack env tfun0.id me.mod_type tfun0.ty;
+                  let _texp =
+                    {
+                      exp_desc = Texp_pack me;
+                      exp_loc = previous_arg_loc; exp_extra = [];
+                      exp_type = newty (Tpackage tfun.pack);
+                      exp_attributes = [];
+                      exp_env = env
+                    }
+                  in
+                  let arg = assert false in
+                  (arg, tfun.ty, tfun0.ty)
+                with Not_found ->
+                  failwith "Modular implicits inference not implemented"
           in
           loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
         | `Type (c, id, t, id0, t0) ->

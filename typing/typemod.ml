@@ -2432,13 +2432,12 @@ let check_purity loc env funct_body pure =
     raise (Error (loc, env, Not_allowed_in_functor_body Impure))
   | _ -> ()
 
-let rec infer_implicit ~loc env mty =
-  let mexp = Implicitmod.infer ~loc env mty.mty_type in
+let rec infer_implicit ~loc env mty tmodtype =
+  let mexp = Implicitmod.infer ~loc env mty in
   let (mtexp, shape) =
       type_module ~strengthen:true ~funct_body:Pure None env mexp in
   let md, final_shape =
-    wrap_constraint_with_shape env true mtexp mty.mty_type shape
-      (Tmodtype_explicit mty)
+    wrap_constraint_with_shape env true mtexp mty shape tmodtype
   in
   if Warnings.(is_active (Implicit_module_expression Format_doc.Doc.empty))
   then begin
@@ -2456,17 +2455,17 @@ let rec infer_implicit ~loc env mty =
     mod_attributes = [];
   }, final_shape
 
-and new_implicit_module ?(attributes=[]) ~loc env mty =
-  let mty =
-    {mty with mty_type = Implicitmod.open_module_type env mty.mty_type}
-  in
+and new_implicit_module ?(attributes=[]) ~loc env mty_type =
+  let mty_type = Implicitmod.open_module_type env mty_type in
   let implicit_module = {
-    desc = Timod_unknown (fun () -> fst (infer_implicit ~loc env mty))
+    desc =
+      Timod_unknown
+        (fun () -> fst (infer_implicit ~loc env mty_type Tmodtype_implicit))
   } in
   implicit_module,
   { mod_desc = Tmod_implicit implicit_module;
     mod_loc = loc;
-    mod_type = mty.mty_type;
+    mod_type = mty_type;
     mod_env = env;
     mod_attributes = attributes;
   }
@@ -2604,7 +2603,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
       final_shape
   | Pmod_constraint (None, smty) ->
       let mty = transl_modtype env smty in
-      infer_implicit ~loc:smod.pmod_loc env mty
+      infer_implicit ~loc:smod.pmod_loc env mty.mty_type (Tmodtype_explicit mty)
   | Pmod_unpack sexp ->
       let exp =
         Ctype.with_local_level_generalize_structure_if_principal
@@ -3319,8 +3318,6 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
   in
   { str_desc = desc; str_loc = loc; str_env = env }, sg, shape_map, new_env
 
-let _ = new_implicit_module (* Just to remove ununsed warning *)
-
 let type_toplevel_phrase env s =
   Env.reset_required_globals ();
   type_structure ~toplevel:true ~funct_body:Gen None env s
@@ -3492,6 +3489,7 @@ let type_str_item env pstri =
 
 let () =
   Implicitmod.type_module := type_module;
+  Typecore.new_implicit_module := new_implicit_module;
   Typecore.type_module := type_module_alias;
   Typecore.type_str_item := type_str_item;
   Typetexp.transl_modtype_longident := transl_modtype_longident;

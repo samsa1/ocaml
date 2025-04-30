@@ -278,6 +278,11 @@ val type_open:
   (?used_slot:bool ref -> override_flag -> Env.t -> Location.t ->
    Longident.t loc -> Path.t * Env.t)
     ref
+(* Forward declaration, to be filled in by Typemod.new_implicit_module *)
+val new_implicit_module:
+  (?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
+   Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr) ref
+
 (* Forward declaration, to be filled in by Typemod.type_open_decl *)
 val type_open_decl:
   (?used_slot:bool ref -> Env.t -> Parsetree.open_declaration ->
