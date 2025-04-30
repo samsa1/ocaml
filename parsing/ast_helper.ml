@@ -430,9 +430,10 @@ end
 
 module Md = struct
   let mk ?(loc = !default_loc) ?(attrs = [])
-        ?(docs = empty_docs) ?(text = []) name typ =
+        ?(docs = empty_docs) ?(text = []) impl name typ =
     {
      pmd_name = name;
+     pmd_impl = impl;
      pmd_type = typ;
      pmd_attributes =
        add_text_attrs text (add_docs_attrs docs attrs);
@@ -466,9 +467,10 @@ end
 
 module Mb = struct
   let mk ?(loc = !default_loc) ?(attrs = [])
-        ?(docs = empty_docs) ?(text = []) name expr =
+        ?(docs = empty_docs) ?(text = []) impl name expr =
     {
      pmb_name = name;
+     pmb_impl = impl;
      pmb_expr = expr;
      pmb_attributes =
        add_text_attrs text (add_docs_attrs docs attrs);

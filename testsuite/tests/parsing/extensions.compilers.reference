@@ -248,7 +248,7 @@
     Pstr_extension "foo"
     [
       signature_item (extensions.ml[22,507+8]..[22,507+25])
-        Psig_module "M" (extensions.ml[22,507+15]..[22,507+16])
+        Psig_module false "M" (extensions.ml[22,507+15]..[22,507+16])
         module_type (extensions.ml[22,507+19]..[22,507+25])
           Pmod_extension "baz"
           []

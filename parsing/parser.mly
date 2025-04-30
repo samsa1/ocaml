@@ -811,6 +811,7 @@ let mk_directive ~loc name arg =
 %token GREATERRBRACE          ">}"
 %token GREATERRBRACKET        ">]"
 %token IF                     "if"
+%token IMPLICIT               "implicit"
 %token IN                     "in"
 %token INCLUDE                "include"
 %token <string> INFIXOP0      "!="   (* just an example *)
@@ -1625,8 +1626,14 @@ local_structure_item:
     { $1 }
 ;
 
+%inline implicit:
+  | IMPLICIT      { true }
+  | /* empty */   { false }
+;
+
 (* A single module binding. *)
 %inline module_binding:
+  b = implicit
   MODULE
   ext = ext attrs1 = attributes
   name = mkrhs(module_name)
@@ -1635,7 +1642,7 @@ local_structure_item:
     { let docs = symbol_docs $sloc in
       let loc = make_loc $sloc in
       let attrs = attrs1 @ attrs2 in
-      let body = Mb.mk name body ~attrs ~loc ~docs in
+      let body = Mb.mk b name body ~attrs ~loc ~docs in
       body, ext }
 ;
 
@@ -1677,7 +1684,7 @@ module_binding_body:
     let attrs = attrs1 @ attrs2 in
     let docs = symbol_docs $sloc in
     ext,
-    Mb.mk name body ~attrs ~loc ~docs
+    Mb.mk false name body ~attrs ~loc ~docs
   }
 ;
 
@@ -1693,7 +1700,7 @@ module_binding_body:
     let attrs = attrs1 @ attrs2 in
     let docs = symbol_docs $sloc in
     let text = symbol_text $symbolstartpos in
-    Mb.mk name body ~attrs ~loc ~text ~docs
+    Mb.mk false name body ~attrs ~loc ~text ~docs
   }
 ;
 
@@ -1882,7 +1889,7 @@ signature_item:
 
 (* A module declaration. *)
 %inline module_declaration:
-  MODULE
+  b = implicit MODULE
   ext = ext attrs1 = attributes
   name = mkrhs(module_name)
   body = module_declaration_body
@@ -1891,7 +1898,7 @@ signature_item:
     let attrs = attrs1 @ attrs2 in
     let loc = make_loc $sloc in
     let docs = symbol_docs $sloc in
-    Md.mk name body ~attrs ~loc ~docs, ext
+    Md.mk b name body ~attrs ~loc ~docs, ext
   }
 ;
 
@@ -1921,7 +1928,7 @@ module_declaration_body_inner:
     let attrs = attrs1 @ attrs2 in
     let loc = make_loc $sloc in
     let docs = symbol_docs $sloc in
-    Md.mk name body ~attrs ~loc ~docs, ext
+    Md.mk false name body ~attrs ~loc ~docs, ext
   }
 ;
 %inline module_expr_alias:
@@ -1964,7 +1971,7 @@ module_subst:
     let attrs = attrs1 @ attrs2 in
     let loc = make_loc $sloc in
     let docs = symbol_docs $sloc in
-    ext, Md.mk name mty ~attrs ~loc ~docs
+    ext, Md.mk false name mty ~attrs ~loc ~docs
   }
 ;
 %inline and_module_declaration:
@@ -1979,7 +1986,7 @@ module_subst:
     let docs = symbol_docs $sloc in
     let loc = make_loc $sloc in
     let text = symbol_text $symbolstartpos in
-    Md.mk name mty ~attrs ~loc ~text ~docs
+    Md.mk false name mty ~attrs ~loc ~text ~docs
   }
 ;
 

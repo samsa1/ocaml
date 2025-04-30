@@ -2299,7 +2299,9 @@ let add_module_variables env module_variables =
         | _ -> Mp_present
       in
       let md =
-        { md_type = modl.mod_type; md_attributes = [];
+        { md_type = modl.mod_type;
+          md_impl = IIShadows;
+          md_attributes = [];
           md_loc = mv_name.loc;
           md_uid = mv_uid; }
       in
