@@ -20,6 +20,7 @@ open Asttypes
 open Types
 open Data_types
 open Btype
+open Btype_utils
 open Errortrace
 
 open Local_store

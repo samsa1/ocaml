@@ -133,6 +133,7 @@ typing_SOURCES = \
   typing/env.mli typing/env.ml \
   typing/errortrace.mli typing/errortrace.ml \
   typing/typedtree.mli typing/typedtree.ml \
+  typing/btype_utils.mli typing/btype_utils.ml \
   typing/signature_group.mli typing/signature_group.ml \
   typing/printtyped.mli typing/printtyped.ml \
   typing/ctype.mli typing/ctype.ml \
