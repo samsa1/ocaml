@@ -337,7 +337,7 @@ module Str:
 module Md:
   sig
     val mk: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?text:text ->
-      str_opt -> module_type -> module_declaration
+      bool -> str_opt -> module_type -> module_declaration
   end
 
 (** Module substitutions *)
@@ -358,7 +358,7 @@ module Mtd:
 module Mb:
   sig
     val mk: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?text:text ->
-      str_opt -> module_expr -> module_binding
+      bool -> str_opt -> module_expr -> module_binding
   end
 
 (** Opens *)

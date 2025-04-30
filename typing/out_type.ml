@@ -1156,7 +1156,8 @@ let rec tree_of_typexp mode ty =
         let fenv env =
           (* We compute an approximation of the signature. *)
           let mty = Mty_ident pack.pack_path in
-          Env.add_module ~noalias:true (Ident.of_unscoped id) Mp_present mty env
+          Env.add_module ~noalias:true (Ident.of_unscoped id)
+            Mp_present IILocal mty env
         in
         let ty =
           wrap_env ~keep_short_paths:true fenv (tree_of_typexp mode) ty
@@ -1945,7 +1946,7 @@ and tree_of_functor_parameter = function
         | None -> None, fun env -> env
         | Some id ->
             Some (Ident.name id),
-            Env.add_module ~noalias:true id Mp_present ty_arg
+            Env.add_module ~noalias:true id Mp_present IILocal ty_arg
       in
       Some (b, name, tree_of_modtype ~ellipsis:false ty_arg), env
 

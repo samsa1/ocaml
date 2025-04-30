@@ -721,8 +721,9 @@ let default_mapper =
     binding_op = E.map_binding_op;
 
     module_declaration =
-      (fun this {pmd_name; pmd_type; pmd_attributes; pmd_loc} ->
+      (fun this {pmd_name; pmd_impl; pmd_type; pmd_attributes; pmd_loc} ->
          Md.mk
+            pmd_impl
            (map_loc map_string_opt this pmd_name)
            (this.module_type this pmd_type)
            ~attrs:(this.attributes this pmd_attributes)
@@ -748,8 +749,8 @@ let default_mapper =
       );
 
     module_binding =
-      (fun this {pmb_name; pmb_expr; pmb_attributes; pmb_loc} ->
-         Mb.mk (map_loc map_string_opt this pmb_name)
+      (fun this {pmb_name; pmb_impl; pmb_expr; pmb_attributes; pmb_loc} ->
+         Mb.mk pmb_impl (map_loc map_string_opt this pmb_name)
            (this.module_expr this pmb_expr)
            ~attrs:(this.attributes this pmb_attributes)
            ~loc:(this.location this pmb_loc)

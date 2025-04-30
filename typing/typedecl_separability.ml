@@ -432,7 +432,7 @@ let check_type
     | (Tfunctor (_, id_us, pack, ty), Deepsep) ->
         let env' =
           let mty = Ctype.modtype_of_package env Location.none pack in
-          Env.add_module (Ident.of_unscoped id_us) Mp_present mty env
+          Env.add_module (Ident.of_unscoped id_us) Mp_present IILocal mty env
         in
         let on_subtype context ty =
           context ++ check_type env (Hyps.guard hyps) ty Deepsep in
