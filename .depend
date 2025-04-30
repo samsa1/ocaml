@@ -579,7 +579,6 @@ typing/annot.cmi : \
 typing/btype.cmo : \
     typing/types.cmi \
     typing/path.cmi \
-    utils/misc.cmi \
     utils/local_store.cmi \
     typing/ident.cmi \
     parsing/asttypes.cmi \
@@ -587,7 +586,6 @@ typing/btype.cmo : \
 typing/btype.cmx : \
     typing/types.cmx \
     typing/path.cmx \
-    utils/misc.cmx \
     utils/local_store.cmx \
     typing/ident.cmx \
     parsing/asttypes.cmx \
@@ -596,6 +594,24 @@ typing/btype.cmi : \
     typing/types.cmi \
     typing/path.cmi \
     parsing/asttypes.cmi
+typing/btype_utils.cmo : \
+    typing/types.cmi \
+    typing/subst.cmi \
+    utils/misc.cmi \
+    utils/local_store.cmi \
+    typing/ident.cmi \
+    typing/btype.cmi \
+    typing/btype_utils.cmi
+typing/btype_utils.cmx : \
+    typing/types.cmx \
+    typing/subst.cmx \
+    utils/misc.cmx \
+    utils/local_store.cmx \
+    typing/ident.cmx \
+    typing/btype.cmx \
+    typing/btype_utils.cmi
+typing/btype_utils.cmi : \
+    typing/types.cmi
 typing/cmt2annot.cmo : \
     typing/types.cmi \
     typing/typedtree.cmi \
@@ -646,6 +662,7 @@ typing/ctype.cmo : \
     typing/env.cmi \
     typing/data_types.cmi \
     utils/clflags.cmi \
+    typing/btype_utils.cmi \
     typing/btype.cmi \
     parsing/asttypes.cmi \
     typing/ctype.cmi
@@ -665,6 +682,7 @@ typing/ctype.cmx : \
     typing/env.cmx \
     typing/data_types.cmx \
     utils/clflags.cmx \
+    typing/btype_utils.cmx \
     typing/btype.cmx \
     parsing/asttypes.cmx \
     typing/ctype.cmi
@@ -1210,6 +1228,7 @@ typing/out_type.cmo : \
     typing/env.cmi \
     typing/ctype.cmi \
     utils/clflags.cmi \
+    typing/btype_utils.cmi \
     typing/btype.cmi \
     parsing/asttypes.cmi \
     typing/out_type.cmi
@@ -1234,6 +1253,7 @@ typing/out_type.cmx : \
     typing/env.cmx \
     typing/ctype.cmx \
     utils/clflags.cmx \
+    typing/btype_utils.cmx \
     typing/btype.cmx \
     parsing/asttypes.cmx \
     typing/out_type.cmi
@@ -1796,6 +1816,7 @@ typing/typecore.cmo : \
     file_formats/cmt_format.cmi \
     utils/clflags.cmi \
     parsing/builtin_attributes.cmi \
+    typing/btype_utils.cmi \
     typing/btype.cmi \
     parsing/asttypes.cmi \
     parsing/ast_helper.cmi \
@@ -1832,6 +1853,7 @@ typing/typecore.cmx : \
     file_formats/cmt_format.cmx \
     utils/clflags.cmx \
     parsing/builtin_attributes.cmx \
+    typing/btype_utils.cmx \
     typing/btype.cmx \
     parsing/asttypes.cmx \
     parsing/ast_helper.cmx \
@@ -1885,6 +1907,7 @@ typing/typedecl.cmo : \
     utils/config.cmi \
     utils/clflags.cmi \
     parsing/builtin_attributes.cmi \
+    typing/btype_utils.cmi \
     typing/btype.cmi \
     parsing/attr_helper.cmi \
     parsing/asttypes.cmi \
@@ -1927,6 +1950,7 @@ typing/typedecl.cmx : \
     utils/config.cmx \
     utils/clflags.cmx \
     parsing/builtin_attributes.cmx \
+    typing/btype_utils.cmx \
     typing/btype.cmx \
     parsing/attr_helper.cmx \
     parsing/asttypes.cmx \

@@ -22,6 +22,9 @@ open Btype
 
 open Local_store
 
+(* Forward declaration, to be filled in by Btype_utils.newty2 *)
+let newty2 = ref (fun ~level:_ _ -> assert false)
+
 type type_replacement =
   | Path of Path.t
   | Type_function of { params : type_expr list; body : type_expr }
@@ -251,7 +254,7 @@ let rec typexp copy_scope s ty =
       if s.for_saving || get_id ty < 0 then
         let ty' =
           if s.for_saving then newpersty (norm desc)
-          else newty2 ~level:(get_level ty) desc
+          else !newty2 ~level:(get_level ty) desc
         in
         For_copy.redirect_desc copy_scope ty (Tsubst (ty', None));
         ty'

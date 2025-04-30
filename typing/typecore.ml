@@ -25,6 +25,7 @@ open Types
 open Data_types
 open Typedtree
 open Btype
+open Btype_utils
 open Ctype
 
 module Style = Misc.Style
