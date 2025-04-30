@@ -217,6 +217,7 @@ let module_binding sub mb =
   let loc = sub.location sub mb.mb_loc in
   let attrs = sub.attributes sub mb.mb_attributes in
   Mb.mk ~loc ~attrs
+    (mb.mb_impl)
     (map_loc sub mb.mb_name)
     (sub.module_expr sub mb.mb_expr)
 
@@ -647,6 +648,7 @@ let module_declaration sub md =
   let loc = sub.location sub md.md_loc in
   let attrs = sub.attributes sub md.md_attributes in
   Md.mk ~loc ~attrs
+    md.md_impl
     (map_loc sub md.md_name)
     (sub.module_type sub md.md_type)
 

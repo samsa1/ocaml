@@ -131,6 +131,7 @@ module Lazy : sig
   type module_decl =
     {
       mdl_type: modtype;
+      mdl_impl: is_implicit;
       mdl_attributes: Parsetree.attributes;
       mdl_loc: Location.t;
       mdl_uid: Uid.t;

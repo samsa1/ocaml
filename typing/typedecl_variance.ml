@@ -70,7 +70,7 @@ let compute_variance env visited vari ty =
         compute_same ty2
     | Tfunctor (_, id, pack, ty) ->
       let env' =
-          Env.add_module (Ident.of_unscoped id) Mp_present
+          Env.add_module (Ident.of_unscoped id) Mp_present IILocal
             (Mty_ident pack.pack_path) env in
       compute_variance_rec env (Variance.conjugate vari)
           (Ctype.newty (Tpackage pack));

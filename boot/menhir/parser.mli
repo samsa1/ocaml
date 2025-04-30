@@ -81,6 +81,7 @@ type token =
   | INFIXOP0 of (string)
   | INCLUDE
   | IN
+  | IMPLICIT
   | IF
   | HASHOP of (string)
   | HASH

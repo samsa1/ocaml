@@ -47,7 +47,8 @@ let rec strengthen_lazy ~aliasable env mty p =
   | MtyL_functor(Named (b, Some param, arg), res)
     when !Clflags.applicative_functors ->
       let env =
-        Env.add_module_lazy ~update_summary:false param Mp_present arg env
+        Env.add_module_lazy ~update_summary:false param Mp_present
+                            IILocal arg env
       in
       MtyL_functor(Named (b, Some param, arg),
         strengthen_lazy ~aliasable:false env res (Papply(p, Pident param)))
@@ -214,7 +215,8 @@ let rec nondep_mty_with_presence env va ids pres mty =
       let res_env =
         match param with
         | None -> env
-        | Some param -> Env.add_module ~noalias:true param Mp_present arg env
+        | Some param -> Env.add_module ~noalias:true param Mp_present
+                                        IILocal arg env
       in
       let mty =
         Mty_functor(Named (b, param, nondep_mty env var_inv ids arg),
@@ -513,7 +515,7 @@ and remove_aliases_sig env args sg =
             remove_aliases_mty env args pres mty
       in
       Sig_module(id, pres, {md with md_type = mty} , rs, priv) ::
-      remove_aliases_sig (Env.add_module id pres mty env) args rem
+      remove_aliases_sig (Env.add_module id pres IILocal mty env) args rem
   | Sig_modtype(id, mtd, priv) :: rem ->
       Sig_modtype(id, mtd, priv) ::
       remove_aliases_sig (Env.add_modtype id mtd env) args rem
