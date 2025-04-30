@@ -2333,7 +2333,9 @@ let add_module_variables env module_variables =
         | _ -> Mp_present
       in
       let md =
-        { md_type = modl.mod_type; md_attributes = [];
+        { md_type = modl.mod_type;
+          md_impl = IIShadows;
+          md_attributes = [];
           md_loc = mv_name.loc;
           md_uid = mv_uid; }
       in
@@ -5902,6 +5904,7 @@ and type_moddep_fun ~env ~name ~pack_param ~rest ~arg_label ~first
   let pv_uid = Uid.mk ~current_unit:(Env.get_current_unit ()) in
   let arg_md = {
     md_type = mty;
+    md_impl = IIShadows;
     md_attributes = [];
     md_loc = pparam_loc;
     md_uid = pv_uid;

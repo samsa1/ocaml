@@ -547,6 +547,7 @@ module Lazy_types = struct
   type module_decl =
     {
       mdl_type: modtype;
+      mdl_impl: is_implicit;
       mdl_attributes: Parsetree.attributes;
       mdl_loc: Location.t;
       mdl_uid: Uid.t;
@@ -645,6 +646,7 @@ let rename_bound_idents scoping s sg =
 
 let rec lazy_module_decl md =
   { mdl_type = lazy_modtype md.md_type;
+    mdl_impl = md.md_impl;
     mdl_attributes = md.md_attributes;
     mdl_loc = md.md_loc;
     mdl_uid = md.md_uid }
@@ -652,6 +654,7 @@ let rec lazy_module_decl md =
 and subst_lazy_module_decl scoping s md =
   let mdl_type = subst_lazy_modtype scoping s md.mdl_type in
   { mdl_type;
+    mdl_impl = md.mdl_impl;
     mdl_attributes = attrs s md.mdl_attributes;
     mdl_loc = loc s md.mdl_loc;
     mdl_uid = md.mdl_uid }
@@ -659,6 +662,7 @@ and subst_lazy_module_decl scoping s md =
 and force_module_decl md =
   let md_type = force_modtype md.mdl_type in
   { md_type;
+    md_impl = md.mdl_impl;
     md_attributes = md.mdl_attributes;
     md_loc = md.mdl_loc;
     md_uid = md.mdl_uid }

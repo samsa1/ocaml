@@ -971,6 +971,7 @@ and signature_item_desc =
 and module_declaration =
     {
      pmd_name: string option loc;
+     pmd_impl: bool;
      pmd_type: module_type;
      pmd_attributes: attributes;  (** [... [\@\@id1] [\@\@id2]] *)
      pmd_loc: Location.t;
@@ -1145,6 +1146,7 @@ and value_binding =
 and module_binding =
     {
      pmb_name: string option loc;
+     pmb_impl: bool;
      pmb_expr: module_expr;
      pmb_attributes: attributes;
      pmb_loc: Location.t;
