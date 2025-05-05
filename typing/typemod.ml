@@ -2435,16 +2435,17 @@ let check_purity loc env funct_body pure =
   | _ -> ()
 
 let rec infer_implicit ~loc env mty =
-  let mexp = Implicitmod.infer ~loc env mty in
+  let mexp = Implicitmod.infer ~loc env mty.mty_type in
   let (mtexp, shape) =
       type_module ~strengthen:true ~funct_body:Pure None env mexp in
-  let md, _final_shape =
-    wrap_constraint_with_shape env true mtexp mty shape Tmodtype_implicit
+  let md, final_shape =
+    wrap_constraint_with_shape env true mtexp mty.mty_type shape
+      (Tmodtype_explicit mty)
   in
   { md with
     mod_loc = loc;
     mod_attributes = [];
-  }
+  }, final_shape
 
 and type_module ?(alias=false) ~strengthen ~funct_body anchor env smod =
   Builtin_attributes.warning_scope smod.pmod_attributes
@@ -2554,7 +2555,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
       Shape.abs funct_shape_param body_shape
   | Pmod_apply _ | Pmod_apply_unit _ ->
       type_application smod.pmod_loc ~strengthen ~funct_body env smod
-  | Pmod_constraint(sarg, smty) ->
+  | Pmod_constraint(Some sarg, smty) ->
       let arg, arg_shape =
         type_module ~alias ~strengthen:true ~funct_body anchor env sarg
       in
@@ -2568,6 +2569,9 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
         mod_attributes = smod.pmod_attributes;
       },
       final_shape
+  | Pmod_constraint (None, smty) ->
+      let mty = transl_modtype env smty in
+      infer_implicit ~loc:smod.pmod_loc env mty
   | Pmod_unpack sexp ->
       let exp =
         Ctype.with_local_level_generalize_structure_if_principal
@@ -3039,7 +3043,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
             (function
               | {pmb_name = name;
                  pmb_impl = impl;
-                 pmb_expr = {pmod_desc=Pmod_constraint(expr, typ)};
+                 pmb_expr = {pmod_desc=Pmod_constraint(Some expr, typ)};
                  pmb_attributes = attrs;
                  pmb_loc = loc;
                 } ->
@@ -3222,8 +3226,6 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         Tstr_attribute x, [], shape_map, env
   in
   { str_desc = desc; str_loc = loc; str_env = env }, sg, shape_map, new_env
-
-let _ = infer_implicit
 
 let type_toplevel_phrase env s =
   Env.reset_required_globals ();

@@ -290,8 +290,8 @@ module Mod:
     val apply: ?loc:loc -> ?attrs:attrs -> module_expr -> module_expr ->
       module_expr
     val apply_unit: ?loc:loc -> ?attrs:attrs -> module_expr -> module_expr
-    val constraint_: ?loc:loc -> ?attrs:attrs -> module_expr -> module_type ->
-      module_expr
+    val constraint_: ?loc:loc -> ?attrs:attrs -> module_expr option ->
+      module_type -> module_expr
     val unpack: ?loc:loc -> ?attrs:attrs -> expression -> module_expr
     val extension: ?loc:loc -> ?attrs:attrs -> extension -> module_expr
   end

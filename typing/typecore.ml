@@ -2985,7 +2985,7 @@ let module_with_package_type_constraint me optyp =
         ptyp.ppt_constraints
     in
     let mty = Ast_helper.Mty.with_ ~loc path cstrs in
-    Ast_helper.Mod.constraint_ ~loc ~attrs:ptyp.ppt_attrs me mty
+    Ast_helper.Mod.constraint_ ~loc ~attrs:ptyp.ppt_attrs (Some me) mty
 
 let extract_packing sarg =
   match sarg.pexp_desc with
