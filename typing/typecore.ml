@@ -286,7 +286,7 @@ let check_package_closed :
 
 let new_implicit_module :
   (?attributes:Typedtree.attributes -> loc:Location.t -> Env.t ->
-   Types.module_type -> Typedtree.implicit_module * Typedtree.module_expr) ref =
+   Types.module_type -> Typedtree.module_expr) ref =
   ref (fun ?attributes:_ ~loc:_ _ -> assert false)
 
 (* Forward declaration, to be filled in by Typeclass.class_structure *)
@@ -3398,11 +3398,8 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                 let mty =
                   Ctype.modtype_of_package env previous_arg_loc tfun.pack
                 in
-                let modimpl, me =
-                  !new_implicit_module ~loc:previous_arg_loc env mty
-                in
+                let me = !new_implicit_module ~loc:previous_arg_loc env mty in
                 try
-                  Typedtree.solve_implicit modimpl;
                   identifier_escape l tfun.pack  env tfun.id me.mod_type tfun.ty;
                   identifier_escape l tfun0.pack env tfun0.id me.mod_type tfun0.ty;
                   let _texp =
@@ -3414,7 +3411,10 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                       exp_env = env
                     }
                   in
-                  let arg = assert false in
+                  let arg = Arg (Typed_arg {
+                    targ = Targ_mod me;
+                    loc = None;
+                  }) in
                   (arg, tfun.ty, tfun0.ty)
                 with Not_found ->
                   failwith "Modular implicits inference not implemented"
@@ -5828,7 +5828,8 @@ and type_function
   | { pparam_desc = Pparam_module (arg_label, name, pack_param); pparam_loc }
       :: rest
     ->
-      type_moddep_fun ~env ~name ~pack_param ~rest ~arg_label ~first
+      let md_impl = IIImplicit in
+      type_moddep_fun ~env ~name ~pack_param ~rest ~arg_label ~first ~md_impl
         ~in_function ~ty_expected ~pparam_loc ~loc ~body_constraint ~body true
   | { pparam_desc = Pparam_val (arg_label, None, pat); pparam_loc } :: rest
     when is_unpack pat && could_be_functor env ty_expected
@@ -5839,7 +5840,8 @@ and type_function
             ({txt = name; loc}, pack_param)
         | _ -> assert false
       in
-      type_moddep_fun ~env ~name ~pack_param ~rest ~arg_label ~first
+      let md_impl = IIShadows in
+      type_moddep_fun ~env ~name ~pack_param ~rest ~arg_label ~first ~md_impl
         ~in_function ~ty_expected ~pparam_loc ~loc ~body_constraint ~body false
   | { pparam_desc = Pparam_val (arg_label, default_arg, pat); pparam_loc }
       :: rest
@@ -6021,7 +6023,7 @@ and type_function
      *)
     exp_type, [], body, [], No_gadt
 and type_moddep_fun ~env ~name ~pack_param ~rest ~arg_label ~first ~in_function
-    ~ty_expected ~pparam_loc ~loc ~body_constraint ~body compact =
+    ~ty_expected ~pparam_loc ~loc ~body_constraint ~body ~md_impl compact =
   let type_pack pack =
     let pack = Ast_helper.Typ.package ~loc:pack.ppt_loc pack in
     let cpack = Typetexp.transl_simple_type env ~closed:false pack in
@@ -6061,7 +6063,7 @@ and type_moddep_fun ~env ~name ~pack_param ~rest ~arg_label ~first ~in_function
   let pv_uid = Uid.mk ~current_unit:(Env.get_current_unit ()) in
   let arg_md = {
     md_type = mty;
-    md_impl = IIShadows;
+    md_impl;
     md_attributes = [];
     md_loc = pparam_loc;
     md_uid = pv_uid;

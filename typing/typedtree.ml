@@ -968,6 +968,8 @@ let solve_implicit impl =
   | Timod_unknown f ->
       impl.desc <- Timod_found (f ())
 
+let get_level_of_implicit _ = max_int
+
 let rec mod_desc me =
   match me.mod_desc with
   | Tmod_implicit { desc = Timod_found me } ->
@@ -976,4 +978,22 @@ let rec mod_desc me =
     Misc.fatal_error "Types.mod_desc "
   | desc -> desc
 
+
 type implicit_module_solver = implicit_module
+
+(** Types related to the inference of implicit module expression *)
+
+type ambiguity_explanation =
+  | TwoSolutions of
+      Types.module_type * Parsetree.module_expr * Parsetree.module_expr
+  | RecLoop of Types.module_type * string
+  | GenerativeApp of Types.module_type * string
+
+type implicit_inference_fail_desc =
+  | Ambiguity of ambiguity_explanation
+  | NoSolution
+
+type implicit_inference_fail =
+  Location.t * Types.module_type * implicit_inference_fail_desc
+
+exception ImplicitError of implicit_inference_fail

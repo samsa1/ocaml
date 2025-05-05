@@ -16,6 +16,7 @@
 open Longident
 open Asttypes
 open Parsetree
+open Typedtree
 open Types
 
 module FuncOrder : sig

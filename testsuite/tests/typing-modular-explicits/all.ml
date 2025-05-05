@@ -73,7 +73,7 @@ let seven = add_impl 3 4
 Line 1, characters 12-20:
 1 | let seven = add_impl 3 4
                 ^^^^^^^^
-Error: Inference of signature sig type t = 'a val add : t -> t -> t end
+Error: Inference of signature sig type t = int val add : t -> t -> t end
        failed as no solution was found.
 |}]
 
@@ -101,7 +101,7 @@ let seven_fail2 = add_lbl 3 4
 Line 1, characters 18-25:
 1 | let seven_fail2 = add_lbl 3 4
                       ^^^^^^^
-Error: Inference of signature sig type t = 'a val add : t -> t -> t end
+Error: Inference of signature sig type t = int val add : t -> t -> t end
        failed as no solution was found.
 |}]
 
@@ -110,4 +110,101 @@ let add_lbl_coerced = (add_lbl :> a:(module A : Add) -> A.t -> A.t -> A.t)
 
 [%%expect{|
 val add_lbl_coerced : a:(module A : Add) -> A.t -> A.t -> A.t = <fun>
+|}]
+
+let test_impl1 {A : Add} x y = add_impl x y
+let test_impl2 {A : Add} {B : Add} (x : A.t) y = add_impl x y
+
+[%%expect{|
+Line 1, characters 31-39:
+1 | let test_impl1 {A : Add} x y = add_impl x y
+                                   ^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "A"
+
+val test_impl1 : {A : Add} -> A.t -> A.t -> A.t = <fun>
+Line 2, characters 49-57:
+2 | let test_impl2 {A : Add} {B : Add} (x : A.t) y = add_impl x y
+                                                     ^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "A"
+
+val test_impl2 : {A : Add} -> {B : Add} -> A.t -> A.t -> A.t = <fun>
+|}]
+
+let test_impl_fail1 {A : Add} {B : Add} x y = add_impl x y
+
+[%%expect{|
+Line 1, characters 46-54:
+1 | let test_impl_fail1 {A : Add} {B : Add} x y = add_impl x y
+                                                  ^^^^^^^^
+Error: Inference of signature sig type t = 'a val add : t -> t -> t end
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       ?1.
+?1 awaited an argument of signature
+             sig type t = 'a val add : t -> t -> t end
+            It can be filled by either  B  or  A.
+
+|}]
+
+module type AddSub = sig
+       type t
+       val add: t -> t -> t
+       val sub: t -> t -> t
+end
+
+let test_impl3 {AS : AddSub} (x : AS.t) y = add_impl x y
+
+[%%expect{|
+module type AddSub =
+  sig type t val add : t -> t -> t val sub : t -> t -> t end
+Line 7, characters 44-52:
+7 | let test_impl3 {AS : AddSub} (x : AS.t) y = add_impl x y
+                                                ^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "AS"
+
+val test_impl3 : {AS : AddSub} -> AS.t -> AS.t -> AS.t = <fun>
+|}]
+
+module T1 = struct
+       implicit module AInt = struct
+              type t = int
+              let add = ( + )
+       end
+
+       implicit module AFloat = struct
+              type t = float
+              let add = ( +. )
+       end
+
+
+       let seven = add_impl 3 4
+
+       let seven_float = add_impl 5. 2.
+end
+
+[%%expect{|
+Line 13, characters 19-27:
+13 |        let seven = add_impl 3 4
+                        ^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "AInt"
+
+Line 15, characters 25-33:
+15 |        let seven_float = add_impl 5. 2.
+                              ^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "AFloat"
+
+module T1 :
+  sig
+    implicit module AInt : sig type t = int val add : int -> int -> int end
+    implicit module AFloat :
+      sig type t = float val add : float -> float -> float end
+    val seven : int
+    val seven_float : float
+  end
 |}]
