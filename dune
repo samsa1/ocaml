@@ -65,6 +65,7 @@
    typecore
    typeclass typemod typedecl_variance typedecl_properties typedecl_immediacy
    typedecl_unboxed typedecl_separability cmt2annot out_type data_types
+   implicitmod
    ; manual update: mli only files
    annot outcometree value_rec_types
 

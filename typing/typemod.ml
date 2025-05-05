@@ -2445,7 +2445,7 @@ and new_implicit_module ?(attributes=[]) ~loc env mty_type =
       Timod_unknown
         (fun () -> fst (infer_implicit ~loc env mty_type Tmodtype_implicit))
   } in
-  implicit_module,
+  Btype_utils.add_impl_to_pool implicit_module;
   { mod_desc = Tmod_implicit implicit_module;
     mod_loc = loc;
     mod_type = mty_type;

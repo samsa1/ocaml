@@ -25,6 +25,10 @@ val add_to_pool: level:int -> transient_expr -> unit
            be the level of the type node).
            Do nothing if [level = generic_level] or [level = lowest_level]. *)
 
+val add_impl_to_pool: Typedtree.implicit_module_solver -> unit
+        (* Add an implicit module to the pool associated to the level (which
+           should be the level of the required signature). *)
+
 val newty3: level:int -> scope:int -> type_desc -> type_expr
         (* Create a type with a fresh id *)
 val newty2: level:int -> type_desc -> type_expr

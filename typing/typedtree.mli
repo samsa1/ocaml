@@ -971,5 +971,23 @@ val path_of_type : core_type -> Path.t option
 val remove_module_constraint : module_expr -> module_expr
 
 type implicit_module_solver = implicit_module
+val get_level_of_implicit : implicit_module_solver -> int
 val solve_implicit : implicit_module_solver -> unit
 val mod_desc : module_expr -> module_expr_desc
+
+(** Types related to the inference of implicit module expression *)
+
+type ambiguity_explanation =
+  | TwoSolutions of
+      Types.module_type * Parsetree.module_expr * Parsetree.module_expr
+  | RecLoop of Types.module_type * string
+  | GenerativeApp of Types.module_type * string
+
+type implicit_inference_fail_desc =
+  | Ambiguity of ambiguity_explanation
+  | NoSolution
+
+type implicit_inference_fail =
+  Location.t * Types.module_type * implicit_inference_fail_desc
+
+exception ImplicitError of implicit_inference_fail
