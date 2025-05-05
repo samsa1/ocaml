@@ -356,7 +356,7 @@ module M = struct
     | Pmod_apply_unit m1 ->
         sub.module_expr sub m1
     | Pmod_constraint (m, mty) ->
-        sub.module_expr sub m; sub.module_type sub mty
+        Option.iter (sub.module_expr sub) m; sub.module_type sub mty
     | Pmod_unpack e -> sub.expr sub e
     | Pmod_extension x -> sub.extension sub x
 

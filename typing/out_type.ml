@@ -1929,7 +1929,7 @@ and tree_of_sigitem = function
           | Parsetree.{attr_name = {txt="..."}; attr_payload = PStr []} -> true
           | _ -> false)
           md.md_attributes in
-      tree_of_module id md.md_type rs ~ellipsis
+      tree_of_module id md.md_impl md.md_type rs ~ellipsis
   | Sig_modtype(id, decl, _) ->
       tree_of_modtype_declaration id decl
   | Sig_class(id, decl, rs, _) ->
@@ -1945,8 +1945,9 @@ and tree_of_modtype_declaration id decl =
   in
   Osig_modtype (Ident.name id, mty)
 
-and tree_of_module id ?ellipsis mty rs =
-  Osig_module (Ident.name id, tree_of_modtype ?ellipsis mty, tree_of_rec rs)
+and tree_of_module id is_impl ?ellipsis mty rs =
+  Osig_module (Ident.name id, is_impl = Types.IIImplicit,
+    tree_of_modtype ?ellipsis mty, tree_of_rec rs)
 
 (* For the toplevel: merge with tree_of_signature? *)
 let print_items showval env x =

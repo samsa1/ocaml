@@ -845,7 +845,7 @@ and module_expr i ppf x =
       module_expr i ppf me1
   | Pmod_constraint (me, mt) ->
       line i ppf "Pmod_constraint\n";
-      module_expr i ppf me;
+      option i module_expr ppf me;
       module_type i ppf mt;
   | Pmod_unpack (e) ->
       line i ppf "Pmod_unpack\n";
