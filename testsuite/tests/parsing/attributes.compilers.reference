@@ -226,8 +226,9 @@
     "_" (attributes.ml[51,652+7]..[51,652+8])
       module_expr (attributes.ml[51,652+11]..[51,652+27])
         Pmod_constraint
-        module_expr (attributes.ml[51,652+12]..[51,652+15])
-          Pmod_ident "Int" (attributes.ml[51,652+12]..[51,652+15])
+        Some
+          module_expr (attributes.ml[51,652+12]..[51,652+15])
+            Pmod_ident "Int" (attributes.ml[51,652+12]..[51,652+15])
         module_type (attributes.ml[51,652+18]..[51,652+19])
           attribute "foo"
             []
@@ -237,8 +238,9 @@
     "_" (attributes.ml[53,681+7]..[53,681+8])
       module_expr (attributes.ml[53,681+11]..[53,681+45])
         Pmod_constraint
-        module_expr (attributes.ml[53,681+12]..[53,681+15])
-          Pmod_ident "Int" (attributes.ml[53,681+12]..[53,681+15])
+        Some
+          module_expr (attributes.ml[53,681+12]..[53,681+15])
+            Pmod_ident "Int" (attributes.ml[53,681+12]..[53,681+15])
         module_type (attributes.ml[53,681+18]..[53,681+37])
           attribute "foo"
             []

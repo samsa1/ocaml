@@ -1442,6 +1442,10 @@ and signature_item ctxt f x : unit =
       item_extension ctxt f e;
       item_attributes ctxt f a
 
+and module_expr_opt ctxt f = function
+  | None -> pp f "_"
+  | Some me -> module_expr ctxt f me
+
 and module_expr ctxt f x =
   if x.pmod_attributes <> [] then
     pp f "((%a)%a)" (module_expr ctxt) {x with pmod_attributes=[]}
@@ -1452,7 +1456,7 @@ and module_expr ctxt f x =
           (list (structure_item ctxt) ~sep:"@\n") s;
     | Pmod_constraint (me, mt) ->
         pp f "@[<hov2>(%a@ :@ %a)@]"
-          (module_expr ctxt) me
+          (module_expr_opt ctxt) me
           (module_type ctxt) mt
     | Pmod_ident (li) ->
         pp f "%a" longident_loc li;
@@ -1596,7 +1600,7 @@ and structure_item ctxt f x =
                                | Pmty_signature (_));_} as mt));
               pmod_attributes = []} ->
                pp f " :@;%a@;=@;%a@;"
-                 (module_type ctxt) mt (module_expr ctxt) me'
+                 (module_type ctxt) mt (module_expr_opt ctxt) me'
            | _ -> pp f " =@ %a" (module_expr ctxt) me
         ) x.pmb_expr
         (item_attributes ctxt) x.pmb_attributes
@@ -1668,7 +1672,7 @@ and structure_item ctxt f x =
             pp f "@[<hov2>@ and@ %s:%a@ =@ %a@]%a"
               (Option.value pmb.pmb_name.txt ~default:"_")
               (module_type ctxt) typ
-              (module_expr ctxt) expr
+              (module_expr_opt ctxt) expr
               (item_attributes ctxt) pmb.pmb_attributes
         | pmb ->
             pp f "@[<hov2>@ and@ %s@ =@ %a@]%a"
@@ -1681,7 +1685,7 @@ and structure_item ctxt f x =
           pp f "@[<hv>@[<hov2>module@ rec@ %s:%a@ =@ %a@]%a@ %a@]"
             (Option.value pmb.pmb_name.txt ~default:"_")
             (module_type ctxt) typ
-            (module_expr ctxt) expr
+            (module_expr_opt ctxt) expr
             (item_attributes ctxt) pmb.pmb_attributes
             (fun f l2 -> List.iter (aux f) l2) l2
       | pmb :: l2 ->

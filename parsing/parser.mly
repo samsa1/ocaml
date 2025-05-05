@@ -1502,13 +1502,19 @@ module_expr:
     { $1 }
 ;
 
+%inline module_expr_opt:
+  | me = module_expr
+    { Some me }
+  | UNDERSCORE
+    { None }
+
 (* A parenthesized module expression is a module expression that begins
    and ends with parentheses. *)
 
 paren_module_expr:
     (* A module expression annotated with a module type. *)
-    LPAREN me = module_expr COLON mty = module_type RPAREN
-      { mkmod ~loc:$sloc (Pmod_constraint(me, mty)) }
+    LPAREN me_opt = module_expr_opt COLON mty = module_type RPAREN
+      { mkmod ~loc:$sloc (Pmod_constraint(me_opt, mty)) }
   | LPAREN module_expr COLON module_type error
       { unclosed "(" $loc($1) ")" $loc($5) }
   | (* A module expression within parentheses. *)
@@ -1650,8 +1656,8 @@ module_binding_body_inner:
   | COLON error
       { expecting $loc($1) "=" }
   | mkmod(
-      COLON mty = module_type EQUAL me = module_expr
-        { Pmod_constraint(me, mty) }
+      COLON mty = module_type EQUAL me_opt = module_expr_opt
+        { Pmod_constraint(me_opt, mty) }
   ) { $1 }
 ;
 module_binding_body:
