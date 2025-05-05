@@ -3434,6 +3434,10 @@ and is_nonexpansive_mod ~pure mexp =
   | Tmod_structure str ->
       List.for_all (is_nonexpansive_struct_item ~pure) str.str_items
   | Tmod_apply _ | Tmod_apply_unit _ -> false (* could be improved *)
+  | Tmod_implicit { desc = Timod_found me } ->
+      is_nonexpansive_mod ~pure me
+  | Tmod_implicit { desc = Timod_unknown _ } ->
+      assert false
 
 and is_nonexpansive_opt ~pure = function
   | None -> true

@@ -290,6 +290,15 @@ and module_expr_desc =
   | Tmod_constraint of
       module_expr * Types.module_type * module_type_constraint * module_coercion
   | Tmod_unpack of expression * Types.module_type
+  | Tmod_implicit of implicit_module
+
+and implicit_module =
+  { mutable desc : implicit_module_desc;
+  }
+
+and implicit_module_desc =
+  | Timod_unknown of (unit -> module_expr)
+  | Timod_found of module_expr
 
 and structure = {
   str_items : structure_item list;
@@ -935,8 +944,9 @@ let rec path_of_module mexp =
       Path.Papply(path_of_module funct, path_of_module arg)
   | Tmod_constraint (mexp, _, _, _) ->
       path_of_module mexp
+  | Tmod_implicit { desc = Timod_found me } -> path_of_module me
   | (Tmod_structure _ | Tmod_functor _ | Tmod_apply_unit _ | Tmod_unpack _ |
-    Tmod_apply _) ->
+    Tmod_apply _ | Tmod_implicit _) ->
     raise Not_a_path
 
 let path_of_module mexp =
@@ -946,3 +956,19 @@ let remove_module_constraint me =
   match me.mod_desc with
   | Tmod_constraint (me, _, _, _) -> me
   | _ -> me
+
+let solve_implicit impl =
+  match impl.desc with
+  | Timod_found _ -> ()
+  | Timod_unknown f ->
+      impl.desc <- Timod_found (f ())
+
+let rec mod_desc me =
+  match me.mod_desc with
+  | Tmod_implicit { desc = Timod_found me } ->
+    mod_desc me
+  | Tmod_implicit { desc = Timod_unknown _ } ->
+    Misc.fatal_error "Types.mod_desc "
+  | desc -> desc
+
+type implicit_module_solver = implicit_module

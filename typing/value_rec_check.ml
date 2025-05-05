@@ -303,6 +303,10 @@ let classify_expression : Typedtree.expression -> sd =
         end
     | Tmod_unpack (e, _) ->
         classify_expression env e
+    | Tmod_implicit { desc = Timod_found mexpr } ->
+        classify_module_expression env mexpr
+    | Tmod_implicit { desc = Timod_unknown _ } ->
+        assert false
   in classify_expression Ident.empty
 
 
@@ -1015,6 +1019,10 @@ and modexp : Typedtree.module_expr -> term_judg =
       coercion coe (fun m -> modexp mexp << m)
     | Tmod_unpack (e, _) ->
       expression e
+    | Tmod_implicit { desc = Timod_found m } ->
+      modexp m
+    | Tmod_implicit { desc = Timod_unknown _ } ->
+      assert false
 
 
 (* G |- pth : m *)
