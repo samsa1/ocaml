@@ -2411,6 +2411,21 @@ let rec infer_implicit ~loc env mty =
     mod_attributes = [];
   }, final_shape
 
+and new_implicit_module ?(attributes=[]) ~loc env mty =
+  let mty =
+    {mty with mty_type = Implicitmod.open_module_type env mty.mty_type}
+  in
+  let implicit_module = {
+    desc = Timod_unknown (fun () -> fst (infer_implicit ~loc env mty))
+  } in
+  implicit_module,
+  { mod_desc = Tmod_implicit implicit_module;
+    mod_loc = loc;
+    mod_type = mty.mty_type;
+    mod_env = env;
+    mod_attributes = attributes;
+  }
+
 and type_module ?(alias=false) ~strengthen ~funct_body anchor env smod =
   Builtin_attributes.warning_scope smod.pmod_attributes
     (fun () -> type_module_aux ~alias ~strengthen ~funct_body anchor env smod)
@@ -3188,6 +3203,8 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         Tstr_attribute x, [], shape_map, env
   in
   { str_desc = desc; str_loc = loc; str_env = env }, sg, shape_map, new_env
+
+let _ = new_implicit_module (* Just to remove ununsed warning *)
 
 let type_toplevel_phrase env s =
   Env.reset_required_globals ();
