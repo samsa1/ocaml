@@ -290,6 +290,15 @@ and module_expr_desc =
   | Tmod_constraint of
       module_expr * Types.module_type * module_type_constraint * module_coercion
   | Tmod_unpack of expression * Types.module_type
+  | Tmod_implicit of implicit_module
+
+and implicit_module =
+  { mutable desc : implicit_module_desc;
+  }
+
+and implicit_module_desc =
+  | Timod_unknown of (unit -> module_expr)
+  | Timod_found of module_expr
 
 and structure = {
   str_items : structure_item list;
@@ -908,3 +917,19 @@ let split_pattern pat =
 let map_apply_arg f = function
   | Arg arg -> Arg (f arg)
   | Omitted _ as arg -> arg
+
+let solve_implicit impl =
+  match impl.desc with
+  | Timod_found _ -> ()
+  | Timod_unknown f ->
+      impl.desc <- Timod_found (f ())
+
+let rec mod_desc me =
+  match me.mod_desc with
+  | Tmod_implicit { desc = Timod_found me } ->
+    mod_desc me
+  | Tmod_implicit { desc = Timod_unknown _ } ->
+    Misc.fatal_error "Types.mod_desc "
+  | desc -> desc
+
+type implicit_module_solver = implicit_module

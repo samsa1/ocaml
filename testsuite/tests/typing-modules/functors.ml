@@ -2173,7 +2173,7 @@ Error: Signature mismatch:
            type t
            module Inner : sig type t end
            module F :
-             (X : sig val f : t val g : Inner.t val h : int end) -> sig end
+             (X : sig val f : t val g : Inner.t val h : int end) => sig end
          end
        is not included in
          sig
@@ -2184,7 +2184,7 @@ Error: Signature mismatch:
          end
        In module "F":
        Modules do not match:
-         (X : $S1) -> ...
+         (X : $S1) => ...
        is not included in
          (X : $T1) -> ...
        Module types do not match:
@@ -2232,7 +2232,7 @@ Error: Signature mismatch:
            module Inner : sig type t end
            module F :
              (X : sig val f : t val h : int end) (A : a)
-             (Y : sig val f : Inner.t val h : int end) -> sig end
+             (Y : sig val f : Inner.t val h : int end) => sig end
          end
        is not included in
          sig
@@ -2244,7 +2244,7 @@ Error: Signature mismatch:
          end
        In module "F":
        Modules do not match:
-         (X : $S2) (A : a) (Y : $S4) -> ...
+         (X : $S2) (A : a) (Y : $S4) => ...
        is not included in
          (A : a) (X : $T2) (A : a) (Y : $T4) -> ...
        1. An argument appears to be missing with module type a

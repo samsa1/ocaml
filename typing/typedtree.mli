@@ -471,6 +471,15 @@ and module_expr_desc =
         (ME : MT)   (constraint = Tmodtype_explicit MT)
      *)
   | Tmod_unpack of expression * Types.module_type
+  | Tmod_implicit of implicit_module
+
+and implicit_module =
+  { mutable desc : implicit_module_desc;
+  }
+
+and implicit_module_desc =
+  | Timod_unknown of (unit -> module_expr)
+  | Timod_found of module_expr
 
 and structure = {
   str_items : structure_item list;
@@ -944,3 +953,7 @@ val split_pattern:
 
 val map_apply_arg:
   ('a -> ' b) -> ('a, 'omitted) arg_or_omitted ->  ('b, 'omitted) arg_or_omitted
+
+type implicit_module_solver = implicit_module
+val solve_implicit : implicit_module_solver -> unit
+val mod_desc : module_expr -> module_expr_desc

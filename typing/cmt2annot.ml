@@ -73,7 +73,9 @@ let rec iterator ~scope rebuild_env =
 
   and module_expr _sub node =
     Stypes.record (Stypes.Ti_mod node);
-    super.module_expr (iterator ~scope:node.mod_loc rebuild_env) node
+    match node.mod_desc with
+    | Tmod_implicit { desc = Timod_unknown _ } -> ()
+    | _ -> super.module_expr (iterator ~scope:node.mod_loc rebuild_env) node
 
   and expr sub exp =
     begin match exp.exp_desc with
