@@ -160,7 +160,8 @@ val tree_of_cltype_declaration:
 (** {1 Module types }*)
 
 val tree_of_module:
-    Ident.t -> ?ellipsis:bool -> module_type -> rec_status -> out_sig_item
+    Ident.t -> Types.is_implicit -> ?ellipsis:bool -> module_type ->
+    rec_status -> out_sig_item
 val tree_of_modtype: module_type -> out_module_type
 val tree_of_signature: Types.signature -> out_sig_item list
 

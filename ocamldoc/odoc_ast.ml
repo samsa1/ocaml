@@ -1774,7 +1774,7 @@ module Analyser =
           in
           { m_base with m_kind = Module_apply_unit m1.m_kind }
 
-      | (Parsetree.Pmod_constraint (p_module_expr2, p_modtype),
+      | (Parsetree.Pmod_constraint (Some p_module_expr2, p_modtype),
          Typedtree.Tmod_constraint (tt_module_expr2, tt_modtype, _, _)) ->
           let m_base2 = analyse_module
               env
@@ -1834,6 +1834,9 @@ module Analyser =
             m_type = Odoc_env.subst_module_type env tt_modtype ;
             m_kind = Module_unpack (code, alias) ;
           }
+
+      | (Parsetree.Pmod_constraint (None, _), _) ->
+          raise (Failure "analyse_module: infered implicit.")
 
       | (_parsetree, _typedtree) ->
           raise (Failure "analyse_module: parsetree and typedtree don't match.")
