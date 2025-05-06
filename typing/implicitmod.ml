@@ -19,8 +19,12 @@ open Asttypes
 open Parsetree
 open Types
 
+type ambiguity_explanation =
+  | TwoSolutions of
+      Types.module_type * Parsetree.module_expr * Parsetree.module_expr
+
 type implicit_inference_fail_desc =
-  | Ambiguity
+  | Ambiguity of ambiguity_explanation
   | NoSolution
 
 type implicit_inference_fail =
@@ -76,7 +80,9 @@ let rec find_module_expr ~loc env mty =
       Btype.backtrack snap;
       match prev_sol with
       | None -> Some mexp
-      | Some _mexp' -> raise (ImplicitError ((loc, mty, Ambiguity)))
+      | Some mexp' ->
+        let explanation = TwoSolutions (mty, mexp, mexp') in
+        raise (ImplicitError ((loc, mty, Ambiguity explanation)))
     end with
       | Includemod.Error _ | ImplicitError ((_, _, NoSolution)) ->
         Btype.backtrack snap; prev_sol
@@ -92,18 +98,30 @@ let rec find_module_expr ~loc env mty =
 
 let infer ~loc env mty =
   let mty = open_module_type env mty in
-  find_module_expr ~loc env mty
+  try
+    find_module_expr ~loc env mty
+  with ImplicitError (loc, _, err) ->
+    raise (ImplicitError (loc, mty, err))
 
 (* Error report *)
 open Printtyp.Doc
 
+let ambiguity_explanation ppf = function
+  | TwoSolutions (mty, sol1, sol2) ->
+      Format_doc.fprintf ppf
+        "because two distinct solutions@ %a@ and@ %a@ \
+         to the constraint@ %a@ where found"
+          Pprintast.Doc.module_expr sol1
+          Pprintast.Doc.module_expr sol2
+          modtype mty
+
 let report_implicit_error ~loc mty err =
   match err with
-  | Ambiguity ->
+  | Ambiguity expl ->
       Location.errorf ~loc
           "@[<v>@[<2>Inference of signature %a@]@ \
-           failed as multiple solutions were found.@]"
-           modtype mty
+           failed %a.@]"
+           modtype mty ambiguity_explanation expl
   | NoSolution ->
       Location.errorf ~loc
           "@[<v>@[<2>Inference of signature %a@]@ \
