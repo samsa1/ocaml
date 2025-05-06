@@ -71,4 +71,6 @@ module Doc:sig
   (** Returns a format document if the expression reads nicely as the subject
       of a sentence in a error message. *)
   val nominal_exp : Parsetree.expression -> Format_doc.t option
+
+  val module_expr : Parsetree.module_expr Format_doc.printer
 end
