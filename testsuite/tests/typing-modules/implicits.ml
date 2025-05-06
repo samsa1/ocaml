@@ -146,7 +146,13 @@ Line 3, characters 18-47:
 3 | module SBool_fail : Show with type t = bool = _
                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Inference of signature sig type t = bool val print : t -> unit end
-       failed as multiple solutions were found.
+       failed because two distinct solutions
+       SBoolbis
+       and
+       SBool
+       to the constraint
+       sig type t = bool val print : t -> unit end
+       where found.
 |}]
 
 (* Multiple solution because generative *)
@@ -309,7 +315,13 @@ Line 1, characters 20-48:
 1 | module Test_No_Open : Show with type t = int = _
                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Inference of signature sig type t = int val print : t -> unit end
-       failed as multiple solutions were found.
+       failed because two distinct solutions
+       SInt
+       and
+       SFloat
+       to the constraint
+       sig type t = int val print : t -> unit end
+       where found.
 |}]
 
 (* Test signature comparison  *)
