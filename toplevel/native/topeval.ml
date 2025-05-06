@@ -199,10 +199,13 @@ let execute_phrase print_outcome ppf phr =
       in
       Warnings.check_fatal ();
       begin try
+        let dump_typedtree_before = !Clflags.dump_typedtree in
         toplevel_env := newenv;
         let res =
           load_lambda ppf ~required_globals ~module_ident phrase_name res size
         in
+        if dump_typedtree_before && !Clflags.dump_typedtree then
+          Printtyped.implementation ppf str;
         let out_phr =
           match res with
           | Result _ ->
