@@ -231,6 +231,20 @@ module Doc = struct
       | _ -> None
     in
     nominal_exp empty t
+
+  let rec module_expr ppf x =
+    match x.pmod_desc with
+    | Pmod_structure _ -> Format_doc.fprintf ppf "<struct>"
+    | Pmod_constraint _ -> Format_doc.fprintf ppf "<constraint>"
+    | Pmod_ident li -> Format_doc.fprintf ppf "%a" longident li.txt
+    | Pmod_functor _ -> Format_doc.fprintf ppf "<functor>"
+    | Pmod_apply (me1, me2) ->
+        Format_doc.fprintf ppf "%a(%a)" module_expr me1 module_expr me2
+    | Pmod_apply_unit me1 ->
+        Format_doc.fprintf ppf "%a()" module_expr me1
+    | Pmod_unpack _ -> Format_doc.fprintf ppf "<val>"
+    | Pmod_extension _ -> Format_doc.fprintf ppf "<ext>"
+
 end
 
 let value_longident ppf l = Format_doc.compat Doc.value_longident ppf l
