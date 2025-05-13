@@ -53,43 +53,52 @@ and open_module_type env mty =
   | Mty_functor _ as mty -> mty
   | _ -> Misc.fatal_error "open_module_type"
 
-let extract_function env mty =
+let rec extract_function env depth mty =
   match Env.scrape_alias env mty with
-  | Mty_signature _ -> ([], mty)
-  | Mty_functor _ -> failwith "NYI : Inference through functors"
+  | Mty_signature _ -> if depth = 0 then Some ([], mty) else None
+  | Mty_functor (_, mty') ->
+    begin match extract_function env (depth - 1) mty' with
+      | Some _ -> Some ([], mty)
+      | None -> failwith "NYI : Inference through functors"
+    end
   | Mty_ident _ ->
       failwith "NYI : Inference with abstract signatures"
   | Mty_alias _ -> assert false
 
+let rec get_sig env depth mty =
+    match Env.scrape_alias env mty with
+    | Mty_signature sg -> (depth, sg)
+    | Mty_functor (_, mty) -> get_sig env (depth + 1) mty
+    | _ -> Misc.fatal_error "infer_implicit"
+
 let rec find_module_expr ~loc env mty =
+  let depth, sg = get_sig env 0 mty in
   let test_one_sig _ id prev_sol =
     let mdecl = Env.find_strengthened_module ~aliasable:false (Pident id) env in
-    let arguments, result = extract_function env mdecl in
-    let snap = Types.snapshot () in
-    try begin
-      ignore (Includemod.modtypes ~loc ~mark:false env result mty);
-      let mexp = {
-        pmod_desc = Pmod_ident { txt = Lident (Ident.name id); loc };
-        pmod_loc = loc; pmod_attributes = [];
-      } in
-      let mexp = List.fold_right (fun arg_mty mexp ->
-        let marg = find_module_expr ~loc env arg_mty in
-        { pmod_desc = Pmod_apply (mexp, marg);
-          pmod_loc = loc; pmod_attributes = [] }
-      ) arguments mexp in
-      Btype.backtrack snap;
-      match prev_sol with
-      | None -> Some mexp
-      | Some mexp' ->
-        let explanation = TwoSolutions (mty, mexp, mexp') in
-        raise (ImplicitError ((loc, mty, Ambiguity explanation)))
-    end with
-      | Includemod.Error _ | ImplicitError ((_, _, NoSolution)) ->
-        Btype.backtrack snap; prev_sol
-  in
-  let sg = match mty with
-    | Mty_signature sg -> sg
-    | _ -> Misc.fatal_error "infer_implicit"
+    match extract_function env depth mdecl with
+      | None -> prev_sol
+      | Some (arguments, result) ->
+        let snap = Types.snapshot () in
+        try begin
+          ignore (Includemod.modtypes ~loc ~mark:false env result mty);
+          let mexp = {
+            pmod_desc = Pmod_ident { txt = Lident (Ident.name id); loc };
+            pmod_loc = loc; pmod_attributes = [];
+          } in
+          let mexp = List.fold_right (fun arg_mty mexp ->
+            let marg = find_module_expr ~loc env arg_mty in
+            { pmod_desc = Pmod_apply (mexp, marg);
+              pmod_loc = loc; pmod_attributes = [] }
+          ) arguments mexp in
+          Btype.backtrack snap;
+          match prev_sol with
+          | None -> Some mexp
+          | Some mexp' ->
+            let explanation = TwoSolutions (mty, mexp, mexp') in
+            raise (ImplicitError ((loc, mty, Ambiguity explanation)))
+        end with
+          | Includemod.Error _ | ImplicitError ((_, _, NoSolution)) ->
+            Btype.backtrack snap; prev_sol
   in
   let ids = Env.find_structures sg env in
   match Misc.Stdlib.String.Map.fold test_one_sig ids None with
