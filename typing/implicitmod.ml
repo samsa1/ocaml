@@ -33,6 +33,92 @@ type implicit_inference_fail =
 
 exception ImplicitError of implicit_inference_fail
 
+module FuncOrder : sig
+  type t
+  val empty : t
+  val update_map : Env.t -> t -> string -> Types.module_type -> t option
+end = struct
+  type el =
+    | Depth of int
+    | UnifDepth of int
+
+  type t = el Misc.Stdlib.String.Map.t
+  let empty = Misc.Stdlib.String.Map.empty
+
+  let mini = Depth (-1)
+
+  let max x y =
+    match x, y with
+    | UnifDepth xi, UnifDepth yi -> UnifDepth (Int.max xi yi)
+    | UnifDepth i, _ | _, UnifDepth i -> UnifDepth i
+    | Depth xi, Depth yi -> Depth (Int.max xi yi)
+
+    let lt x y =
+    match x, y with
+    | UnifDepth xi, UnifDepth yi | Depth xi, Depth yi -> xi < yi
+    | UnifDepth _, _ -> true
+    | _, UnifDepth _ -> false
+
+  let is_smaller map name v =
+    match Misc.Stdlib.String.Map.find name map with
+    | v' -> lt v v'
+    | exception Not_found -> true
+
+  let rec type_expr env depth ty =
+    let ty' = Ctype.expand_head env ty in
+    match get_desc ty' with
+    | Tvar _ ->
+      if get_level ty' < Btype.generic_level then UnifDepth depth
+      else Depth depth
+    | _ ->
+      Btype.fold_type_expr
+        (fun acc ty -> max acc (type_expr env (depth + 1) ty)) (Depth depth) ty'
+
+  let type_declaration env td =
+    match td.type_manifest with
+    | None -> mini
+    | Some ty ->
+      if td.type_arity = 0 then type_expr env 0 ty
+      else assert false (* TODO *)
+
+  let rec signature_item env item =
+    match item with
+    | Sig_value (_, vd, _) -> type_expr env 0 vd.val_type
+    | Sig_type (_, td, _, _) -> type_declaration env td
+    | Sig_typext (_, _, _, _) -> mini
+    | Sig_module (_, _, { md_type = mty }, _, _)
+    | Sig_modtype (_, { mtd_type = Some mty }, _) -> module_type env mty
+    | Sig_modtype (_, { mtd_type = None }, _) ->
+      assert false (* TODO : Abstract module type *)
+    | Sig_class (_, _cd, _, _) ->
+      assert false (* TODO : class_declaration cd *)
+    | Sig_class_type (_, _cd, _, _) ->
+      assert false (* TODO : class_type_declaration cd *)
+  and signature env maxi = function
+    | [] -> maxi
+    | item :: rest -> signature env (max maxi (signature_item env item)) rest
+  and module_type env mty =
+    match Env.scrape_alias env mty with
+    | Mty_signature s -> signature env mini s
+    | Mty_functor (Unit, mty2) -> module_type env mty2
+    | Mty_functor (Named (_, id, mty1), mty2) ->
+      let d_mty1 = module_type env mty1 in
+      let env =
+        match id with
+        | None -> env
+        | Some id -> Env.add_module ~noalias:true id Mp_present IILocal mty1 env
+      in
+      max d_mty1 (module_type env mty2)
+    | Mty_ident _ -> assert false (* TODO : Abstract module type *)
+    | Mty_alias _ -> assert false (* Should not happen *)
+
+  let update_map env m name mty =
+    let v = module_type env mty in
+    if is_smaller m name v
+    then Some (Misc.Stdlib.String.Map.add name v m)
+    else None
+end
+
 let rec open_signature_item env = function
   | Sig_type (id, ({type_manifest = None} as tdecl), r, v) ->
       if tdecl.type_arity <> 0
@@ -51,7 +137,7 @@ and open_signature env s =
 and open_module_type env mty =
   match Env.scrape_alias env mty with
   | Mty_signature s -> Mty_signature (open_signature env s)
-  | Mty_functor _ as mty -> mty
+  | Mty_functor _ as mty -> mty (* TODO *)
   | _ -> Misc.fatal_error "open_module_type"
 
 let rec extract_arguments env args mty =
@@ -117,11 +203,12 @@ let rec find_module_expr ~loc trace env mty =
         let snap = Btype.snapshot () in
         try begin
           ignore (Includemod.modtypes ~loc ~mark:false env_result result mty);
-          if Misc.Stdlib.String.Set.mem name trace then begin
-            Btype.backtrack snap;
-            raise (ImplicitError ((loc, mty, Ambiguity (RecLoop (mty, name)))))
-          end;
-          let trace = Misc.Stdlib.String.Set.add name trace in
+          let trace = match FuncOrder.update_map env trace name mty with
+            | Some trace -> trace
+            | None ->
+              Btype.backtrack snap;
+              raise (ImplicitError (loc, mty, Ambiguity (RecLoop (mty, name))))
+          in
           let arguments = List.map (function
             | None -> SIAFailed ((loc, mty, Ambiguity (GenerativeApp (mty, name))))
             | Some (env, arg_mty) ->
@@ -161,7 +248,7 @@ let rec find_module_expr ~loc trace env mty =
 let infer ~loc env mty =
   let mty = open_module_type env mty in
   try
-    find_module_expr ~loc Misc.Stdlib.String.Set.empty env mty
+    find_module_expr ~loc FuncOrder.empty env mty
   with ImplicitError (loc, _, err) ->
     raise (ImplicitError (loc, mty, err))
 
