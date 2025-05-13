@@ -156,9 +156,14 @@ Uncaught exception: Failure("NYI : Inference through functors")
 module SListBis : (X : Show) -> Show with type t = X.t list = _
 
 [%%expect{|
->> Fatal error: infer_implicit
-Uncaught exception: Misc.Fatal_error
+Line 1, characters 16-63:
+1 | module SListBis : (X : Show) -> Show with type t = X.t list = _
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SList"
 
+module SListBis :
+  (X : Show) -> sig type t = X.t list val print : t -> unit end
 |}]
 
 (* Infering a functor using an application *)
@@ -175,8 +180,7 @@ module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
 
 [%%expect{|
 implicit module SPair : (A : Show) (B : Show) => Show
->> Fatal error: infer_implicit
-Uncaught exception: Misc.Fatal_error
+Uncaught exception: Failure("NYI : Inference through functors")
 
 |}]
 
