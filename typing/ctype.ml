@@ -4229,6 +4229,16 @@ let eqtype_subst type_pairs subst t1 t2 =
     TypePairs.add type_pairs (t1, t2)
   end
 
+let pairs_to_unify = ref []
+
+let with_fresh_unif_list env f =
+  Misc.try_finally ~always:(fun () -> pairs_to_unify := [])
+    begin fun () ->
+      pairs_to_unify := [];
+      f ();
+      List.iter (fun (t1, t2) -> unify env t1 t2) !pairs_to_unify;
+    end
+
 let rec eqtype rename type_pairs subst env t1 t2 =
   let check_phys_eq t1 t2 =
     not rename && eq_type t1 t2
@@ -4290,6 +4300,16 @@ let rec eqtype rename type_pairs subst env t1 t2 =
                 (eqtype rename type_pairs subst env)
           | (Tunivar _, Tunivar _) ->
               unify_univar_for Equality t1' t2' !univar_pairs
+          | (_, _) when rename
+            && (get_level t1' < generic_level
+                || (get_level t2' < generic_level)) ->
+              let t1' =
+                if get_level t1' < generic_level then t1' else instance t1'
+              and t2' =
+                if get_level t2' < generic_level then t2' else instance t2'
+              in
+              pairs_to_unify := (t1', t2') :: !pairs_to_unify;
+              unify env t1' t2';
           | (_, _) ->
               raise_unexplained_for Equality
         end
@@ -4447,10 +4467,12 @@ and eqtype_row rename type_pairs subst env row1 row2 =
 (* Must empty univar_pairs first *)
 let eqtype_list_same_length rename type_pairs subst env tl1 tl2 =
   with_univar_pairs [] (fun () ->
-    let snap = Btype.snapshot () in
-    Misc.try_finally
-      ~always:(fun () -> backtrack snap)
-      (fun () -> eqtype_list_same_length rename type_pairs subst env tl1 tl2))
+    with_fresh_unif_list env (fun () ->
+      let snap = Btype.snapshot () in
+      Misc.try_finally
+        ~always:(fun () -> backtrack snap)
+        (fun () -> eqtype_list_same_length rename type_pairs subst env tl1 tl2))
+  )
 
 let eqtype rename type_pairs subst env t1 t2 =
   eqtype_list_same_length rename type_pairs subst env [t1] [t2]

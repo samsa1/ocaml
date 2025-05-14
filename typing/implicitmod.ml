@@ -22,6 +22,8 @@ open Types
 type ambiguity_explanation =
   | TwoSolutions of
       Types.module_type * Parsetree.module_expr * Parsetree.module_expr
+  | RecLoop of Types.module_type * Ident.t
+  | GenerativeApp of Types.module_type * Ident.t
 
 type implicit_inference_fail_desc =
   | Ambiguity of ambiguity_explanation
@@ -53,17 +55,48 @@ and open_module_type env mty =
   | Mty_functor _ as mty -> mty
   | _ -> Misc.fatal_error "open_module_type"
 
-let rec extract_function env depth mty =
+let rec extract_arguments env args mty =
   match Env.scrape_alias env mty with
-  | Mty_signature _ -> if depth = 0 then Some ([], mty) else None
-  | Mty_functor (_, mty') ->
-    begin match extract_function env (depth - 1) mty' with
-      | Some _ -> Some ([], mty)
-      | None -> failwith "NYI : Inference through functors"
-    end
+  | Mty_signature _ -> (args, mty)
+  | Mty_functor (Unit, mty) ->
+    extract_arguments env (Unit :: args) mty
+  | Mty_functor (Named (_, n, arg_ty) as param, mty) ->
+    let env = match n with
+      | None -> env
+      | Some id -> Env.add_module ~noalias:true id Mp_present IILocal arg_ty env
+    in extract_arguments env (param :: args) mty
   | Mty_ident _ ->
       failwith "NYI : Inference with abstract signatures"
   | Mty_alias _ -> assert false
+
+let rec prepare_args env args =
+  match args with
+  | [] -> ([], env)
+  | Unit :: rest ->
+      let args, env = prepare_args env rest in
+      (None :: args, env)
+  | Named (_, id, arg_ty) :: rest ->
+      let args, env = prepare_args env rest in
+      let arg_ty = open_module_type env arg_ty in
+      let env = match id with
+        | None -> env
+        | Some id ->
+          Env.add_module ~noalias:true id Mp_present IILocal arg_ty env
+      in
+      (Some (env, arg_ty) :: args, env)
+
+let extract_function env depth mty =
+  let rec aux d args mty =
+    if d = 0
+    then
+      let (args, env) = prepare_args env args in
+      Some (args, env, mty)
+    else match args with
+      | [] -> None
+      | arg :: rest -> aux (d - 1) rest (Mty_functor (arg, mty))
+  in
+  let (args, mty) = extract_arguments env [] mty in
+  aux depth args mty
 
 let rec get_sig env depth mty =
     match Env.scrape_alias env mty with
@@ -71,25 +104,45 @@ let rec get_sig env depth mty =
     | Mty_functor (_, mty) -> get_sig env (depth + 1) mty
     | _ -> Misc.fatal_error "infer_implicit"
 
-let rec find_module_expr ~loc env mty =
+type solved_implicit_argument =
+  | SIASolved of Parsetree.module_expr
+  | SIAFailed of implicit_inference_fail
+
+let rec find_module_expr ~loc trace env mty =
   let depth, sg = get_sig env 0 mty in
   let test_one_sig _ id prev_sol =
     let mdecl = Env.find_strengthened_module ~aliasable:false (Pident id) env in
     match extract_function env depth mdecl with
       | None -> prev_sol
-      | Some (arguments, result) ->
-        let snap = Types.snapshot () in
+      | Some (arguments, env_result, result) ->
+        let snap = Btype.snapshot () in
         try begin
-          ignore (Includemod.modtypes ~loc ~mark:false env result mty);
+          ignore (Includemod.modtypes ~loc ~mark:false env_result result mty);
+          if Ident.Set.mem id trace then begin
+            Btype.backtrack snap;
+            raise (ImplicitError ((loc, mty, Ambiguity (RecLoop (mty, id)))))
+          end;
+          let trace = Ident.Set.add id trace in
+          let arguments = List.map (function
+            | None -> SIAFailed ((loc, mty, Ambiguity (GenerativeApp (mty, id))))
+            | Some (env, arg_mty) ->
+              match find_module_expr ~loc trace env arg_mty with
+              | marg -> SIASolved marg
+              | exception ImplicitError ((_, _, Ambiguity _) as err) -> SIAFailed err
+            ) arguments
+          in
           let mexp = {
             pmod_desc = Pmod_ident { txt = Lident (Ident.name id); loc };
             pmod_loc = loc; pmod_attributes = [];
           } in
-          let mexp = List.fold_right (fun arg_mty mexp ->
-            let marg = find_module_expr ~loc env arg_mty in
-            { pmod_desc = Pmod_apply (mexp, marg);
-              pmod_loc = loc; pmod_attributes = [] }
-          ) arguments mexp in
+          let mexp = List.fold_right (fun marg mexp ->
+              match marg with
+              | SIASolved marg ->
+                { pmod_desc = Pmod_apply (mexp, marg);
+                  pmod_loc = loc; pmod_attributes = [] }
+              | SIAFailed err -> Btype.backtrack snap; raise (ImplicitError err)
+            ) arguments mexp
+          in
           Btype.backtrack snap;
           match prev_sol with
           | None -> Some mexp
@@ -97,7 +150,8 @@ let rec find_module_expr ~loc env mty =
             let explanation = TwoSolutions (mty, mexp, mexp') in
             raise (ImplicitError ((loc, mty, Ambiguity explanation)))
         end with
-          | Includemod.Error _ | ImplicitError ((_, _, NoSolution)) ->
+          | Includemod.Error _
+          | ImplicitError ((_, _, NoSolution)) ->
             Btype.backtrack snap; prev_sol
   in
   let ids = Env.find_structures sg env in
@@ -108,7 +162,7 @@ let rec find_module_expr ~loc env mty =
 let infer ~loc env mty =
   let mty = open_module_type env mty in
   try
-    find_module_expr ~loc env mty
+    find_module_expr ~loc Ident.Set.empty env mty
   with ImplicitError (loc, _, err) ->
     raise (ImplicitError (loc, mty, err))
 
@@ -123,6 +177,14 @@ let ambiguity_explanation ppf = function
           Pprintast.Doc.module_expr sol1
           Pprintast.Doc.module_expr sol2
           modtype mty
+  | RecLoop (_mty, id) ->
+      Format_doc.fprintf ppf
+        "because the functor %s was called multiple time without@ \
+         ensuring a decrease" (Ident.name id)
+  | GenerativeApp (mty, id) ->
+      Format_doc.fprintf ppf
+        "because a solution was found for@ %a@ by applying () to %s"
+          modtype mty (Ident.name id)
 
 let report_implicit_error ~loc mty err =
   match err with
