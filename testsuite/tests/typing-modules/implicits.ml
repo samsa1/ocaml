@@ -57,20 +57,37 @@ implicit module SList :
 |}]
 
 module SIntL = (_ : Show with type t = int list)
+
 module SIntLL : Show with type t = int list list = _
 
 [%%expect{|
-Uncaught exception: Failure("NYI : Inference through functors")
+Line 1, characters 15-48:
+1 | module SIntL = (_ : Show with type t = int list)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SList(SInt)"
 
-Unexecuted phrases: 1 phrases did not execute due to an error
+module SIntL : sig type t = int list val print : t -> unit end
+Line 3, characters 14-52:
+3 | module SIntLL : Show with type t = int list list = _
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature sig
+                                type t = int list list
+                                val print : t -> unit
+                              end
+       failed because the functor SList was called multiple time without
+       ensuring a decrease.
 |}]
 
 (* No solution *)
 module SFloat_fail : Show with type t = float = _
 
 [%%expect{|
-Uncaught exception: Failure("NYI : Inference through functors")
-
+Line 1, characters 19-49:
+1 | module SFloat_fail : Show with type t = float = _
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature sig type t = float val print : t -> unit end
+       failed as no solution was found.
 |}]
 
 (* Shadowing *)
@@ -84,15 +101,23 @@ module SFloat : Show with type t = float = _
 
 [%%expect{|
 implicit module SInt : sig type t = float val print : t -> unit end
-Uncaught exception: Failure("NYI : Inference through functors")
+Line 6, characters 14-44:
+6 | module SFloat : Show with type t = float = _
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SInt"
 
+module SFloat : sig type t = float val print : t -> unit end
 |}]
 
 module SInt_fail : Show with type t = int = _
 
 [%%expect{|
-Uncaught exception: Failure("NYI : Inference through functors")
-
+Line 1, characters 17-45:
+1 | module SInt_fail : Show with type t = int = _
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature sig type t = int val print : t -> unit end
+       failed as no solution was found.
 |}]
 
 (* restore env after shadowing test above *)
@@ -133,8 +158,13 @@ module SFloat_fail : Show with type t = float = _
 
 [%%expect{|
 implicit module SFloat : () -> sig type t = float val print : t -> unit end
-Uncaught exception: Failure("NYI : Inference through functors")
-
+Line 6, characters 19-49:
+6 | module SFloat_fail : Show with type t = float = _
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature sig type t = float val print : t -> unit end
+       failed because a solution was found for
+       sig type t = float val print : t -> unit end
+       by applying () to SFloat.
 |}]
 
 (* Ensure no recursive loop *)
@@ -147,8 +177,12 @@ module Loop_fail : T = _
 [%%expect{|
 module type T = sig val loop : unit end
 implicit module LOOP : (X : T) => sig val loop : unit end
-Uncaught exception: Failure("NYI : Inference through functors")
-
+Line 4, characters 17-24:
+4 | module Loop_fail : T = _
+                     ^^^^^^^
+Error: Inference of signature sig val loop : unit end
+       failed because the functor LOOP was called multiple time without
+       ensuring a decrease.
 |}]
 
 (* Infering a functor *)
@@ -168,7 +202,9 @@ module SListBis :
 
 (* Infering a functor using an application *)
 
-implicit module SPair (A : Show) (B : Show) : Show = struct
+implicit module SPair (A : Show) (B : Show)
+  : Show with type t = A.t * B.t
+  = struct
   type t = A.t * B.t
   let print (a, b) =
     print_string "("; A.print a;
@@ -179,9 +215,16 @@ end
 module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
 
 [%%expect{|
-implicit module SPair : (A : Show) (B : Show) => Show
-Uncaught exception: Failure("NYI : Inference through functors")
+implicit module SPair :
+  (A : Show) (B : Show) => sig type t = A.t * B.t val print : t -> unit end
+Line 11, characters 17-65:
+11 | module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SPair(SInt)"
 
+module SIntXPair :
+  (X : Show) -> sig type t = int * X.t val print : t -> unit end
 |}]
 
 (* Inference between functor arguments *)
@@ -220,15 +263,33 @@ implicit module M2b : S2
 module ShouldSucceed1 : SSol1 = _
 
 [%%expect{|
-Uncaught exception: Failure("NYI : Inference through functors")
-
+Line 1, characters 22-33:
+1 | module ShouldSucceed1 : SSol1 = _
+                          ^^^^^^^^^^^
+Error: Inference of signature sig val valid1 : unit end
+       failed because two distinct solutions
+       M2b
+       and
+       M2a
+       to the constraint
+       sig type t2 = X.t1 end
+       where found.
 |}]
 
 module ShouldSucceed2 : SSol2 = _
 
 [%%expect{|
-Uncaught exception: Failure("NYI : Inference through functors")
-
+Line 1, characters 22-33:
+1 | module ShouldSucceed2 : SSol2 = _
+                          ^^^^^^^^^^^
+Error: Inference of signature sig val valid2 : unit end
+       failed because two distinct solutions
+       M2b
+       and
+       M2a
+       to the constraint
+       sig type t2 = 'a end
+       where found.
 |}]
 
 (* May have only one solution but not coherent *)
@@ -252,8 +313,24 @@ implicit module F3 : (X : S1) (Y : sig type t3 = X.t1 end) => SSol3
 module ShouldSucceed3 : SSol3 = _
 
 [%%expect{|
-Uncaught exception: Failure("NYI : Inference through functors")
-
+Line 1, characters 22-33:
+1 | module ShouldSucceed3 : SSol3 = _
+                          ^^^^^^^^^^^
+Error: This application of the functor "F3" is ill-typed.
+       These arguments:
+         M1 M3
+       do not match these parameters:
+         (X : S1) (Y : $T2) => ...
+       1. Module M1 matches the expected module type S1
+       2. Modules do not match:
+            M3 : sig type t3 = M3.t3 end
+          is not included in
+            $T2 = sig type t3 = X.t1 end
+          Type declarations do not match:
+            type t3 = M3.t3
+          is not included in
+            type t3 = M1.t1
+          The type "M3.t3" is not equal to the type "M1.t1"
 |}]
 
 (* We remove functors from env to prevent collision later *)
