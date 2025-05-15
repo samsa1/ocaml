@@ -2395,6 +2395,17 @@ let rec infer_implicit ~loc env mty =
     wrap_constraint_with_shape env true mtexp mty.mty_type shape
       (Tmodtype_explicit mty)
   in
+  if Warnings.(is_active (Implicit_module_expression Format_doc.Doc.empty))
+  then begin
+    let errmsg =
+      let doc = ref Format_doc.Doc.empty in
+      let fmt = Format_doc.formatter doc in
+      Format_doc.fprintf fmt "@[<v>%a@]"
+        (Misc.Style.as_inline_code Pprintast.Doc.module_expr) mexp;
+      !doc
+    in
+    Location.prerr_warning loc (Warnings.Implicit_module_expression errmsg)
+  end;
   { md with
     mod_loc = loc;
     mod_attributes = [];
