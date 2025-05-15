@@ -25,43 +25,14 @@ implicit module SInt : sig type t = int val print : int -> unit end
 implicit module SBool : sig type t = bool val print : bool -> unit end
 |}]
 
-let () = Clflags.dump_typedtree := true
-
 module SInt2 : Show with type t = int = _
 
-let () = Clflags.dump_typedtree := false
-
 [%%expect{|
-[
-  structure_item
-    Tstr_module (Present)
-    SInt2/488
-      module_expr
-        Tmod_constraint
-        module_expr
-          Tmod_ident "SInt/290"
-        module_type
-          Tmty_with
-          module_type
-            Tmty_ident "Show/283"
-          [
-            "t/281"
-              Twith_type
-                type_declaration t/281
-                  ptype_params =
-                    []
-                  ptype_constraints =
-                    []
-                  ptype_kind =
-                    Ttype_abstract
-                  ptype_private = Public
-                  ptype_manifest =
-                    Some
-                      core_type
-                        Ttyp_constr "int/1!"
-                        []
-          ]
-]
+Line 1, characters 13-41:
+1 | module SInt2 : Show with type t = int = _
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SInt"
 
 module SInt2 : sig type t = int val print : t -> unit end
 |}]
@@ -85,12 +56,8 @@ implicit module SList :
   (X : Show) => sig type t = X.t list val print : X.t list -> unit end
 |}]
 
-(* let () = Clflags.dump_typedtree := true *)
-
 module SIntL = (_ : Show with type t = int list)
 module SIntLL : Show with type t = int list list = _
-
-(* let () = Clflags.dump_typedtree := false *)
 
 [%%expect{|
 Uncaught exception: Failure("NYI : Inference through functors")
@@ -372,6 +339,12 @@ open M_with_sig1
 module Test_open_with_sig1 : Show with type t = M_with_sig1.t = _
 
 [%%expect{|
+Line 2, characters 27-65:
+2 | module Test_open_with_sig1 : Show with type t = M_with_sig1.t = _
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "Show"
+
 module Test_open_with_sig1 :
   sig type t = M_with_sig1.t val print : t -> unit end
 |}]
@@ -394,6 +367,12 @@ open M_with_sig3
 module Test_open_with_sig3 : Show with type t = M_with_sig3.t = _
 
 [%%expect{|
+Line 2, characters 27-65:
+2 | module Test_open_with_sig3 : Show with type t = M_with_sig3.t = _
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "Show"
+
 module Test_open_with_sig3 :
   sig type t = M_with_sig3.t val print : t -> unit end
 |}]
