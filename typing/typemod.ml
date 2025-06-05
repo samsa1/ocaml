@@ -3359,6 +3359,7 @@ let type_str_item env pstri =
   si, new_env
 
 let () =
+  Implicitmod.type_module := type_module;
   Typecore.type_module := type_module_alias;
   Typecore.type_str_item := type_str_item;
   Typetexp.transl_modtype_longident := transl_modtype_longident;
