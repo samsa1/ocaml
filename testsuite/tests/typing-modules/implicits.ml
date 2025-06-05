@@ -75,8 +75,13 @@ Error: Inference of signature sig
                                 type t = int list list
                                 val print : t -> unit
                               end
-       failed because the functor SList was called multiple time without
-       ensuring a decrease.
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       SList (?1).
+?1 could be filled with a new recursive call to SList
+       with no termination guaranty.
+
 |}]
 
 (* No solution *)
@@ -138,13 +143,14 @@ Line 3, characters 18-47:
 3 | module SBool_fail : Show with type t = bool = _
                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Inference of signature sig type t = bool val print : t -> unit end
-       failed because two distinct solutions
-       SBoolbis
-       and
-       SBool
-       to the constraint
-       sig type t = bool val print : t -> unit end
-       where found.
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       ?1.
+?1 awaited an argument of signature
+             sig type t = bool val print : t -> unit end
+            It can be filled by either  SBool  or  SBoolbis.
+
 |}]
 
 (* Multiple solution because generative *)
@@ -162,9 +168,12 @@ Line 6, characters 19-49:
 6 | module SFloat_fail : Show with type t = float = _
                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Inference of signature sig type t = float val print : t -> unit end
-       failed because a solution was found for
-       sig type t = float val print : t -> unit end
-       by applying () to SFloat.
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       SFloat ?1.
+?1 can be filled by "()" which is ambiguous with itself.
+
 |}]
 
 (* Ensure no recursive loop *)
@@ -180,9 +189,14 @@ implicit module LOOP : (X : T) => sig val loop : unit end
 Line 4, characters 17-24:
 4 | module Loop_fail : T = _
                      ^^^^^^^
-Error: Inference of signature sig val loop : unit end
-       failed because the functor LOOP was called multiple time without
-       ensuring a decrease.
+Error: Inference of signature T
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       LOOP (?1).
+?1 could be filled with a new recursive call to LOOP
+       with no termination guaranty.
+
 |}]
 
 (* Infering a functor *)
@@ -243,10 +257,10 @@ implicit module F2Imp1 (X : S2) (Y : S1 with type t1 = X.t2) : SSol2 = struct
   let valid2 = ()
 end
 
-implicit module M1 : S1 = struct type t1 = int end
+implicit module M1 : S1 with type t1 = int = struct type t1 = int end
 
-implicit module M2a : S2 = struct type t2 = int end
-implicit module M2b : S2 = struct type t2 = bool end
+implicit module M2a : S2 with type t2 = int  = struct type t2 = int end
+implicit module M2b : S2 with type t2 = bool = struct type t2 = bool end
 
 [%%expect{|
 module type SSol1 = sig val valid1 : unit end
@@ -255,9 +269,9 @@ module type S1 = sig type t1 end
 module type S2 = sig type t2 end
 implicit module F1Imp2 : (X : S1) (Y : sig type t2 = X.t1 end) => SSol1
 implicit module F2Imp1 : (X : S2) (Y : sig type t1 = X.t2 end) => SSol2
-implicit module M1 : S1
-implicit module M2a : S2
-implicit module M2b : S2
+implicit module M1 : sig type t1 = int end
+implicit module M2a : sig type t2 = int end
+implicit module M2b : sig type t2 = bool end
 |}]
 
 module ShouldSucceed1 : SSol1 = _
@@ -266,14 +280,10 @@ module ShouldSucceed1 : SSol1 = _
 Line 1, characters 22-33:
 1 | module ShouldSucceed1 : SSol1 = _
                           ^^^^^^^^^^^
-Error: Inference of signature sig val valid1 : unit end
-       failed because two distinct solutions
-       M2b
-       and
-       M2a
-       to the constraint
-       sig type t2 = X.t1 end
-       where found.
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "F1Imp2(M1)(M2a)"
+
+module ShouldSucceed1 : SSol1
 |}]
 
 module ShouldSucceed2 : SSol2 = _
@@ -282,14 +292,32 @@ module ShouldSucceed2 : SSol2 = _
 Line 1, characters 22-33:
 1 | module ShouldSucceed2 : SSol2 = _
                           ^^^^^^^^^^^
-Error: Inference of signature sig val valid2 : unit end
-       failed because two distinct solutions
-       M2b
-       and
-       M2a
-       to the constraint
-       sig type t2 = 'a end
-       where found.
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "F2Imp1(M2a)(M1)"
+
+module ShouldSucceed2 : SSol2
+|}]
+
+(* Test quality of error message *)
+
+implicit module M2c : S2 with type t2 = int = struct type t2 = int end
+
+module FailsWithAmbiguity : SSol2 = _
+
+[%%expect{|
+implicit module M2c : sig type t2 = int end
+Line 3, characters 26-37:
+3 | module FailsWithAmbiguity : SSol2 = _
+                              ^^^^^^^^^^^
+Error: Inference of signature SSol2
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       F2Imp1 (?1) (M1).
+?1 awaited an argument of signature
+                           sig type t2 = int end
+                          It can be filled by either  M2a  or  M2c.
+
 |}]
 
 (* May have only one solution but not coherent *)
@@ -316,32 +344,19 @@ module ShouldSucceed3 : SSol3 = _
 Line 1, characters 22-33:
 1 | module ShouldSucceed3 : SSol3 = _
                           ^^^^^^^^^^^
-Error: This application of the functor "F3" is ill-typed.
-       These arguments:
-         M1 M3
-       do not match these parameters:
-         (X : S1) (Y : $T2) => ...
-       1. Module M1 matches the expected module type S1
-       2. Modules do not match:
-            M3 : sig type t3 = M3.t3 end
-          is not included in
-            $T2 = sig type t3 = X.t1 end
-          Type declarations do not match:
-            type t3 = M3.t3
-          is not included in
-            type t3 = M1.t1
-          The type "M3.t3" is not equal to the type "M1.t1"
+Error: Inference of signature SSol3
+       failed as no solution was found.
 |}]
 
 (* We remove functors from env to prevent collision later *)
-implicit module SList = SInt
-implicit module SFloat = SInt
-implicit module SPair = SInt
+implicit module SList : sig end = struct end
+implicit module SFloat : sig end = struct end
+implicit module SPair : sig end = struct end
 
 [%%expect{|
-implicit module SList = SInt
-implicit module SFloat = SInt
-implicit module SPair = SInt
+implicit module SList : sig end
+implicit module SFloat : sig end
+implicit module SPair : sig end
 |}]
 
 (* Test signature inference *)
@@ -362,14 +377,10 @@ module Test_No_Open : Show with type t = int = _
 Line 1, characters 20-48:
 1 | module Test_No_Open : Show with type t = int = _
                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Inference of signature sig type t = int val print : t -> unit end
-       failed because two distinct solutions
-       SInt
-       and
-       SFloat
-       to the constraint
-       sig type t = int val print : t -> unit end
-       where found.
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SInt"
+
+module Test_No_Open : sig type t = int val print : t -> unit end
 |}]
 
 (* Test signature comparison  *)

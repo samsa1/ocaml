@@ -18,21 +18,6 @@ open Asttypes
 open Parsetree
 open Types
 
-type ambiguity_explanation =
-  | TwoSolutions of
-      Types.module_type * Parsetree.module_expr * Parsetree.module_expr
-  | RecLoop of Types.module_type * string
-  | GenerativeApp of Types.module_type * string
-
-type implicit_inference_fail_desc =
-  | Ambiguity of ambiguity_explanation
-  | NoSolution
-
-type implicit_inference_fail =
-  Location.t * Types.module_type * implicit_inference_fail_desc
-
-exception ImplicitError of implicit_inference_fail
-
 module FuncOrder : sig
   type t
   val empty : t
@@ -148,7 +133,8 @@ let rec extract_arguments env args mty =
   | Mty_functor (Named (_, n, arg_ty) as param, mty) ->
     let env = match n with
       | None -> env
-      | Some id -> Env.add_module ~noalias:true id Mp_present IILocal arg_ty env
+      | Some id ->
+        Env.add_module ~noalias:true id Mp_present IILocal arg_ty env
     in extract_arguments env (param :: args) mty
   | Mty_ident _ ->
       failwith "NYI : Inference with abstract signatures"
@@ -189,105 +175,342 @@ let rec get_sig env depth mty =
     | Mty_functor (_, mty) -> get_sig env (depth + 1) mty
     | _ -> Misc.fatal_error "infer_implicit"
 
-type solved_implicit_argument =
-  | SIASolved of Parsetree.module_expr
-  | SIAFailed of implicit_inference_fail
+type implicit_inference_solution = {
+  psol : Parsetree.module_expr;
+  tsol : Typedtree.module_expr;
+}
 
-let rec find_module_expr ~loc trace env mty =
-  let depth, sg = get_sig env 0 mty in
-  let test_one_sig name path prev_sol =
-    let mdecl = Env.find_strengthened_module ~aliasable:false path env in
-    match extract_function env depth mdecl with
-      | None -> prev_sol
-      | Some (arguments, env_result, result) ->
-        let snap = Btype.snapshot () in
-        try begin
-          ignore (Includemod.modtypes ~loc ~mark:false env_result result mty);
-          let trace = match FuncOrder.update_map env trace name mty with
-            | Some trace -> trace
-            | None ->
-              Btype.backtrack snap;
-              raise (ImplicitError (loc, mty, Ambiguity (RecLoop (mty, name))))
-          in
-          let arguments = List.map (function
-            | None -> SIAFailed ((loc, mty, Ambiguity (GenerativeApp (mty, name))))
-            | Some (env, arg_mty) ->
-              match find_module_expr ~loc trace env arg_mty with
-              | marg -> SIASolved marg
-              | exception ImplicitError ((_, _, Ambiguity _) as err) -> SIAFailed err
-            ) arguments
-          in
-          let mexp = {
-            pmod_desc = Pmod_ident { txt = Lident name; loc };
-            pmod_loc = loc; pmod_attributes = [];
-          } in
-          let mexp = List.fold_right (fun marg mexp ->
-              match marg with
-              | SIASolved marg ->
-                { pmod_desc = Pmod_apply (mexp, marg);
-                  pmod_loc = loc; pmod_attributes = [] }
-              | SIAFailed err -> Btype.backtrack snap; raise (ImplicitError err)
-            ) arguments mexp
-          in
-          Btype.backtrack snap;
-          match prev_sol with
-          | None -> Some mexp
-          | Some mexp' ->
-            let explanation = TwoSolutions (mty, mexp, mexp') in
-            raise (ImplicitError ((loc, mty, Ambiguity explanation)))
-        end with
-          | Includemod.Error _ | Ctype.Unify _
-          | ImplicitError ((_, _, NoSolution)) ->
-            Btype.backtrack snap; prev_sol
+type problem = {
+  env : Env.t;
+  signature : Types.module_type;
+  nargs : int;
+}
+
+type implicit_inference = {
+  problem : problem;
+  desc : implicit_inference_desc;
+}
+and status =
+  | RecLimit of (Env.t * Types.module_type) option list
+  | Node of implicit_inference option list * int
+and implicit_inference_desc =
+  | Solved of implicit_inference_solution
+  | Working of {
+      solutions : implicit_inference_solution list;
+      current : (string * Env.t * Types.module_type * status) option;
+      next : (string * Path.t) list;
+    }
+  | NoSolution
+
+exception ImplicitError of Location.t * implicit_inference
+
+let print_it_with_holes fmt node =
+  let nb = ref 1 in
+  let rec print_node fmt {desc; _} =
+    match desc with
+    | Solved {psol; _} ->
+      Pprintast.Doc.module_expr fmt psol
+    | NoSolution ->
+      Misc.fatal_error "Invalid argument [Implicitmod.print_it_with_holes]"
+    | Working { solutions = _ :: _ :: _; _ }
+    | Working { current = Some (_, _, _, RecLimit _) } ->
+      Format_doc.fprintf fmt "?%d" !nb;
+      incr nb;
+    | Working { current = Some (_, _, _, Node ([], _))} ->
+      Misc.fatal_error "Invalid argument [Implicitmod.print_it_with_holes]"
+    | Working { current = Some (name, _, _, Node (args, _))} ->
+      Format_doc.fprintf fmt "@[<hov2>%s@ %a@]"
+        name
+        print_args args
+    | Working { solutions = _; current = None; next = _} ->
+      Misc.fatal_error "Invalid argument [Implicitmod.print_it_with_holes]"
+  and print_args fmt = function
+    | [] -> ()
+    | [arg] -> print_arg fmt arg
+    | hd :: tl ->
+      Format_doc.fprintf fmt "%a@ %a" print_arg hd print_args tl
+  and print_arg fmt = function
+    | None ->
+      Format_doc.fprintf fmt "?%d" !nb;
+      incr nb;
+    | Some arg ->
+      Format_doc.fprintf fmt "(%a)" print_node arg
+  in print_node fmt node
+
+let rec prepare_signatures {problem; desc} =
+  match desc with
+  | NoSolution -> ()
+  | Solved {tsol; _} ->
+    ignore (Includemod.modtypes ~loc:Location.none ~mark:false
+              problem.env tsol.mod_type problem.signature)
+  | Working { solutions = _ :: _ :: _} -> ()
+  | Working { current = Some (_, _, _, RecLimit _)} -> ()
+  | Working { current = Some (_, _, _, Node (args, _))} ->
+    List.iter (Option.iter prepare_signatures) args
+  | Working { current = None} ->
+    Misc.fatal_error "Invalid argument [Implicitmod.prepare_signatures]"
+
+let print_it_holes_info fmt node =
+  prepare_signatures node;
+  let nb = ref 1 in
+  let rec aux fmt {desc; problem} =
+    match desc with
+    | Solved _ -> ()
+    | NoSolution ->
+      Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
+    | Working { solutions = sol1 :: sol2 :: _; _ } ->
+      Format_doc.fprintf fmt
+        "@[<1>@[<2>?%d awaited an argument of signature @ %a@] @ \
+          It can be filled by either @ %a @ or @ %a.@]\n"
+          !nb
+          Printtyp.Doc.modtype problem.signature
+          Pprintast.Doc.module_expr sol1.psol
+          Pprintast.Doc.module_expr sol2.psol;
+      incr nb;
+    | Working { current = Some (name, _, _, RecLimit _) } ->
+      Format_doc.fprintf fmt
+        "?%d could be filled with a new recursive call to %s @ \
+         with no termination guaranty.\n"
+          !nb name;
+      incr nb;
+    | Working { current = Some (_, _, _, Node ([], _))} ->
+      Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
+    | Working { current = Some (_, _, _, Node (args, _))} ->
+      List.iter (aux_arg fmt) args
+    | Working { solutions = _; current = None; next = _} ->
+      Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
+  and aux_arg fmt = function
+    | None ->
+      Format_doc.fprintf fmt
+        "@[<2>?%d can be filled by \"()\" which is ambiguous with itself.@]\n"
+          !nb;
+      incr nb;
+    | Some arg -> aux fmt arg
+  in aux fmt node
+
+let solution_is_still_valid problem {psol = _; tsol} =
+  let snap = Btype.snapshot () in
+  try
+    ignore (Includemod.modtypes ~loc:Location.none ~mark:false
+                    problem.env tsol.mod_type problem.signature);
+    Btype.backtrack snap;
+    true
+  with Includemod.Error _ | Ctype.Unify _ -> Btype.backtrack snap; false
+
+let rec prepare_args_for_refine = function
+  | [] -> ()
+  | Some {problem; desc = Solved sol} :: tl ->
+    ignore (Includemod.modtypes ~loc:Location.none ~mark:false
+                  problem.env sol.tsol.mod_type problem.signature);
+    prepare_args_for_refine tl
+  | _ :: tl -> prepare_args_for_refine tl
+
+let prepare_argument : Env.t * Types.module_type -> implicit_inference =
+  fun (env, mty) ->
+    let nargs, sg = get_sig env 0 mty in
+    let next = Env.find_structures sg env in
+    let next = Misc.Stdlib.String.Map.fold (fun name path l -> (name, path) :: l) next [] in
+    {
+      problem = {signature = mty; nargs; env };
+      desc = Working { solutions = []; current = None; next }
+    }
+
+let type_module = ref (fun _ _ -> assert false)
+
+let build_solution ~loc env name args =
+  let rec build_mexp me = function
+    | [] -> me
+    | Some { desc = Solved sol} :: tl ->
+      build_mexp
+        { pmod_desc = Pmod_apply (me, sol.psol);
+          pmod_loc = loc; pmod_attributes = [] }
+        tl
+    | _ -> assert false (* Should not happen *)
   in
-  let ids = Env.find_structures sg env in
-  match Misc.Stdlib.String.Map.fold test_one_sig ids None with
-  | None -> raise (ImplicitError ((loc, mty, NoSolution)))
-  | Some mexp -> mexp
+  let functor_mexp =
+    { pmod_desc = Pmod_ident {txt = Lident name; loc};
+      pmod_loc = loc; pmod_attributes = [] }
+  in
+  let psol = build_mexp functor_mexp args in
+  let tsol, _ = !type_module env psol in
+  { psol; tsol }
+
+let rec compute_nb_unsolved acc = function
+  | [] -> acc
+  | Some {desc = Solved _} :: tl -> compute_nb_unsolved acc tl
+  | (Some {desc = Working _} | None) :: tl -> compute_nb_unsolved (acc + 1) tl
+  | Some {desc = NoSolution} :: _ -> raise Not_found
+
+let rec refine_solution ~loc trace {problem; desc} =
+  match desc with
+  | Solved s -> {problem; desc = Solved s}
+  | NoSolution -> {problem; desc = NoSolution}
+  | Working { solutions; current; next } ->
+    let solutions =
+      List.filter (solution_is_still_valid problem) solutions
+    in
+    if match solutions with _ :: _ :: _ -> true | _ -> false
+    then begin
+      {problem; desc = Working {solutions; current; next }}
+    end else begin
+      let prev_trace = trace in
+      match current with
+      | None ->
+        begin match filter_identifiers ~loc trace problem next with
+          | Some (name, _, _, Node (args, 0)), next ->
+            let sol = build_solution ~loc problem.env name args in
+            let desc =
+              Working { solutions = sol :: solutions; current = None; next }
+            in refine_solution ~loc prev_trace {problem; desc}
+          | None, [] ->
+            begin match solutions with
+              | [] -> {problem; desc = NoSolution}
+              | [sol] -> {problem; desc = Solved sol}
+              | _ :: _ :: _ -> assert false (* Should not happen *)
+            end
+          | None, _ -> assert false (* Should not happen *)
+          | current, next ->
+            {problem; desc = Working { solutions; current; next}}
+        end
+      | Some (name, local_env, mty, Node (arguments, nb_unsolved)) ->
+        let snap = Btype.snapshot () in
+        ignore (Includemod.modtypes ~loc:Location.none ~mark:false
+          local_env mty problem.signature);
+        let trace =
+          match
+            FuncOrder.update_map problem.env trace name problem.signature
+          with
+          | Some trace -> trace
+          | None -> assert false
+        in
+        let arguments =
+          refine_solution_list ~loc trace arguments nb_unsolved
+        in
+        Btype.backtrack snap;
+        begin match arguments with
+          | Some (args, 0) ->
+            let sol = build_solution ~loc problem.env name args in
+            let desc =
+              Working { solutions = sol :: solutions; current = None; next }
+            in refine_solution ~loc prev_trace {problem; desc}
+          | Some (args, nb_unsolved) ->
+            { problem;
+              desc =
+                Working {solutions;
+                  current = Some (name, local_env, mty, Node (args, nb_unsolved));
+                  next}}
+          | None -> {problem; desc = NoSolution}
+        end
+      | Some (id, local_env, mty, RecLimit params) ->
+        let snap = Btype.snapshot () in
+        ignore (Includemod.modtypes ~loc:Location.none ~mark:false
+          local_env mty problem.signature);
+        match
+          FuncOrder.update_map problem.env trace id problem.signature
+        with
+        | None ->
+          Btype.backtrack snap;
+          {problem; desc = Working {solutions; current; next}}
+        | Some trace ->
+          let opened_node, next =
+            open_node ~loc snap trace problem id local_env mty params next
+          in
+          begin match opened_node with
+          | Some (id, _, _, Node (args, 0)) ->
+            let sol = build_solution ~loc problem.env id args in
+            let desc =
+              Working { solutions = sol :: solutions; current = None; next }
+            in refine_solution ~loc prev_trace {problem; desc}
+          | None when next = [] ->
+            begin match solutions with
+              | [] -> {problem; desc = NoSolution}
+              | [sol] -> {problem; desc = Solved sol}
+              | _ :: _ :: _ -> assert false (* Should not happen *)
+            end
+          | None -> assert false (* Should not happen *)
+          | _ ->
+            {problem; desc = Working { solutions; current = opened_node; next}}
+          end
+    end
+and refine_solution_list ~loc trace arguments nb_unsolved =
+  match prepare_args_for_refine arguments with
+  | () ->
+    begin
+      let arguments =
+        List.map (Option.map (refine_solution ~loc trace)) arguments
+      in
+      match compute_nb_unsolved 0 arguments with
+      | nb_unsolved' ->
+        if nb_unsolved' < nb_unsolved
+        then refine_solution_list ~loc trace arguments nb_unsolved'
+        else Some (arguments, nb_unsolved')
+      | exception Not_found -> None
+    end
+  | exception Ctype.Unify _ -> None
+and filter_identifiers ~loc trace problem = function
+  | [] -> None, []
+  | (name, path) :: rest ->
+    let mdecl =
+      Env.find_strengthened_module ~aliasable:false path problem.env
+    in
+    match extract_function problem.env problem.nargs mdecl with
+    | None -> filter_identifiers ~loc trace problem rest
+    | Some (arguments, env_result, result) ->
+      let snap = Btype.snapshot () in
+      match
+        Includemod.modtypes ~loc ~mark:false env_result result problem.signature
+      with
+      | exception Includemod.Error _
+      | exception Ctype.Unify _ ->
+        Btype.backtrack snap;
+        filter_identifiers ~loc trace problem rest
+      | _ ->
+          match FuncOrder.update_map problem.env trace name problem.signature with
+          | None ->
+            Btype.backtrack snap;
+            Some (name, env_result, result, RecLimit arguments), rest
+          | Some trace ->
+              open_node ~loc snap trace problem name env_result result arguments rest
+and open_node ~loc snap trace problem name local_env mty arguments rest =
+  let args = List.rev_map (Option.map prepare_argument) arguments in
+  match refine_solution_list ~loc trace args (List.length args) with
+  | None ->
+    Btype.backtrack snap;
+    filter_identifiers ~loc trace problem rest
+  | Some (args, nb_unsolved) ->
+    Btype.backtrack snap;
+    Some (name, local_env, mty, Node (args, nb_unsolved)), rest
 
 let infer ~loc env mty =
-  let mty = open_module_type env mty in
-  try
-    find_module_expr ~loc FuncOrder.empty env mty
-  with ImplicitError (loc, _, err) ->
-    raise (ImplicitError (loc, mty, err))
+  let node = prepare_argument (env, mty) in
+  let node = refine_solution ~loc FuncOrder.empty node in
+  match node.desc with
+  | Solved {psol; _} -> psol
+  | _ ->
+    raise (ImplicitError (loc, node))
 
 (* Error report *)
 open Printtyp.Doc
 
-let ambiguity_explanation ppf = function
-  | TwoSolutions (mty, sol1, sol2) ->
-      Format_doc.fprintf ppf
-        "because two distinct solutions@ %a@ and@ %a@ \
-         to the constraint@ %a@ where found"
-          Pprintast.Doc.module_expr sol1
-          Pprintast.Doc.module_expr sol2
-          modtype mty
-  | RecLoop (_mty, name) ->
-      Format_doc.fprintf ppf
-        "because the functor %s was called multiple time without@ \
-         ensuring a decrease" name
-  | GenerativeApp (mty, name) ->
-      Format_doc.fprintf ppf
-        "because a solution was found for@ %a@ by applying () to %s"
-          modtype mty name
-
-let report_implicit_error ~loc mty err =
-  match err with
-  | Ambiguity expl ->
-      Location.errorf ~loc
-          "@[<v>@[<2>Inference of signature %a@]@ \
-           failed %a.@]"
-           modtype mty ambiguity_explanation expl
-  | NoSolution ->
-      Location.errorf ~loc
-          "@[<v>@[<2>Inference of signature %a@]@ \
-            failed as no solution was found.@]"
-            modtype mty
+let report_implicit_error ~loc tree =
+  if tree.desc = NoSolution
+  then
+    Location.errorf ~loc
+        "@[<v>@[<2>Inference of signature %a@]@ \
+          failed as no solution was found.@]"
+          modtype tree.problem.signature
+  else
+    Location.errorf ~loc
+        "@[<v>@[<2>Inference of signature %a@]@ \
+          failed because inference could not make@ \
+          any more progress. @ Final state was :@ %a.\n%a@]"
+          modtype tree.problem.signature
+          print_it_with_holes tree
+          print_it_holes_info tree
 
 let () =
   Location.register_error_of_exn
     (function
-      | ImplicitError ((loc, mty, err)) ->
-          Some (report_implicit_error ~loc mty err)
+      | ImplicitError ((loc, tree)) ->
+          Some (report_implicit_error ~loc tree)
       | _ -> None)
