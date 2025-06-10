@@ -149,7 +149,7 @@ Error: Inference of signature sig type t = bool val print : t -> unit end
        ?1.
 ?1 awaited an argument of signature
              sig type t = bool val print : t -> unit end
-            It can be filled by either  SBool  or  SBoolbis.
+            It can be filled by either  SBoolbis  or  SBool.
 
 |}]
 
@@ -316,7 +316,7 @@ Error: Inference of signature SSol2
        F2Imp1 (?1) (M1).
 ?1 awaited an argument of signature
                            sig type t2 = int end
-                          It can be filled by either  M2a  or  M2c.
+                          It can be filled by either  M2c  or  M2a.
 
 |}]
 

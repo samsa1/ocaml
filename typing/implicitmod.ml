@@ -199,7 +199,7 @@ and implicit_inference_desc =
   | Working of {
       solutions : implicit_inference_solution list;
       current : (Ident.t * Env.t * Types.module_type * status) option;
-      next : Ident.t list;
+      next : (string * Ident.t) Seq.t;
     }
   | NoSolution
 
@@ -310,7 +310,7 @@ let prepare_argument : Env.t * Types.module_type -> implicit_inference =
   fun (env, mty) ->
     let nargs, sg = get_sig env 0 mty in
     let next = Env.find_structures sg env in
-    let next = Misc.Stdlib.String.Map.fold (fun _ id l -> id :: l) next [] in
+    let next = Misc.Stdlib.String.Map.to_seq next in
     {
       problem = {signature = mty; nargs; env };
       desc = Working { solutions = []; current = None; next }
@@ -363,7 +363,7 @@ let rec refine_solution ~loc trace {problem; desc} =
             let desc =
               Working { solutions = sol :: solutions; current = None; next }
             in refine_solution ~loc prev_trace {problem; desc}
-          | None, [] ->
+          | None, next when Seq.is_empty next ->
             begin match solutions with
               | [] -> {problem; desc = NoSolution}
               | [sol] -> {problem; desc = Solved sol}
@@ -422,7 +422,7 @@ let rec refine_solution ~loc trace {problem; desc} =
             let desc =
               Working { solutions = sol :: solutions; current = None; next }
             in refine_solution ~loc prev_trace {problem; desc}
-          | None when next = [] ->
+          | None when Seq.is_empty next ->
             begin match solutions with
               | [] -> {problem; desc = NoSolution}
               | [sol] -> {problem; desc = Solved sol}
@@ -448,9 +448,10 @@ and refine_solution_list ~loc trace arguments nb_unsolved =
       | exception Not_found -> None
     end
   | exception Ctype.Unify _ -> None
-and filter_identifiers ~loc trace problem = function
-  | [] -> None, []
-  | id :: rest ->
+and filter_identifiers ~loc trace problem next =
+  match Seq.uncons next with
+  | None -> None, Seq.empty
+  | Some ((_, id), rest) ->
     let mdecl =
       Env.find_strengthened_module ~aliasable:false (Pident id) problem.env
     in
