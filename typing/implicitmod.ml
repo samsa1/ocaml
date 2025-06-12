@@ -359,10 +359,13 @@ let rec refine_solution ~loc trace {problem; desc} =
       | None ->
         begin match filter_identifiers ~loc trace problem next with
           | Some (id, _, _, Node (args, 0)), next ->
-            let sol = build_solution ~loc problem.env id args in
-            let desc =
-              Working { solutions = sol :: solutions; current = None; next }
-            in refine_solution ~loc prev_trace {problem; desc}
+            let solutions = match build_solution ~loc problem.env id args with
+              | sol -> sol :: solutions
+              | exception (Includemod.Error _ | Includemod.Apply_error _) ->
+                solutions
+            in
+            let desc = Working { solutions; current = None; next } in
+            refine_solution ~loc prev_trace {problem; desc}
           | None, next when Seq.is_empty next ->
             begin match solutions with
               | [] -> {problem; desc = NoSolution}
@@ -374,64 +377,88 @@ let rec refine_solution ~loc trace {problem; desc} =
             {problem; desc = Working { solutions; current; next}}
         end
       | Some (id, local_env, mty, Node (arguments, nb_unsolved)) ->
-        let snap = Btype.snapshot () in
-        ignore (Includemod.modtypes ~loc:Location.none ~mark:false
-          local_env mty problem.signature);
-        let trace =
-          match
-            FuncOrder.update_map problem.env trace id problem.signature
+        begin
+          let snap = Btype.snapshot () in
+          match Includemod.modtypes ~loc:Location.none ~mark:false
+                  local_env mty problem.signature
           with
-          | Some trace -> trace
-          | None -> assert false
-        in
-        let arguments =
-          refine_solution_list ~loc trace arguments nb_unsolved
-        in
-        Btype.backtrack snap;
-        begin match arguments with
-          | Some (args, 0) ->
-            let sol = build_solution ~loc problem.env id args in
-            let desc =
-              Working { solutions = sol :: solutions; current = None; next }
-            in refine_solution ~loc prev_trace {problem; desc}
-          | Some (args, nb_unsolved) ->
-            { problem;
-              desc =
-                Working {solutions;
-                  current = Some (id, local_env, mty, Node (args, nb_unsolved));
-                  next}}
-          | None -> {problem; desc = NoSolution}
-        end
-      | Some (id, local_env, mty, RecLimit params) ->
-        let snap = Btype.snapshot () in
-        ignore (Includemod.modtypes ~loc:Location.none ~mark:false
-          local_env mty problem.signature);
-        match
-          FuncOrder.update_map problem.env trace id problem.signature
-        with
-        | None ->
-          Btype.backtrack snap;
-          {problem; desc = Working {solutions; current; next}}
-        | Some trace ->
-          let opened_node, next =
-            open_node ~loc snap trace problem id local_env mty params next
-          in
-          begin match opened_node with
-          | Some (id, _, _, Node (args, 0)) ->
-            let sol = build_solution ~loc problem.env id args in
-            let desc =
-              Working { solutions = sol :: solutions; current = None; next }
-            in refine_solution ~loc prev_trace {problem; desc}
-          | None when Seq.is_empty next ->
-            begin match solutions with
-              | [] -> {problem; desc = NoSolution}
-              | [sol] -> {problem; desc = Solved sol}
-              | _ :: _ :: _ -> assert false (* Should not happen *)
-            end
-          | None -> assert false (* Should not happen *)
+          | exception (Ctype.Unify _ | Includemod.Error _) ->
+            Btype.backtrack snap;
+            let desc = Working { solutions; current = None; next } in
+            refine_solution ~loc prev_trace {problem; desc}
           | _ ->
-            {problem; desc = Working { solutions; current = opened_node; next}}
+            let trace =
+              match
+                FuncOrder.update_map problem.env trace id problem.signature
+              with
+              | Some trace -> trace
+              | None -> assert false
+            in
+            let arguments =
+              refine_solution_list ~loc trace arguments nb_unsolved
+            in
+            Btype.backtrack snap;
+            begin match arguments with
+              | Some (args, 0) ->
+                let solutions =
+                  match build_solution ~loc problem.env id args with
+                  | sol -> sol :: solutions
+                  | exception (Includemod.Error _ | Includemod.Apply_error _) ->
+                    solutions
+                in
+                let desc = Working { solutions; current = None; next } in
+                refine_solution ~loc prev_trace {problem; desc}
+              | Some (args, nb_unsolved) ->
+                let current =
+                  Some (id, local_env, mty, Node (args, nb_unsolved))
+                in
+                { problem; desc = Working {solutions; current; next}}
+              | None -> {problem; desc = NoSolution}
+            end
           end
+      | Some (id, local_env, mty, RecLimit params) ->
+        begin
+          let snap = Btype.snapshot () in
+          match Includemod.modtypes ~loc:Location.none ~mark:false
+                  local_env mty problem.signature
+          with
+          | exception (Ctype.Unify _ | Includemod.Error _) ->
+            Btype.backtrack snap;
+            let desc = Working { solutions; current = None; next } in
+            refine_solution ~loc prev_trace {problem; desc}
+          | _ ->
+            match
+              FuncOrder.update_map problem.env trace id problem.signature
+            with
+            | None ->
+              Btype.backtrack snap;
+              {problem; desc = Working {solutions; current; next}}
+            | Some trace ->
+              let opened_node, next =
+                open_node ~loc snap trace problem id local_env mty params next
+              in
+              begin match opened_node with
+              | Some (id, _, _, Node (args, 0)) ->
+                let solutions =
+                  match build_solution ~loc problem.env id args with
+                  | sol -> sol :: solutions
+                  | exception (Includemod.Error _ | Includemod.Apply_error _) ->
+                    solutions
+                in
+                let desc = Working { solutions; current = None; next } in
+                refine_solution ~loc prev_trace {problem; desc}
+              | None when Seq.is_empty next ->
+                begin match solutions with
+                  | [] -> {problem; desc = NoSolution}
+                  | [sol] -> {problem; desc = Solved sol}
+                  | _ :: _ :: _ -> assert false (* Should not happen *)
+                end
+              | None -> assert false (* Should not happen *)
+              | _ ->
+                {problem;
+                 desc = Working { solutions; current = opened_node; next}}
+              end
+        end
     end
 and refine_solution_list ~loc trace arguments nb_unsolved =
   match prepare_args_for_refine arguments with
@@ -447,7 +474,7 @@ and refine_solution_list ~loc trace arguments nb_unsolved =
         else Some (arguments, nb_unsolved')
       | exception Not_found -> None
     end
-  | exception Ctype.Unify _ -> None
+  | exception (Ctype.Unify _ | Includemod.Error _)  -> None
 and filter_identifiers ~loc trace problem next =
   match Seq.uncons next with
   | None -> None, Seq.empty
@@ -462,7 +489,7 @@ and filter_identifiers ~loc trace problem next =
       match
         Includemod.modtypes ~loc ~mark:false env_result result problem.signature
       with
-      | exception Includemod.Error _ ->
+      | exception (Includemod.Error _ | Ctype.Unify _) ->
         Btype.backtrack snap;
         filter_identifiers ~loc trace problem rest
       | _ ->
@@ -471,7 +498,8 @@ and filter_identifiers ~loc trace problem next =
             Btype.backtrack snap;
             Some (id, env_result, result, RecLimit arguments), rest
           | Some trace ->
-              open_node ~loc snap trace problem id env_result result arguments rest
+              open_node ~loc snap trace problem id env_result result
+                arguments rest
 and open_node ~loc snap trace problem id local_env mty arguments rest =
   let args = List.rev_map (Option.map prepare_argument) arguments in
   match refine_solution_list ~loc trace args (List.length args) with

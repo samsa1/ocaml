@@ -462,3 +462,95 @@ Error: Inference of signature sig
                               end
        failed as no solution was found.
 |}]
+
+(* Bug with private *)
+
+module type TMaybePriv = sig type t_maybe_private end
+
+implicit module M = struct type t_maybe_private = private int end
+
+module type S = sig
+  type t2
+  val print : t2 -> unit
+end
+
+implicit module M2 = struct
+  type t2 = int
+  let print = print_int
+end
+
+module type Sol_with_private = sig val v_maybe_private : unit end
+
+
+implicit module F (M1 : TMaybePriv) (M2 : S)
+  : Sol_with_private
+  = struct let v_maybe_private = () end
+
+[%%expect{|
+module type TMaybePriv = sig type t_maybe_private end
+implicit module M : sig type t_maybe_private = private int end
+module type S = sig type t2 val print : t2 -> unit end
+implicit module M2 : sig type t2 = int val print : int -> unit end
+module type Sol_with_private = sig val v_maybe_private : unit end
+implicit module F : (M1 : TMaybePriv) (M2 : S) => Sol_with_private
+|}]
+
+module Sol_with_private1 : Sol_with_private = _
+
+[%%expect{|
+Line 1, characters 25-47:
+1 | module Sol_with_private1 : Sol_with_private = _
+                             ^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "F(M)(M2)"
+
+module Sol_with_private1 : Sol_with_private
+|}]
+
+implicit module F (M1 : TMaybePriv) (M2 : S with type t2 = M1.t_maybe_private)
+  : Sol_with_private
+  = struct let v_maybe_private = () end
+
+[%%expect{|
+implicit module F :
+  (M1 : TMaybePriv)
+  (M2 : sig type t2 = M1.t_maybe_private val print : t2 -> unit end) =>
+    Sol_with_private
+|}]
+
+(* Fails because private definition for the first argument of F is used in the
+   second argument. *)
+module Sol_with_private2_fail : Sol_with_private = _
+
+[%%expect{|
+Line 1, characters 30-52:
+1 | module Sol_with_private2_fail : Sol_with_private = _
+                                  ^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature Sol_with_private
+       failed as no solution was found.
+|}]
+
+implicit module M3 = struct type t_maybe_private = int end
+
+[%%expect{|
+implicit module M3 : sig type t_maybe_private = int end
+|}]
+
+(* Could succeed because F(M3)(M2) is a valid solution and F(M1)(M2) was
+   rejected by the example above. *)
+module Sol_with_private3 : Sol_with_private = _
+
+[%%expect{|
+Line 1, characters 25-47:
+1 | module Sol_with_private3 : Sol_with_private = _
+                             ^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature Sol_with_private
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       F (?1) (M2).
+?1 awaited an argument of signature
+                      sig type t_maybe_private = 'a end
+                     It can be filled by either  M3  or  M.
+
+|}]
