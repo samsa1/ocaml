@@ -1043,8 +1043,8 @@ let solve_constructor_annotation
          Just need to make their definitions abstract. *)
       List.fold_left
         (fun rem tv ->
-          match get_desc tv with
-            Tconstr(Path.Pident id, [], _) when List.mem_assoc id rem ->
+          match get_folded_desc ~keep_Tvar:false tv with
+            Tconstr(Path.Pident id, [], _) as desc when List.mem_assoc id rem ->
               let decl, tv' = List.assoc id ids_decls in
               let env =
                 Env.add_type ~check:false id
@@ -1052,9 +1052,9 @@ let solve_constructor_annotation
               in
               Pattern_env.set_env penv env;
               (* We have changed the definition, so clean up *)
-              Btype.cleanup_abbrev ();
+              Btype.cleanup_abbrev_memo ();
               (* Since id is now abstract, this does not create a cycle *)
-              unify_pat_types cty.ctyp_loc env tv tv';
+              unify_pat_types cty.ctyp_loc env (newgenty desc) tv';
               List.remove_assoc id rem
           | _ ->
               raise (Error (cty.ctyp_loc, !!penv,
@@ -1088,7 +1088,7 @@ let solve_constructor_annotation
         in
         Pattern_env.set_env penv env)
       rem;
-    if rem <> [] then Btype.cleanup_abbrev ();
+    if rem <> [] then Btype.cleanup_abbrev_memo ();
   end;
   ty_args, Some (List.map fst ids_decls, cty)
 

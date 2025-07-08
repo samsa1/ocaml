@@ -346,7 +346,7 @@ let s_list_arrayb =
       string_of_int [|[3; 2]; [2]; []|]
 
 [%%expect{|
-val s_list_arrayb : string list Array.t = [|["3"; "2"]; ["2"]; []|]
+val s_list_arrayb : string list array = [|["3"; "2"]; ["2"]; []|]
 |}]
 
 module F () : Map = struct
@@ -1220,8 +1220,8 @@ let fa1_applied = fa1 ()
 
 [%%expect{|
 module type M_arrow1 = sig type 'a t = int -> 'a end
-val fa1 : unit -> (module M : M_arrow1) -> 'a M.t = <fun>
-val fa1_applied : (module M : M_arrow1) -> 'a M.t = <fun>
+val fa1 : unit -> (module M_arrow1) -> int -> 'a = <fun>
+val fa1_applied : (module M_arrow1) -> int -> 'a = <fun>
 |}]
 
 module type M_arrow2 = sig
@@ -1234,8 +1234,8 @@ let fa2_applied = fa2 ()
 
 [%%expect{|
 module type M_arrow2 = sig type 'a t = 'a -> int end
-val fa2 : unit -> (module M : M_arrow2) -> 'a M.t = <fun>
-val fa2_applied : (module M : M_arrow2) -> '_weak4 M.t = <fun>
+val fa2 : unit -> (module M_arrow2) -> 'a -> int = <fun>
+val fa2_applied : (module M_arrow2) -> '_weak4 -> int = <fun>
 |}]
 
 module type Typ2 = sig

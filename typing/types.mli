@@ -141,6 +141,10 @@ type type_desc =
   | Tfunctor of arg_label * Ident.Unscoped.t * package * type_expr
   (** Type of a dependent arrow *)
 
+  | Texpand of type_expr * Path.t * type_expr list
+  (** [Texpand] is like [Tlink] but the result of an expansion;
+      [Path.t] and [type_expr list] remember the original declaration. *)
+
 (** [package] corresponds to the type of a first-class module *)
 and package =
   { pack_path : Path.t;
@@ -166,7 +170,7 @@ and fixed_explanation =
     tail.
 
     Note on marshalling: [abbrev_memo] must not appear in saved types.
-    [Btype], with [cleanup_abbrev] and [memo], takes care of tracking and
+    [Btype], with [cleanup_abbrev_memo] and [memo], takes care of tracking and
     removing abbreviations.
 *)
 and abbrev_memo =
@@ -258,6 +262,14 @@ val try_mark_node: type_mark -> type_expr -> bool
 
            Return false if it was already marked *)
 
+(** Handle kept abbreviations *)
+val get_abbrev: type_expr -> (Path.t * type_expr list) option
+val get_abbrev_scope: type_expr -> int
+  (* If [get_abbrev ty = Some (_, path, _)] then return the scope of [path]
+     otherwise [Ident.lowest_scope] *)
+val iter_abbrev: (Path.t -> type_expr list -> unit) -> type_expr -> unit
+val forget_abbrev: type_expr -> unit
+
 (** Transient [type_expr].
     Should only be used immediately after [Transient_expr.repr] *)
 type transient_expr = private
@@ -288,7 +300,8 @@ module Transient_expr : sig
   val try_mark_node: type_mark -> transient_expr -> bool
 end
 
-val create_expr: type_desc -> level: int -> scope: int -> id: int -> type_expr
+val create_expr:
+    type_desc -> level: int -> scope: int -> id: int -> type_expr
 
 (** Functions and definitions moved from Btype *)
 
@@ -749,25 +762,34 @@ type snapshot
         (* A snapshot for backtracking *)
 val snapshot: unit -> snapshot
         (* Make a snapshot for later backtracking. Costs nothing *)
-val backtrack: cleanup_abbrev:(unit -> unit) -> snapshot -> unit
+val backtrack: cleanup:(unit -> unit) -> snapshot -> unit
         (* Backtrack to a given snapshot. Only possible if you have
            not already backtracked to a previous snapshot.
-           Calls [cleanup_abbrev] internally *)
+           Calls [cleanup] internally *)
 val undo_first_change_after: snapshot -> unit
         (* Backtrack only the first change after a snapshot.
            Does not update the list of changes *)
 val undo_compress: snapshot -> unit
         (* Backtrack only path compression. Only meaningful if you have
            not already backtracked to a previous snapshot.
-           Does not call [cleanup_abbrev] *)
+           Does not call [cleanup] *)
 
 (** Functions to use when modifying a type (only Ctype?).
     The old values are logged and reverted on backtracking.
  *)
 
+val link_expand: type_expr -> type_expr -> unit
+        (* Set the desc field of [t1] to [Texpand (t2, p)],
+           assuming that [t1] is [Tconstr (p, args, _)], and
+           logging the old values if there is an active snapshot.
+           To be used only when expanding a type abbreviation. *)
 val link_type: type_expr -> type_expr -> unit
         (* Set the desc field of [t1] to [Tlink t2], logging the old
-           value if there is an active snapshot *)
+           values if there is an active snapshot.
+           To be used during unification.
+           Must only be used if
+           - [t1] is [Tvar], or
+           - [t1] and [t2] have the same [type_desc] constructor. *)
 val set_type_desc: type_expr -> type_desc -> unit
         (* Set directly the desc field, without sharing *)
 val set_level: type_expr -> int -> unit

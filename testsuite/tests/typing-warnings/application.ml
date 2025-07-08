@@ -237,14 +237,14 @@ module Arrow : sig type ('a, 'b) t = 'a -> 'b end
 let f (module M:Arrow): ('a,'a) M.t = fun x -> x
 let ok x y = f (module Arrow) x y
 [%%expect {|
-val f : (module M : Arrow) -> ('a, 'a) M.t = <fun>
+val f : (module Arrow) -> 'a -> 'a = <fun>
 val ok : ('a -> 'b) -> 'a -> 'b = <fun>
 |}]
 
 let f (module M:Arrow): ('a,'b) M.t = fun _ -> assert false
 let ok_error x y = f (module Arrow) x y
 [%%expect {|
-val f : (module M : Arrow) -> ('a, 'b) M.t = <fun>
+val f : (module Arrow) -> 'a -> 'b = <fun>
 Line 2, characters 38-39:
 2 | let ok_error x y = f (module Arrow) x y
                                           ^

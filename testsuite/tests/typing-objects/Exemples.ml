@@ -34,8 +34,6 @@ p#get_x;;
 let q = Oo.copy p;;
 [%%expect{|
 val q : point = <obj>
-|}, Principal{|
-val q : < get_x : int; move : int -> unit > = <obj>
 |}];;
 
 q#move 7; p#get_x, q#get_x;;
@@ -179,9 +177,6 @@ let (c, c') = (new circle p, new circle p');;
 [%%expect{|
 val c : point circle = <obj>
 val c' : color_point circle = <obj>
-|}, Principal{|
-val c : point circle = <obj>
-val c' : < color : string; get_x : int; move : int -> unit > circle = <obj>
 |}];;
 
 class ['a] color_circle c = object
@@ -428,18 +423,25 @@ val l1 : int lst = <obj>
 
 l1#print Format.print_int; Format.print_newline ();;
 [%%expect{|
-(3::10::[])
-- : unit = ()
+Line 1, characters 0-2:
+1 | l1#print Format.print_int; Format.print_newline ();;
+    ^^
+Error: This expression is not an object; it has type "int lst"
 |}];;
 
 let l2 = l1#map (fun x -> x + 1);;
 [%%expect{|
-val l2 : int lst = <obj>
+Line 1, characters 9-11:
+1 | let l2 = l1#map (fun x -> x + 1);;
+             ^^
+Error: This expression is not an object; it has type "int lst"
 |}];;
 l2#print Format.print_int; Format.print_newline ();;
 [%%expect{|
-(4::11::[])
-- : unit = ()
+Line 1, characters 0-2:
+1 | l2#print Format.print_int; Format.print_newline ();;
+    ^^
+Error: Unbound value "l2"
 |}];;
 
 let rec map_list f (x:'a lst) =
@@ -455,8 +457,11 @@ val p1 : printable_color_point lst = <obj>
 |}];;
 p1#print (fun x -> x#print); Format.print_newline () ;;
 [%%expect{|
-((3, red)::(10, red)::[])
-- : unit = ()
+Line 1, characters 0-2:
+1 | p1#print (fun x -> x#print); Format.print_newline () ;;
+    ^^
+Error: This expression is not an object;
+       it has type "printable_color_point lst"
 |}];;
 
 (*******************************************************************)
@@ -546,9 +551,9 @@ Error: Type
          "int_comparable2" =
            "< cmp : int_comparable2 -> int; set_x : int -> unit; x : int >"
        is not a subtype of
-         "int_comparable" = "< cmp : int_comparable -> int; x : int >"
-       Type "int_comparable" = "< cmp : int_comparable -> int; x : int >"
-       is not a subtype of
+         "int_comparable" =
+           "< cmp : < cmp : 'a; x : int > -> int as 'a; x : int >"
+       Type "< cmp : 'b -> int; x : int > as 'b" is not a subtype of
          "int_comparable2" =
            "< cmp : int_comparable2 -> int; set_x : int -> unit; x : int >"
        The first object type has no method "set_x"
@@ -593,7 +598,9 @@ Error: The value "c3" has type
            "< cmp : int_comparable -> int; setx : int -> unit; x : int >"
        but an expression was expected of type
          "#comparable as 'a" = "< cmp : 'a -> int; .. >"
-       Type "int_comparable" = "< cmp : int_comparable -> int; x : int >"
+       Type
+         "int_comparable" =
+           "< cmp : < cmp : 'b; x : int > -> int as 'b; x : int >"
        is not compatible with type
          "#comparable as 'a" = "< cmp : 'a -> int; .. >"
        The first object type has no method "setx"
@@ -871,13 +878,28 @@ val calculator : calculator = <obj>
 
 (calculator#enter 5.)#equals;;
 [%%expect{|
+Line 1, characters 1-11:
+1 | (calculator#enter 5.)#equals;;
+     ^^^^^^^^^^
+Error: This expression is not an object; it has type "calculator"
+|}, Principal{|
 - : float = 5.
 |}];;
 ((calculator#enter 5.)#sub#enter 3.5)#equals;;
 [%%expect{|
+Line 1, characters 2-12:
+1 | ((calculator#enter 5.)#sub#enter 3.5)#equals;;
+      ^^^^^^^^^^
+Error: This expression is not an object; it has type "calculator"
+|}, Principal{|
 - : float = 1.5
 |}];;
 (calculator#enter 5.)#add#add#equals;;
 [%%expect{|
+Line 1, characters 1-11:
+1 | (calculator#enter 5.)#add#add#equals;;
+     ^^^^^^^^^^
+Error: This expression is not an object; it has type "calculator"
+|}, Principal{|
 - : float = 15.
 |}];;

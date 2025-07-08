@@ -286,6 +286,7 @@ val try_expand_safe_opt: Env.t -> type_expr -> type_expr
 
 val expand_head_once: Env.t -> type_expr -> type_expr
 val expand_head: Env.t -> type_expr -> type_expr
+val expand_head_nolink: Env.t -> type_expr -> type_expr
 val expand_head_opt: Env.t -> type_expr -> type_expr
 (** The compiler's own version of [expand_head] necessary for type-based
     optimisations. *)
@@ -405,8 +406,6 @@ val arrow_spine
   -> (arg_label * arrow_arg) list * arrow_ret
 
 val occur_in: Env.t -> type_expr -> type_expr -> bool
-val deep_occur: type_expr -> type_expr -> bool
-val deep_occur_list: type_expr -> type_expr list -> bool
 val moregeneral: Env.t -> type_expr -> type_expr -> unit
         (* Check if the first type scheme is more general than the second. *)
 val is_moregeneral: Env.t -> type_expr -> type_expr -> bool
