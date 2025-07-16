@@ -146,7 +146,7 @@ let draw_using_device device_name picture =
   Device.draw picture
 \end{caml_example*}
 
-\lparagraph{p:fst-mod-intro-limitations}{Limitations}
+\lparagraph{p:fst-mod-intro-limitation-dynamic-arg}{Limitation: selecting a module at runtime}
 
 To avoid breaking type soundness, there is a restriction on functions
 that take module parameters "fun (module A : S) -> ...": if the type
@@ -240,6 +240,34 @@ let rec mapM
     M.return (y :: ys)
   in loop li
 \end{caml_example}
+
+\lparagraph{p:fst-mod-intro-limitation-nary-app}{Limitation: n-ary applications}
+
+The following example fails, where "sort" is our module-dependent function from before:
+
+\begin{caml_example}{verbatim}[error]
+let sort (module MSet : Set.S) li =
+  MSet.elements (List.fold_right MSet.add li MSet.empty)
+
+let wrong = Fun.id sort (module ISetIncr) [2; 3]
+\end{caml_example}
+
+The problem comes from subtle details in the type-checking of n-ary
+function applications: this is checked as "Fun.id" to which three
+parameters are passed, and only the type of "Fun.id" (not
+its arguments) is used to resolve the module application, so no
+module-dependent function type is known at that point.
+
+The example can be fixed by first applying "Fun.id sort", and then
+passing the module argument in a separate application. Then the
+module-dependent type of "Fun.id sort" will be used to check the
+module application. This can be done by simply adding extra
+parentheses:
+
+\begin{caml_example}{verbatim}
+let fixed = (Fun.id sort) (module ISetIncr) [2; 3]
+\end{caml_example}
+
 
 \lparagraph{p:fst-mod-compatibility}{Compatibility}
 
