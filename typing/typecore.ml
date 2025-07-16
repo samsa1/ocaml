@@ -3026,6 +3026,32 @@ let type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 =
   unify_exp ~sexp:sarg env texp (newty (Tpackage pack0));
   modl, texp
 
+let collect_functor_module_arg ~env ~sarg ~rev_args ~funct ~me ~optyp
+    ~(tfun : Types.tfunctor) ~(tfun0 : Types.tfunctor) ~l =
+  let modl, texp =
+    type_tfunctor_module_arg ~env ~sarg ~me ~optyp
+                             ~pack:tfun.pack ~pack0:tfun0.pack in
+  let arg = Arg (Typed_arg { targ = texp }) in
+  match path_of_module modl with
+  | Some path ->
+    let ty_ret =
+      with_level ~level:generic_level @@ fun () ->
+        instance_funct ~id_in:(Ident.of_unscoped tfun.id_us)
+                            ~p_out:path ~fixed:false tfun.ty in
+    let ty_ret0 =
+        instance_funct ~id_in:(Ident.of_unscoped tfun0.id_us)
+                            ~p_out:path ~fixed:false tfun0.ty in
+    (arg, ty_ret, ty_ret0)
+  | None ->
+    let me = remove_module_constraint modl in
+    try
+      let ty = instance_funct_nondep env l tfun me.mod_type in
+      let ty0 = instance_funct_nondep env l tfun0 me.mod_type in
+      (arg, ty, ty0)
+    with Unify trace ->
+      let loc = beginning_function_loc rev_args ~funct in
+      raise (Error(loc, env, Cannot_unify_tfunctor_to_tarrow trace))
+
 let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
   let labels_match ~param ~arg =
     param = arg
@@ -3216,31 +3242,8 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
             in
             match me_opt with
             | Some (Some (me, optyp), sarg) ->
-              let modl, texp =
-                type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 in
-              let arg = Arg (Typed_arg { targ = texp }) in
-              begin
-                match path_of_module modl with
-                | Some path ->
-                  let ty_res =
-                    with_level ~level:generic_level @@ fun () ->
-                      instance_funct ~id_in:(Ident.of_unscoped id)
-                                          ~p_out:path ~fixed:false t in
-                  let ty_res0 =
-                      instance_funct ~id_in:(Ident.of_unscoped id0)
-                                          ~p_out:path ~fixed:false t0 in
-                  (arg, ty_res, ty_res0)
-                | None ->
-                  let me = remove_module_constraint modl in
-                  try
-                    let ty = instance_funct_nondep env l tfun me.mod_type in
-                    let ty0 = instance_funct_nondep env l tfun0 me.mod_type in
-                    (arg, ty, ty0)
-                  with Unify trace ->
-                    let loc = beginning_function_loc rev_args ~funct in
-                    raise (Error (loc, env,
-                                  Cannot_unify_tfunctor_to_tarrow trace))
-              end
+              collect_functor_module_arg ~env ~sarg ~rev_args ~funct ~me
+                                         ~optyp ~tfun ~tfun0 ~l
             | Some _ | None ->
               match
                 filter_arrow env ~in_apply:true ty_fun' l ~param_hole:false,
@@ -3253,7 +3256,7 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                 (arg, ty_ret, ty_ret0)
               | Error err, _ | _, Error err ->
                 dependent_labeled_app_error env err ~rev_args ~funct
-                    me_opt ty_fun' id tfun.pack tfun0.pack
+                    me_opt ty_fun' tfun.id_us tfun.pack tfun0.pack
           in
           loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
       end
