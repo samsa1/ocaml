@@ -18,17 +18,17 @@ parameters.
 
 \subsection{ss:fst-mod-intro}{Introduction}
 
-\lparagraph{p:fst-mod-intro-mod-fun}{Functions parametrized over a module}
+\lparagraph{p:fst-mod-intro-mod-fun}{Module-dependent functions: functions parameterized over a module}
 
 One can write a function "sort0" that sorts elements by adding them into
 a sorted set, and then reads them back in order:
 \begin{caml_example}{verbatim}
-let sort0 (type a) li =
-  let module M = struct type t = a let compare = Stdlib.compare end in
+let sort0 (type a) cmp li =
+  let module M = struct type t = a let compare = cmp end in
   let module MSet = Stdlib.Set.Make(M) in
   MSet.elements (List.fold_right MSet.add li MSet.empty)
 
-let example = sort0 [3; 1; 2]
+let example = sort0 Int.compare [3; 1; 2]
 \end{caml_example*}
 
 Using module-dependent functions, it is also possible to express
@@ -46,10 +46,10 @@ let sort (module MSet : Set.S) li =
 The declaration of "sort" uses the pattern syntax "(module M : S)",
 which allows function parameters to be modules instead of ordinary
 values. We call "sort" a \emph{module-dependent} function because in
-its type, "(module Set : Set.S) -> Set.elt list -> Set.elt list", the
+its type, "(module MSet : Set.S) -> MSet.elt list -> MSet.elt list", the
 module parameter appears in the right-hand-side (return type) of the
-arrow "(module Set : Set.S) -> ...", via occurrences of the type
-"Set.elt".
+arrow "(module MSet : Set.S) -> ...", via occurrences of the type
+"MSet.elt".
 
 To apply the "sort" function, we use the construction "(module M : S)"
 to provide the argument, which can typically be written "(module M)"
@@ -64,12 +64,9 @@ module ISetDecr =
   end)
 \end{caml_example*}
 
-\begin{caml_example}{verbatim}
-let example = sort (module ISetIncr) [3; 1; 2]
-let example = sort (module ISetDecr) [3; 1; 2]
-
-(* Note: any module path is accepted, including functor applications *)
-let example = sort (module Set.Make(Int)) [3; 1; 2]
+\begin{caml_example}{toplevel}
+let example = sort (module ISetIncr) [3; 1; 2];;
+let example = sort (module ISetDecr) [3; 1; 2];;
 \end{caml_example}
 
 This provides a lightweight alternative to functors.
@@ -86,13 +83,47 @@ end
 let module S = Sort(ISetDecr) in S.f [3; 1; 2];;
 \end{caml_example}
 
+\lparagraph{p:fst-mod-intro-algebraic-structures}{Use-case: abstracting over algebraic structures}
+
+Module-dependent functions offer a nice way to implement code that is parametric over families of type structures, for example on any monad.
+
+\begin{caml_example*}{verbatim}
+module type Monad = sig
+  type 'a t
+  val return : 'a -> 'a t
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+end
+
+let rec mapM
+: (module M : Monad) -> ('a -> 'b M.t) -> 'a list -> 'b list M.t
+= fun (module M) f li ->
+  let rec loop = function
+  | [] -> M.return []
+  | x::xs ->
+    let ( let* ) = M.bind in
+    let* y = f x in
+    let* ys = mapM (module M) f xs in
+    M.return (y :: ys)
+  in loop li
+
+(* Example use-case: a map on the Result monad *)
+let map_result (type e)
+: ('a -> ('b, e) result) -> 'a list -> ('b list, e) result
+= let module R = struct
+    type 'a t = ('a, e) result
+    let return = Result.ok
+    let bind = Result.bind
+  end in mapM (module R)
+\end{caml_example*}
+
+
 \lparagraph{p:fst-mod-intro-dynamic}{First-class modules}
 
 In the function application "sort (module ISetIncr)" from our example
 above, we say that the module argument is \emph{static}: it is known
 at compile-time.
 
-First-class modules let you build "dynamic" values that represent
+First-class modules let you build \emph{dynamic} values that represent
 modules, where the choice of module depends on runtime
 computations. If "M" is a module of signature "S", then
 "(module M : S)" is an expression of type "(module S)", we say that it
@@ -148,18 +179,20 @@ let draw_using_device device_name picture =
 
 \lparagraph{p:fst-mod-intro-limitation-dynamic-arg}{Limitation: selecting a module at runtime}
 
-To avoid breaking type soundness, there is a restriction on functions
-that take module parameters "fun (module A : S) -> ...": if the type
-of the body of the function (the "...") \emph{depends} on the module
-argument "A", then this function is only allowed to take static module
-arguments of the form "(module M : S)", rather than arbitrary dynamic
-expressions of type "(module S)". We call them \emph{module-dependent}
-functions.
+There is a restriction on module-dependent functions "fun
+(module A : S) -> ...": if the type of the body of the function
+(the "...") \emph{depends} on the module argument "A", then this
+function is only allowed to take static module arguments of the form
+"(module M : S)", rather than arbitrary expressions of type
+"(module S)". There is no such restriction if the type of the body
+does not mention "A", or if the type-checker can easily rewrite it to
+expand away the uses of "A".
 
-Our "process" function of Paragraph~\ref{ss:fst-mod-intro-mod-fun} is
-such a module-dependent function: its type is "(module M : Monoid) ->
-M.t list -> M.t", where the module "M" is used on the right of the
-arrow "(module M : Monoid) -> ...". The following example is rejected:
+Our "sort" function of Paragraph~\ref{p:fst-mod-intro-mod-fun} is such
+a module-dependent function: its type is "(module MSet : Set.S) ->
+MSet.elt list -> MSet.elt list", where the module "MSet" is used on
+the right of the arrow "(module MSet : Set.S) -> ...". The following
+example is rejected:
 
 \begin{caml_example*}{verbatim}
 let sort_order = `Decr
@@ -173,9 +206,8 @@ let wrong =
     [2; 4]
 \end{caml_example}
 
-In some cases, including for "sort", it is possible to rewrite the
-code in a slightly more complex way to make the dependency go
-away:
+In some cases, including this example, it is possible to rewrite the
+code to use a static module argument again:
 
 \begin{caml_example}{verbatim}
 let okay =
@@ -188,12 +220,11 @@ let okay =
   sort (module MSet) [2; 4]
 \end{caml_example}
 
-In this version, the application "sort (module MSet)" takes a static
-module argument again. But notice that the module "MSet" is defined
-locally, so the type of the whole declaration cannot mention "MSet.elt",
-it would be ill-scoped. In this example the return type of "sort" does
-mention "MSet.elt", but this type is equal to "int" so it can be
-simplified away.
+Notice that the module "MSet" is defined locally, so the type of the
+whole declaration cannot mention "MSet.elt", it would be
+ill-scoped. In this example the return type of "sort" does mention
+"MSet.elt", but this type is equal to "int" so it can be simplified
+away.
 
 Finally, it is also possible to remove the dependency from the
 definition of "sort", by replacing the argument signature "Set.S" with
@@ -215,31 +246,12 @@ let also_okay =
     [2; 4]
 \end{caml_example}
 
-Note that removing dependencies on a type within a module can only be
-done for non-parametrized type like "elt", rather than parametrized
-types like "'a t". It would not be possible for the following "mapM"
-function, which has a dependency on a module containing a parametrized
-type, and thus cannot be passed dynamically-selected module arguments:
-
-\begin{caml_example}{verbatim}
-module type Monad = sig
-  type 'a t
-  val return : 'a -> 'a t
-  val bind : 'a t -> ('a -> 'b t) -> 'b t
-end
-
-let rec mapM
-: (module M : Monad) -> ('a -> 'b M.t) -> 'a list -> 'b list M.t
-= fun (module M) f li ->
-  let rec loop = function
-  | [] -> M.return []
-  | x::xs ->
-    let ( let* ) = M.bind in
-    let* y = f x in
-    let* ys = mapM (module M) f xs in
-    M.return (y :: ys)
-  in loop li
-\end{caml_example}
+Note that removing dependencies using "(type a)" like this can only be
+done for non-parameterized types like "elt", not with parameterized
+types like "'a t" -- there is no corresponding "(type 'a t)"
+abstraction. It would not be possible for the "mapM" example earlier,
+which has a dependency on a module containing a parameterized type "'a
+M.t", and thus cannot be passed dynamically-selected module arguments.
 
 \lparagraph{p:fst-mod-intro-limitation-nary-app}{Limitation: n-ary applications}
 
@@ -272,7 +284,7 @@ let fixed = (Fun.id sort) (module ISetIncr) [2; 3]
 \lparagraph{p:fst-mod-compatibility}{Compatibility}
 
 Before OCaml 5.5, module-dependent functions were not supported. One
-could use first-class modules, but all module-parametrized functions
+could use first-class modules, but all module-parameterized functions
 had to be non-dependent, so this "(type a)" workaround was often used.
 
 
@@ -298,7 +310,7 @@ end = struct
 end
 \end{caml_example*}
 
-We can then define a parametrized algebraic data type whose
+We can then define a parameterized algebraic data type whose
 constructors provide some information about the type parameter:
 
 \begin{caml_example*}{verbatim}
@@ -424,7 +436,7 @@ package-type ')'@ type expression, in @'(' 'module' module-name ':'
 package-type ')' '->' typexpr @ type expression and in the annotated forms
 represents a subset of module types.
 This subset consists of named module types with optional constraints
-of a limited form: only non-parametrized types can be specified.
+of a limited form: only non-parameterized types can be specified.
 
 For type-checking purposes (and starting from OCaml 4.02), package types
 are compared using the structural comparison of module types.
