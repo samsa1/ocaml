@@ -507,41 +507,38 @@ module ImplicitTbl =
   struct
     type implicit_set = {
       size : int;
-      names : Ident.t NameMap.t
+      names : Path.t NameMap.t
     }
 
     type t = {
-      current : string list option NameMap.t;
+      current : (Path.t * string list) option NameMap.t;
       env : implicit_set * implicit_set NameMap.t;
-      (* layer : layer *)
+      opened : opened option;
     }
-    (* and layer =
-      | Open of {
-          root: Path.t;
-          (** The path of the opened module, to be prefixed in front of
-              its local names to produce a valid path in the current
-              environment. *)
+    and opened = {
+      root: Path.t;
+      (** The path of the opened module, to be prefixed in front of
+          its local names to produce a valid path in the current
+          environment. *)
 
-          (* components: 'b NameMap.t;
-          (** Components from the opened module. *) *)
+      (* components: 'b NameMap.t;
+      (** Components from the opened module. *) *)
 
-          (* using: (string -> ('a * 'a) option -> unit) option;
-          (** A callback to be applied when a component is used from this
-              "open".  This is used to detect unused "opens".  The
-              arguments are used to detect shadowing. *) *)
+      (* using: (string -> ('a * 'a) option -> unit) option;
+      (** A callback to be applied when a component is used from this
+          "open".  This is used to detect unused "opens".  The
+          arguments are used to detect shadowing. *) *)
 
-          (* next: ('a, 'b) t; *)
-          next: t;
-          (** The table before opening the module. *)
-        }
-      | Nothing *)
+      next: t;
+      (** The table before opening the module. *)
+    }
 
     let empty_set = { size = 0; names = NameMap.empty }
 
     let empty = {
         current = NameMap.empty;
         env = (empty_set, NameMap.empty);
-        (* layer = Nothing; *)
+        opened = None;
       }
 
     let find_structures sg env =
@@ -565,38 +562,86 @@ module ImplicitTbl =
         { size = set.size - 1; names = NameMap.remove name set.names }
       else set
 
-    let add_to_set id set =
+    let add_to_set name path set =
       {
-        names = NameMap.add (Ident.name id) id set.names;
+        names = NameMap.add name path set.names;
         size =
-          if NameMap.mem (Ident.name id) set.names
+          if NameMap.mem name set.names
           then set.size else set.size + 1;
       }
 
-    let add_to_field id field_map field_name =
+    let add_to_field name path field_map field_name =
       let set =
         try NameMap.find field_name field_map
         with Not_found -> empty_set
       in
-      NameMap.add field_name (add_to_set id set) field_map
+      NameMap.add field_name (add_to_set name path set) field_map
 
     let map f (all, mapping) = (f all, NameMap.map f mapping)
 
+    let shadow_in_env name env =
+      if NameMap.mem name (fst env).names
+      then map (remove_from_set name) env
+      else env
+
     let shadowing name ctxt =
       if NameMap.mem name (fst ctxt.env).names then
-        { (* ctxt with *)
+        { ctxt with
           current = NameMap.add name None ctxt.current;
           env = map (remove_from_set name) ctxt.env;
         }
       else ctxt
 
-    let add id fields ctxt =
+    let update_module_names name implicit_kind ctxt =
+      match implicit_kind with
+      | IIFail -> assert false
+      | IILocal -> ctxt
+      | IIShadows -> shadowing name ctxt
+      | IIImplicit -> assert false
+
+    let add_in_env name path fields (s, field_map) =
+      let field_map = List.fold_left (add_to_field name path) field_map fields
+      in (add_to_set name path s, field_map)
+
+    let add name path fields ctxt =
       let (s, field_map) = ctxt.env in
-      let field_map = List.fold_left (add_to_field id) field_map fields in
-      { (* ctxt with *)
-        current = NameMap.add (Ident.name id) (Some fields) ctxt.current;
-        env = (add_to_set id s, field_map);
+      let field_map = List.fold_left (add_to_field name path) field_map fields
+      in
+      { ctxt with
+        current = NameMap.add name (Some (path, fields)) ctxt.current;
+        env = (add_to_set name path s, field_map);
       }
+
+    let update_env root name (impl_kind, fields) env =
+      match impl_kind with
+      | IIImplicit -> add_in_env name (Pdot (root, name)) fields env
+      | IIShadows -> shadow_in_env name env
+      | IIFail -> assert false
+      | IILocal -> env
+
+    let add_open _slot _wrap root components next =
+      (* let using =
+        match slot with
+        | None -> None
+        | Some f -> Some (fun s x -> f s (wrap x))
+      in *)
+      {
+        current = NameMap.empty;
+        env = NameMap.fold (update_env root) components next.env;
+        opened = Some {(*using;*) (*components;*) root; next};
+      }
+
+    let propagate_add name opt ctxt =
+      match opt with
+      | None -> shadowing name ctxt
+      | Some (path, fields) -> add name path fields ctxt
+
+    let remove_last_open rt tbl =
+      match tbl.opened with
+      | Some {root; next; _} when Path.same rt root ->
+        NameMap.fold propagate_add tbl.current next
+      | _ ->
+          assert false
 
   end
 
@@ -1891,13 +1936,6 @@ let module_declaration_address env id presence md =
   | Mp_present ->
       Lazy_backtrack.create_forced (Aident id)
 
-let update_module_names name mda implicits =
-  match mda.mda_declaration.mdl_impl with
-  | IIFail -> assert false
-  | IILocal -> implicits
-  | IIShadows -> ImplicitTbl.shadowing name implicits
-  | IIImplicit -> assert false
-
 let get_field_name = function
   | Subst.Lazy.SigL_value (id, _, _)
   | Subst.Lazy.SigL_type (id, _, _, _)
@@ -1923,8 +1961,9 @@ let update_modules env id mda implicits =
   | IIImplicit ->
       let fields = get_fields env mda in
       let implicits = ImplicitTbl.shadowing (Ident.name id) implicits in
-      ImplicitTbl.add id fields implicits
-  | _ -> update_module_names (Ident.name id) mda implicits
+      ImplicitTbl.add (Ident.name id) (Pident id) fields implicits
+  | impl_kind ->
+      ImplicitTbl.update_module_names (Ident.name id) impl_kind implicits
 
 let rec components_of_module_maker
           {cm_env; cm_prefixing_subst;
@@ -2659,7 +2698,18 @@ let add_components slot root env0 comps =
   let modules =
     add (fun x -> `Module x) comps.comp_modules env0.modules
   in
-  let env0 = { env0 with
+  let implicit_modules =
+    let prepare_components mda =
+      let fields =
+        match mda.mda_declaration.mdl_impl with
+        | IIImplicit -> (get_fields env0 mda)
+        | _ -> []
+      in (mda.mda_declaration.mdl_impl, fields)
+    in
+    let comp = NameMap.map prepare_components comps.comp_modules in
+    ImplicitTbl.add_open slot (fun x -> `IModule x) root comp env0.implicit_modules
+  in
+  { env0 with
     summary = Env_open(env0.summary, root);
     constrs;
     labels;
@@ -2669,12 +2719,8 @@ let add_components slot root env0 comps =
     classes;
     cltypes;
     modules;
-  } in
-  let implicit_modules =
-    NameMap.fold update_module_names
-      comps.comp_modules env0.implicit_modules
-  in
-  { env0 with implicit_modules }
+    implicit_modules
+  }
 
 let open_signature slot root env0 : (_,_) result =
   match get_components_res (find_module_components root env0) with
@@ -2708,6 +2754,7 @@ let remove_last_open root env0 =
   match filter_summary env0.summary with
   | summary ->
       let rem_l tbl = TycompTbl.remove_last_open root tbl
+      and rem_i tbl = ImplicitTbl.remove_last_open root tbl
       and rem tbl = IdTbl.remove_last_open root tbl in
       let () = assert ((fst env0.implicit_modules.env).size = 0) in
       Some { env0 with
@@ -2720,7 +2767,7 @@ let remove_last_open root env0 =
              classes = rem env0.classes;
              cltypes = rem env0.cltypes;
              modules = rem env0.modules;
-             implicit_modules = env0.implicit_modules (* HERE : TODO *); }
+             implicit_modules = rem_i env0.implicit_modules; }
   | exception Exit ->
       None
 
