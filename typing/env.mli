@@ -89,7 +89,7 @@ val find_module: Path.t -> t -> module_declaration
 val find_modtype: Path.t -> t -> modtype_declaration
 val find_class: Path.t -> t -> class_declaration
 val find_cltype: Path.t -> t -> class_type_declaration
-val find_structures: signature -> t -> Ident.t Misc.Stdlib.String.Map.t
+val find_structures: signature -> t -> Path.t Misc.Stdlib.String.Map.t
 
 val find_strengthened_module:
   aliasable:bool -> Path.t -> t -> module_type
