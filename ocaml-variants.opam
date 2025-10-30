@@ -2,7 +2,7 @@ opam-version: "2.0"
 version: "5.5.0+dev+modular-implicits"
 license: "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
 synopsis: "OCaml development version with prototype support for modular implicits"
-maintainer: "samuel.vivien@ens.psl.eu"
+maintainer: "samuel.vivien@inria.fr"
 authors: [
   "Xavier Leroy"
   "Damien Doligez"

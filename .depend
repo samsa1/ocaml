@@ -939,8 +939,10 @@ typing/ident.cmi : \
     utils/format_doc.cmi
 typing/implicitmod.cmo : \
     typing/types.cmi \
+    typing/typedtree.cmi \
     typing/printtyp.cmi \
     parsing/pprintast.cmi \
+    typing/path.cmi \
     parsing/parsetree.cmi \
     utils/misc.cmi \
     parsing/longident.cmi \
@@ -954,8 +956,10 @@ typing/implicitmod.cmo : \
     typing/implicitmod.cmi
 typing/implicitmod.cmx : \
     typing/types.cmx \
+    typing/typedtree.cmx \
     typing/printtyp.cmx \
     parsing/pprintast.cmx \
+    typing/path.cmx \
     parsing/parsetree.cmi \
     utils/misc.cmx \
     parsing/longident.cmx \
@@ -969,6 +973,8 @@ typing/implicitmod.cmx : \
     typing/implicitmod.cmi
 typing/implicitmod.cmi : \
     typing/types.cmi \
+    typing/typedtree.cmi \
+    typing/shape.cmi \
     parsing/parsetree.cmi \
     parsing/location.cmi \
     typing/env.cmi
