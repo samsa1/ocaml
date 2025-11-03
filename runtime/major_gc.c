@@ -491,12 +491,11 @@ static intnat ephe_mark (intnat budget, uintnat round,
               goto ephemeron_again;
             }
           }
+        } else if (Tag_val (key) == Infix_tag) {
+          key -= Infix_offset_val (key);
         }
-        else {
-          if (Tag_val (key) == Infix_tag) key -= Infix_offset_val (key);
-          if (is_unmarked (key))
-            preserve_data = false;
-        }
+        if (is_unmarked (key))
+          preserve_data = false;
       }
     }
 
