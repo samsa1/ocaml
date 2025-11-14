@@ -82,7 +82,9 @@ module Array = struct
     unsafe_get t i
 
   let[@inline] unsafe_set t i v =
-    Loc.set (unsafe_index t i) v
+    (* using Loc.set works less well as Simplif misses the
+       lambda-level elimination of the atomic-location pair. *)
+    ignore (Loc.exchange (unsafe_index t i) v)
   let[@inline] set t i v =
     check_array_bound t i;
     unsafe_set t i v

@@ -131,16 +131,10 @@ cmm:
 
 (function camlCmm.array_set_377 (arr: val i: int v: val)
  (checkbound (or (>>u (load int (+a arr -8)) 9) 1) i) []
- (let t (alloc 2048 arr i)
-   (extcall "caml_atomic_exchange_field" (load val t) (load int (+a t 8)) v
-     int,int,int->unit)
-   1))
+ (extcall "caml_atomic_exchange_field" arr i v int,int,int->unit) 1)
 
 (function camlCmm.unsafe_array_set_382 (arr: val i: int v: val)
- (let t (alloc 2048 arr i)
-   (extcall "caml_atomic_exchange_field" (load val t) (load int (+a t 8)) v
-     int,int,int->unit)
-   1))
+ (extcall "caml_atomic_exchange_field" arr i v int,int,int->unit) 1)
 
 (function camlCmm.array_cas_387 (arr: val i: int oldv: val newv: val)
  (checkbound (or (>>u (load int (+a arr -8)) 9) 1) i) []
