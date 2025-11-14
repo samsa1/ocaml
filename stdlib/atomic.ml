@@ -71,9 +71,9 @@ module Array = struct
     : 'a array -> int
     = "%array_length"
 
-  external array_make
+  external uniform_array_make
     : int -> 'a -> 'a t
-    = "caml_array_make"
+    = "caml_uniform_array_make"
 
   let[@inline] unsafe_get t i =
     Loc.get (unsafe_index t i)
@@ -108,21 +108,18 @@ module Array = struct
   let make len v =
     if len < 0 then
       invalid_arg "Atomic.Array.make" ;
-    if Obj.(tag @@ repr v == double_tag) then
-      let t = array_make len (Obj.magic ()) in
-      for i = 0 to len - 1 do
-        unsafe_set t i v
-      done ;
-      t
-    else
-      array_make len v
+    uniform_array_make len v
 
   let init len fn =
     if len < 0 then
-      invalid_arg "Atomic_array.init" ;
-    let t = array_make len (Obj.magic ()) in
-    for i = 0 to len - 1 do
-      unsafe_set t i (fn i)
-    done ;
-    t
+      invalid_arg "Atomic_array.init"
+    else if len = 0 then
+      [||]
+    else begin
+      let t = uniform_array_make len (fn 0) in
+      for i = 1 to len - 1 do
+        unsafe_set t i (fn i)
+      done ;
+      t
+    end
 end
