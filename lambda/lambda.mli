@@ -513,6 +513,8 @@ val max_arity : unit -> int
 
 val tag_of_lazy_tag : lazy_block_tag -> int
 
+val make_atomic_loc : loc:scoped_location -> lambda -> lambda -> lambda
+
 (***********************)
 (* For static failures *)
 (***********************)

@@ -762,6 +762,10 @@ let rec make_sequence fn = function
   | x::rem ->
       let lam = fn x in Lsequence(lam, make_sequence fn rem)
 
+let make_atomic_loc ~loc arg field =
+  let shape = Some [Pgenval; Pintval] in
+  Lprim (Pmakeblock (0, Immutable, shape), [arg; field], loc)
+
 (* Apply a substitution to a lambda-term.
    Assumes that the image of the substitution is out of reach
    of the bound variables of the lambda-term (no capture). *)
