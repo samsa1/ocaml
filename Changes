@@ -55,6 +55,10 @@ Working version
 - #14553: Add Array.fold_{left,right}2
   (Clément Pottier, review by Nicolás Ojeda Bär and Vincent Laviron)
 
+- #14380: Add Atomic.Array.
+  (Clément Allain and Gabriel Scherer, review by Olivier Nicole
+   and Léo Andrès for the stdlib team)
+
 ### Other libraries:
 
 ### Tools:
