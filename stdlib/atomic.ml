@@ -35,13 +35,6 @@ module Loc = struct
     if compare_and_set t v_old v_new
     then ()
     else modify f t
-
-  let rec modify_get f t =
-    let v_old = get t in
-    let res, v_new = f v_old in
-    if compare_and_set t v_old v_new
-    then res
-    else modify_get f t
 end
 
 type !'a t =
@@ -71,8 +64,6 @@ let decr t =
 
 let modify f t =
   Loc.modify f [%atomic.loc t.contents]
-let modify_get f t =
-  Loc.modify_get f [%atomic.loc t.contents]
 
 module Array = struct
   type !'a t =

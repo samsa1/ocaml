@@ -84,26 +84,6 @@ let global_push elem = Atomic.modify (List.cons elem) global_list
 *)
 val modify : ('a -> 'a) -> 'a t -> unit
 
-(** [modify_get f r] computes a pair [(v, new_r)] by calling [f]
-    to the value of [r]. It tries to set this new value in [r]
-    and returns [v], or retries (calling [f] again) if [r] was
-    concurrently changed to a physically different value.
-
-    Example:
-{[
-let global_list = Atomic.make []
-let global_pop () =
-  let pop = function
-  | [] -> raise Not_found
-  | x::xs -> x, xs
-  in
-  Atomic.modify_get pop global_lit
-]}
-
-    @since 5.6
-*)
-val modify_get : ('a -> 'b * 'a) -> 'a t -> 'b
-
 (** Atomic "locations", such as record fields.
 
     @since 5.4 *)
