@@ -17,9 +17,13 @@
      https://github.com/ocaml-multicore/backoff
    It is currently not exposed in the public interface, and reserved
    to the implementation of derived Atomic operations.
+
+   To avoid dependency cycles within the runtime, we removed the use
+   of Random.bits to introduce random jitter. Instead we now wait
+   deterministically for 2^R loop iterations after R retries.
 *)
 module Backoff : sig
-  (** Randomized exponential backoff mechanism. *)
+  (** Exponential backoff mechanism. *)
 
   type t [@@immediate]
   (** Type of backoff values. *)
@@ -36,11 +40,9 @@ module Backoff : sig
   (** [default] is equivalent to [create ()]. *)
 
   val once : t -> t
-  (** [once b] executes one random wait and returns a new backoff with logarithm
+  (** [once b] executes one wait and returns a new backoff with logarithm
       of the current maximum value incremented unless it is already at
-      [upper_wait_log] of [b].
-
-      Note that this uses the default Stdlib [Random] per-domain generator. *)
+      [upper_wait_log] of [b]. *)
 
   val reset : t -> t
   (** [reset b] returns a backoff equivalent to [b] except with
@@ -52,7 +54,14 @@ module Backoff : sig
 end = struct
   type t = int
 
-  let single_mask = Bool.to_int (Domain.recommended_domain_count () = 1) - 1
+  (* externals imported to avoid dependency cycles *)
+  external bool_to_int : bool -> int = "%identity"
+  external cpu_relax : unit -> unit
+    = "caml_ml_domain_cpu_relax"
+  external get_recommended_domain_count: unit -> int
+    = "caml_recommended_domain_count" [@@noalloc]
+
+  let single_mask = bool_to_int (get_recommended_domain_count () = 1) - 1
   let bits = 5
   let max_wait_log = 30 (* [Random.bits] returns 30 random bits. *)
   let mask = (1 lsl bits) - 1
