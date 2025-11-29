@@ -125,12 +125,14 @@ module Loc = struct
   let decr t =
     ignore (fetch_and_add t (-1))
 
-  let rec modify f t =
-    let v_old = get t in
-    let v_new = f v_old in
-    if compare_and_set t v_old v_new
-    then ()
-    else modify f t
+  let modify f t =
+    let rec loop ~backoff f t =
+      let v_old = get t in
+      let v_new = f v_old in
+      if compare_and_set t v_old v_new
+      then ()
+      else loop ~backoff:(Backoff.once backoff) f t
+    in loop ~backoff:Backoff.default f t
 end
 
 type !'a t =
