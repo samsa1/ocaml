@@ -999,7 +999,31 @@ let update_level_for tr_exn env level ty =
     update_level env level ty
   with Escape e -> raise_for tr_exn (Escape e)
 
-(* Lower level of type variables inside contravariant branches *)
+(* Lower level of type variables inside contravariant branches.
+
+   Note: this implies that only variables in *strictly positive*
+   positions can be instantiated, not variables in positive positions
+   on the left of an arrow, for example [('_b -> unit) -> unit].
+
+   Generalizing ['_b] in the example above creates a principality
+   issue (the example below comes from Jeremy Yallop): the term
+     (fun x -> x) (fun _ -> ())
+   has type
+     ('_a -> unit)
+   and also the less general type
+     (('_b -> unit) -> unit)
+   If you then consider
+     let f = (fun x -> x) (fun _ -> ())
+   then using the type ('_a -> unit) does not allow generalization,
+   but using the type (('_b -> unit) -> unit) would allow
+   generalization (if we generalized non-strictly-positive positions),
+   typing more programs.
+
+   In other words, the only generalizable type variables are those
+   that occur in hereditarily positive positions, they are in
+   covariant positions but all the type nodes above them are also in
+   covariant position.
+ *)
 
 let rec lower_contravariant env var_level visited contra ty =
   let must_visit =
