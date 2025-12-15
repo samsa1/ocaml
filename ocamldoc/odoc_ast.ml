@@ -1697,7 +1697,7 @@ module Analyser =
              match param2, param with
              | Parsetree.Unit, Typedtree.Unit ->
                Location.none, "*", Module_type_struct [], None
-             | Parsetree.Named (_, _, pmty), Typedtree.Named (p, ident, _, mty) ->
+             | Parsetree.Named (_, _, _, pmty), Typedtree.Named (p, ident, _, _, mty) ->
                let loc =  pmty.Parsetree.pmty_loc in
                let mp_name = Option.fold ~none:"*" ~some:Name.from_ident ident in
                let mp_kind =

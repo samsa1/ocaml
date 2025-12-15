@@ -686,15 +686,15 @@ let mkfunction params body_constraint body =
 
 let mk_farg_pure = function
   | (loc, Unit) -> (loc, Unit)
-  | (loc, Named (_, id, mty)) -> (loc, Named (Pure, id, mty))
+  | (loc, Named (_, id, i, mty)) -> (loc, Named (Pure, id, i, mty))
 
 let contains_pure attrs =
   List.exists (fun attr -> attr.attr_name.txt = "pure") attrs
 
 let update_purity_of_args pure args =
   match List.map mk_farg_pure args with
-  | (loc, Named (_, id, mty)) :: tl ->
-      (loc, Named (pure, id, mty)) :: tl
+  | (loc, Named (_, id, i, mty)) :: tl ->
+      (loc, Named (pure, id, i, mty)) :: tl
   | args -> args
 
 let mk_functor_typ pure args mty =
@@ -1450,7 +1450,10 @@ functor_arg:
 %inline named_functor_arg:
   | (* An argument accompanied with an explicit type. *)
     LPAREN x = mkrhs(module_name) COLON mty = module_type RPAREN
-      { $startpos, Named (Impure, x, mty) }
+      { $startpos, Named (Impure, x, false, mty) }
+  | (* An argument accompanied with an explicit type. *)
+    LBRACE x = mkrhs(module_name) COLON mty = module_type RBRACE
+      { $startpos, Named (Impure, x, true, mty) }
 ;
 
 module_name:
@@ -1831,7 +1834,7 @@ module_type:
         { Pmty_ident $1 }
     | module_type p = farrow module_type
         %prec below_WITH
-        { Pmty_functor(Named (p, mknoloc None, $1), $3) }
+        { Pmty_functor(Named (p, mknoloc None, false, $1), $3) }
     | module_type WITH separated_nonempty_llist(AND, with_constraint)
         { Pmty_with($1, $3) }
 /*  | LPAREN MODULE mkrhs(mod_longident) RPAREN

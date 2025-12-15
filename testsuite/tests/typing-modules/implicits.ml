@@ -560,3 +560,15 @@ Error: Inference of signature Sol_with_private
                      It can be filled by either  M3  or  M.
 
 |}]
+
+module FunctorArg {M : Show} : Show with type t = M.t = _
+
+[%%expect{|
+Line 1, characters 29-57:
+1 | module FunctorArg {M : Show} : Show with type t = M.t = _
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "M"
+
+module FunctorArg : (M : Show) => sig type t = M.t val print : t -> unit end
+|}]
