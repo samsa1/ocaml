@@ -1689,6 +1689,7 @@ local_structure_item:
 %inline module_binding:
   b = implicit
   MODULE
+  b2 = implicit
   ext = ext attrs1 = attributes
   name = mkrhs(module_name)
   body = module_binding_body
@@ -1696,7 +1697,7 @@ local_structure_item:
     { let docs = symbol_docs $sloc in
       let loc = make_loc $sloc in
       let attrs = attrs1 @ attrs2 in
-      let body = Mb.mk b name body ~attrs ~loc ~docs in
+      let body = Mb.mk (b || b2) name body ~attrs ~loc ~docs in
       body, ext }
 ;
 
@@ -1943,7 +1944,7 @@ signature_item:
 
 (* A module declaration. *)
 %inline module_declaration:
-  b = implicit MODULE
+  b = implicit MODULE b2 = implicit
   ext = ext attrs1 = attributes
   name = mkrhs(module_name)
   body = module_declaration_body
@@ -1952,7 +1953,7 @@ signature_item:
     let attrs = attrs1 @ attrs2 in
     let loc = make_loc $sloc in
     let docs = symbol_docs $sloc in
-    Md.mk b name body ~attrs ~loc ~docs, ext
+    Md.mk (b || b2) name body ~attrs ~loc ~docs, ext
   }
 ;
 
