@@ -896,7 +896,7 @@ and module_type_desc =
 
 and functor_parameter =
   | Unit  (** [()] *)
-  | Named of pure_flag * string option loc * module_type
+  | Named of pure_flag * string option loc * bool * module_type
       (** [Named(is_pure, name, MT)] represents:
             - [(X : MT)] when [name] is [Some X],
             - [(_ : MT)] when [name] is [None] *)

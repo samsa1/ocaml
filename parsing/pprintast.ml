@@ -1286,13 +1286,18 @@ and module_type ctxt f x =
     match x.pmty_desc with
     | Pmty_functor (Unit, mt2) ->
         pp f "@[<hov2>() ->@ %a@]" (module_type ctxt) mt2
-    | Pmty_functor (Named (is_pure, s, mt1), mt2) ->
+    | Pmty_functor (Named (is_pure, s, ii, mt1), mt2) ->
         let arr = if is_pure = Pure then "=>" else "->" in
         begin match s.txt with
         | None ->
             pp f "@[<hov2>%a@ %s@ %a@]"
               (module_type1 ctxt) mt1 arr (module_type ctxt) mt2
         | Some name ->
+          if ii
+          then
+            pp f "@[<hov2>{%s@ :@ %a}@ %s@ %a@]" name
+              (module_type ctxt) mt1 arr (module_type ctxt) mt2
+          else
             pp f "@[<hov2>(%s@ :@ %a)@ %s@ %a@]" name
               (module_type ctxt) mt1 arr (module_type ctxt) mt2
         end
@@ -1465,9 +1470,14 @@ and module_expr ctxt f x =
         pp f "%a" longident_loc li;
     | Pmod_functor (Unit, me) ->
         pp f "functor ()@;->@;%a" (module_expr ctxt) me
-    | Pmod_functor (Named (is_pure, s, mt), me) ->
+    | Pmod_functor (Named (is_pure, s, false, mt), me) ->
         let arr = if is_pure = Pure then "=>" else "->" in
         pp f "functor@ (%s@ :@ %a)@;%s@;%a"
+          (Option.value s.txt ~default:"_")
+          (module_type ctxt) mt arr (module_expr ctxt) me
+    | Pmod_functor (Named (is_pure, s, true, mt), me) ->
+        let arr = if is_pure = Pure then "=>" else "->" in
+        pp f "functor@ {%s@ :@ %a}@;%s@;%a"
           (Option.value s.txt ~default:"_")
           (module_type ctxt) mt arr (module_expr ctxt) me
     | Pmod_apply (me1, me2) ->
@@ -1576,7 +1586,7 @@ and structure_item ctxt f x =
   | Pstr_exception ed -> exception_declaration ctxt f ed
   | Pstr_module x ->
       let rec use_rec_module = function
-        | {pmod_desc = Pmod_functor(Named (Impure, _, _), _)} -> true
+        | {pmod_desc = Pmod_functor(Named (Impure, _, _, _), _)} -> true
         | {pmod_desc = Pmod_functor(_, me)} -> use_rec_module me
         | _ -> false
       in
@@ -1584,8 +1594,12 @@ and structure_item ctxt f x =
         | {pmod_desc=Pmod_functor(arg_opt,me'); pmod_attributes = []} ->
             begin match arg_opt with
             | Unit -> pp f "()"; module_helper me'
-            | Named (p, s, mt) ->
+            | Named (p, s, false, mt) ->
               pp f "(%s:%a)" (Option.value s.txt ~default:"_")
+                (module_type ctxt) mt;
+              if p = Pure then module_helper me' else me'
+            | Named (p, s, true, mt) ->
+              pp f "{%s:%a}" (Option.value s.txt ~default:"_")
                 (module_type ctxt) mt;
               if p = Pure then module_helper me' else me'
             end
