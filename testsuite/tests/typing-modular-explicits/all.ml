@@ -170,41 +170,54 @@ val test_impl3 : {AS : AddSub} -> AS.t -> AS.t -> AS.t = <fun>
 |}]
 
 module T1 = struct
-       implicit module AInt = struct
-              type t = int
-              let add = ( + )
-       end
+  implicit module AInt = struct
+    type t = int
+    let add = ( + )
+  end
 
-       implicit module AFloat = struct
-              type t = float
-              let add = ( +. )
-       end
+  module implicit AFloat = struct
+    type t = float
+    let add = ( +. )
+  end
 
+  implicit module implicit AString = struct
+    type t = string
+    let add = ( ^ )
+  end
 
-       let seven = add_impl 3 4
-
-       let seven_float = add_impl 5. 2.
+  let seven = add_impl 3 4
+  let seven_float = add_impl 5. 2.
+  let seven_string = add_impl "se" "ven"
 end
 
 [%%expect{|
-Line 13, characters 19-27:
-13 |        let seven = add_impl 3 4
-                        ^^^^^^^^
+Line 17, characters 14-22:
+17 |   let seven = add_impl 3 4
+                   ^^^^^^^^
 Warning 76 [implicit-module-expression]: module expression left implict.
   Infered module expression: "AInt"
 
-Line 15, characters 25-33:
-15 |        let seven_float = add_impl 5. 2.
-                              ^^^^^^^^
+Line 18, characters 20-28:
+18 |   let seven_float = add_impl 5. 2.
+                         ^^^^^^^^
 Warning 76 [implicit-module-expression]: module expression left implict.
   Infered module expression: "AFloat"
+
+Line 19, characters 21-29:
+19 |   let seven_string = add_impl "se" "ven"
+                          ^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "AString"
 
 module T1 :
   sig
     implicit module AInt : sig type t = int val add : int -> int -> int end
     implicit module AFloat :
       sig type t = float val add : float -> float -> float end
+    implicit module AString :
+      sig type t = string val add : string -> string -> string end
     val seven : int
     val seven_float : float
+    val seven_string : string
   end
 |}]
