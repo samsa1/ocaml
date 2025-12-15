@@ -221,3 +221,40 @@ module T1 :
     val seven_string : string
   end
 |}]
+
+
+module type Type = sig type typ end
+let id ?i:{A : Type} (x : A.typ) = x
+
+[%%expect{|
+module type Type = sig type typ end
+val id : ?i:{A : Type} -> A.typ -> A.typ = <fun>
+|}]
+
+let app_imp
+    (f : ?i:{A : Type} -> A.typ -> int)
+    ?i:{A : Type}
+    (x : A.typ)
+  = f x
+
+[%%expect{|
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "A"
+
+val app_imp :
+  (?i:{A : Type} -> A.typ -> int) -> ?i:{A : Type} -> A.typ -> int = <fun>
+|}]
+
+implicit module T(type a) = struct type typ = a end
+
+let x = id 1
+
+[%%expect{|
+Line 3, characters 8-10:
+3 | let x = id 1
+            ^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "T(type _)"
+
+val x : int = 1
+|}]
