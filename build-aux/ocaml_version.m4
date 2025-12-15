@@ -33,7 +33,7 @@ m4_define([OCAML__DEVELOPMENT_VERSION], [true])
 
 m4_define([OCAML__VERSION_MAJOR], [5])
 m4_define([OCAML__VERSION_MINOR], [5])
-m4_define([OCAML__VERSION_PATCHLEVEL], [0])
+m4_define([OCAML__VERSION_PATCHLEVEL], [1])
 # Note that the OCAML__VERSION_EXTRA string defined below is always empty
 # for officially-released versions of OCaml.
 m4_define([OCAML__VERSION_EXTRA], [dev+modular-implicits])
