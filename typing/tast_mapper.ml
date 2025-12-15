@@ -582,8 +582,8 @@ let class_description sub x =
 
 let functor_parameter sub = function
   | Unit -> Unit
-  | Named (b, id, s, mtype) ->
-    Named (b, id, map_loc sub s, sub.module_type sub mtype)
+  | Named (b, id, s, i, mtype) ->
+    Named (b, id, map_loc sub s, i, sub.module_type sub mtype)
 
 let module_type sub x =
   let mty_loc = sub.location sub x.mty_loc in

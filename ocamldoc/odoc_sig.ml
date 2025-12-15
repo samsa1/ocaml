@@ -1641,7 +1641,7 @@ module Analyser =
       | Parsetree.Pmty_functor (param2, module_type2) ->
           (
            let loc = match param2 with Parsetree.Unit -> Location.none
-                     | Parsetree.Named (_, _, pmty) -> pmty.Parsetree.pmty_loc
+                     | Parsetree.Named (_, _, _, pmty) -> pmty.Parsetree.pmty_loc
            in
            let loc_start = Loc.start loc in
            let loc_end = Loc.end_ loc in
@@ -1650,7 +1650,7 @@ module Analyser =
              Types.Mty_functor (param, body_module_type) ->
                let mp_name, mp_kind =
                  match param2, param with
-                   Parsetree.Named (_, _, pmty),
+                   Parsetree.Named (_, _, _, pmty),
                    Types.Named (_, Some ident, mty) ->
                      Name.from_ident ident,
                      analyse_module_type_kind env current_module_name pmty mty
@@ -1742,14 +1742,14 @@ module Analyser =
            match sig_module_type with
              Types.Mty_functor (param, body_module_type) ->
                let loc = match param2 with Parsetree.Unit -> Location.none
-                     | Parsetree.Named (_, _, pmty) -> pmty.Parsetree.pmty_loc
+                    | Parsetree.Named (_, _, _, pmty) -> pmty.Parsetree.pmty_loc
                in
                let loc_start = Loc.start loc in
                let loc_end = Loc.end_ loc in
                let mp_type_code = get_string_of_file loc_start loc_end in
                let mp_name, mp_kind =
                  match param2, param with
-                   Parsetree.Named (_, _, pmty),
+                   Parsetree.Named (_, _, _, pmty),
                    Types.Named (_, Some ident, mty) ->
                      Name.from_ident ident,
                      analyse_module_type_kind env current_module_name pmty mty
