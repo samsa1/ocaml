@@ -995,7 +995,7 @@ let rec approx_modtype env smty =
       let (param, newenv) =
         match param with
         | Unit -> Types.Unit, env
-        | Named (is_pure, param, sarg) ->
+        | Named (is_pure, param, _, sarg) ->
           let arg = approx_modtype env sarg in
           match param.txt with
           | None -> Types.Named (is_pure, None, arg), env
@@ -1508,7 +1508,7 @@ and transl_modtype_aux env smty =
       let t_arg, ty_arg, newenv =
         match sarg_opt with
         | Unit -> Unit, Types.Unit, env
-        | Named (is_pure, param, sarg) ->
+        | Named (is_pure, param, ii, sarg) ->
           let arg = transl_modtype_functor_arg env sarg in
           let (id, newenv) =
             match param.txt with
@@ -1529,7 +1529,7 @@ and transl_modtype_aux env smty =
               in
               Some id, newenv
           in
-          (Named (is_pure, id, param, arg),
+          (Named (is_pure, id, param, ii, arg),
            Types.Named (is_pure, id, arg.mty_type),
            newenv)
       in
@@ -2490,7 +2490,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
         match arg_opt with
         | Unit ->
           (fun () -> Unit, Types.Unit), env, Shape.for_unnamed_functor_param, Gen
-        | Named (is_pure, param, smty) ->
+        | Named (is_pure, param, ii, smty) ->
           let mty = transl_modtype_functor_arg env smty in
           let scope = Ctype.create_scope () in
           let (id, newenv, var) =
@@ -2500,7 +2500,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
               let md_uid =  Uid.mk ~current_unit:(Env.get_current_unit ()) in
               let arg_md =
                 { md_type = mty.mty_type;
-                  md_impl = IIShadows;
+                  md_impl = if ii then IIImplicit else IIShadows;
                   md_attributes = [];
                   md_loc = param.loc;
                   md_uid;
@@ -2517,7 +2517,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
           let funct_body = if is_pure = Asttypes.Pure then Pure else App pure in
           let f_t_arg () =
             let pure = if !pure then Asttypes.Pure else Asttypes.Impure in
-            (Named (pure, id, param, mty),
+            (Named (pure, id, param, ii, mty),
              Types.Named (pure, id, mty.mty_type))
           in
           (f_t_arg, newenv, var, funct_body)

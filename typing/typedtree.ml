@@ -279,7 +279,7 @@ and module_type_constraint =
 
 and functor_parameter =
   | Unit
-  | Named of pure_flag * Ident.t option * string option loc * module_type
+  | Named of pure_flag * Ident.t option * string option loc * bool * module_type
 
 and module_expr_desc =
     Tmod_ident of Path.t * Longident.t loc
