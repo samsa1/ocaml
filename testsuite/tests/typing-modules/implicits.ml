@@ -572,3 +572,26 @@ Warning 76 [implicit-module-expression]: module expression left implict.
 
 module FunctorArg : (M : Show) => sig type t = M.t val print : t -> unit end
 |}]
+
+module TestTypeArg = struct
+  module type Typ = sig type typ end
+
+  implicit module Type (type a) = struct type typ = a end
+
+  module M : Typ with type typ = int = _
+end
+
+[%%expect{|
+Line 6, characters 11-40:
+6 |   module M : Typ with type typ = int = _
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "Type(type _)"
+
+module TestTypeArg :
+  sig
+    module type Typ = sig type typ end
+    implicit module Type : (type a) => sig type typ = a end
+    module M : sig type typ = int end
+  end
+|}]
