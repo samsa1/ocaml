@@ -145,13 +145,29 @@ let rec extract_arguments env args mty =
       failwith "NYI : Inference with abstract signatures"
   | Mty_alias _ -> assert false
 
+type extracted_arg =
+  | EA_Unit
+  | EA_Typ of Env.t
+  | EA_Arg of Env.t * Types.module_type
+
 let rec prepare_args env args =
   match args with
   | [] -> ([], env)
   | Unit :: rest ->
       let args, env = prepare_args env rest in
-      (None :: args, env)
-  | Newtype _id :: _rest -> assert false
+      (EA_Unit :: args, env)
+  | Newtype id :: rest ->
+    let args, env = prepare_args env rest in
+    let env =
+      let ty = Ctype.newvar () in
+      let decl =
+          Ctype.new_local_type
+            ~manifest_and_scope:(ty, get_scope ty)
+            Definition
+      in
+      Env.add_type ~check:false id decl env
+    in
+    (EA_Typ env :: args, env)
   | Named (_, id, arg_ty) :: rest ->
       let args, env = prepare_args env rest in
       let arg_ty = open_module_type env arg_ty in
@@ -160,7 +176,7 @@ let rec prepare_args env args =
         | Some id ->
           Env.add_module ~noalias:true id Mp_present IILocal arg_ty env
       in
-      (Some (env, arg_ty) :: args, env)
+      (EA_Arg (env, arg_ty) :: args, env)
 
 let extract_function env depth mty =
   let rec aux d args mty =
@@ -197,8 +213,12 @@ type implicit_inference = {
   desc : implicit_inference_desc;
 }
 and status =
-  | RecLimit of (Env.t * Types.module_type) option list
-  | Node of implicit_inference option list * int
+  | RecLimit of extracted_arg list
+  | Node of recursive_arg list * int
+and recursive_arg =
+  | Arg of implicit_inference
+  | Unit
+  | Type
 and implicit_inference_desc =
   | Solved of implicit_inference_solution
   | Working of {
@@ -236,10 +256,12 @@ let print_it_with_holes fmt node =
     | hd :: tl ->
       Format_doc.fprintf fmt "%a@ %a" print_arg hd print_args tl
   and print_arg fmt = function
-    | None ->
+    | Unit ->
       Format_doc.fprintf fmt "?%d" !nb;
       incr nb;
-    | Some arg ->
+    | Type ->
+      Format_doc.fprintf fmt "?type"
+    | Arg arg ->
       Format_doc.fprintf fmt "(%a)" print_node arg
   in print_node fmt node
 
@@ -252,9 +274,12 @@ let rec prepare_signatures {problem; desc} =
   | Working { solutions = _ :: _ :: _} -> ()
   | Working { current = Some (_, _, _, RecLimit _)} -> ()
   | Working { current = Some (_, _, _, Node (args, _))} ->
-    List.iter (Option.iter prepare_signatures) args
+    List.iter prepare_rec_arg args
   | Working { current = None} ->
     Misc.fatal_error "Invalid argument [Implicitmod.prepare_signatures]"
+and prepare_rec_arg = function
+  | Arg prob -> prepare_signatures prob
+  | _ -> ()
 
 let print_it_holes_info fmt node =
   prepare_signatures node;
@@ -286,12 +311,13 @@ let print_it_holes_info fmt node =
     | Working { solutions = _; current = None; next = _} ->
       Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
   and aux_arg fmt = function
-    | None ->
+    | Unit ->
       Format_doc.fprintf fmt
         "@[<2>?%d can be filled by \"()\" which is ambiguous with itself.@]\n"
           !nb;
       incr nb;
-    | Some arg -> aux fmt arg
+    | Type -> ()
+    | Arg arg -> aux fmt arg
   in aux fmt node
 
 let solution_is_still_valid problem {psol = _; tsol} =
@@ -305,30 +331,35 @@ let solution_is_still_valid problem {psol = _; tsol} =
 
 let rec prepare_args_for_refine = function
   | [] -> ()
-  | Some {problem; desc = Solved sol} :: tl ->
+  | Arg {problem; desc = Solved sol} :: tl ->
     ignore (Includemod.modtypes ~loc:Location.none ~mark:false
                   problem.env sol.tsol.mod_type problem.signature);
     prepare_args_for_refine tl
   | _ :: tl -> prepare_args_for_refine tl
 
-let prepare_argument : Env.t * Types.module_type -> implicit_inference =
-  fun (env, mty) ->
-    let nargs, sg = get_sig env 0 mty in
-    let next = Env.find_structures sg env in
-    let next = Misc.Stdlib.String.Map.to_seq next in
-    {
-      problem = {signature = mty; nargs; env };
-      desc = Working { solutions = []; current = None; next }
-    }
+let prepare_argument env mty : implicit_inference =
+  let nargs, sg = get_sig env 0 mty in
+  let next = Env.find_structures sg env in
+  let next = Misc.Stdlib.String.Map.to_seq next in
+  {
+    problem = {signature = mty; nargs; env };
+    desc = Working { solutions = []; current = None; next }
+  }
 
 let type_module = ref (fun _ _ -> assert false)
 
 let build_solution ~loc env name args =
   let rec build_mexp me = function
     | [] -> me
-    | Some { desc = Solved sol} :: tl ->
+    | Arg { desc = Solved sol} :: tl ->
       build_mexp
         { pmod_desc = Pmod_apply (me, sol.psol);
+          pmod_loc = loc; pmod_attributes = [] }
+        tl
+    | Type :: tl ->
+      let ptyp = Ast_helper.Typ.any () in
+      build_mexp
+        { pmod_desc = Pmod_apply_type (me, ptyp);
           pmod_loc = loc; pmod_attributes = [] }
         tl
     | _ -> assert false (* Should not happen *)
@@ -343,9 +374,9 @@ let build_solution ~loc env name args =
 
 let rec compute_nb_unsolved acc = function
   | [] -> acc
-  | Some {desc = Solved _} :: tl -> compute_nb_unsolved acc tl
-  | (Some {desc = Working _} | None) :: tl -> compute_nb_unsolved (acc + 1) tl
-  | Some {desc = NoSolution} :: _ -> raise Not_found
+  | (Arg {desc = Solved _} | Type) :: tl -> compute_nb_unsolved acc tl
+  | (Arg {desc = Working _} | Unit) :: tl -> compute_nb_unsolved (acc + 1) tl
+  | Arg {desc = NoSolution} :: _ -> raise Not_found
 
 let rec refine_solution ~loc trace {problem; desc} =
   match desc with
@@ -473,7 +504,8 @@ and refine_solution_list ~loc trace arguments nb_unsolved =
   | () ->
     begin
       let arguments =
-        List.map (Option.map (refine_solution ~loc trace)) arguments
+        List.map (function Arg r -> Arg (refine_solution ~loc trace r)
+          | Type -> Type | Unit -> Unit) arguments
       in
       match compute_nb_unsolved 0 arguments with
       | nb_unsolved' ->
@@ -509,7 +541,10 @@ and filter_identifiers ~loc trace problem next =
               open_node ~loc snap trace problem name env_result result
                 arguments rest
 and open_node ~loc snap trace problem name local_env mty arguments rest =
-  let args = List.rev_map (Option.map prepare_argument) arguments in
+  let args = List.rev_map (function
+    | EA_Arg (env, mty) -> Arg (prepare_argument env mty)
+    | EA_Typ _ -> Type
+    | EA_Unit -> Unit) arguments in
   match refine_solution_list ~loc trace args (List.length args) with
   | None ->
     Btype.backtrack snap;
@@ -519,7 +554,7 @@ and open_node ~loc snap trace problem name local_env mty arguments rest =
     Some (name, local_env, mty, Node (args, nb_unsolved)), rest
 
 let infer ~loc env mty =
-  let node = prepare_argument (env, mty) in
+  let node = prepare_argument env mty in
   let node = refine_solution ~loc FuncOrder.empty node in
   match node.desc with
   | Solved {psol; _} -> psol
