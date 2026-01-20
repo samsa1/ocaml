@@ -37,3 +37,8 @@ let protect ~(finally : unit -> unit) work =
       let work_bt = Printexc.get_raw_backtrace () in
       finally_no_exn () ;
       Printexc.raise_with_backtrace work_exn work_bt
+
+exception Todo of (string * int * int)
+
+let todo () =
+  raise (Todo ("", -1, -1)) (* TMP: use primitive instead *)

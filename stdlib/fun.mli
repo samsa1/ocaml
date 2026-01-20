@@ -238,3 +238,22 @@ because they can quickly impact readability and reasoning, but also because the
 produced functions are often in value form, thus subject to the Value
 Restriction (see the manual section 6.1.2).
 *)
+
+exception Todo of (string * int * int)
+(** Exception raised when a functionality is unimplemented. Notably raised by
+    {!Fun.todo}. The arguments are the location of the assert keyword in the
+    source code (file name, line number, column number).
+
+    @since 5.6
+*)
+
+val todo : unit -> 'a
+[@@alert todo "Unimplemented functionality, may lead to runtime errors"]
+(** Raise an exception {!exception:Todo}. This is intended to be used as a
+    placeholder for to-be-written code. If you want to make sure that there are
+    no calls to this function left in your code, you can make the compiler warn
+    you by enabling the [todo] alert ("-alert +todo", see
+    {{:https://ocaml.org/manual/latest/alerts.html}alerts} in the manual).
+
+    @since 5.6
+*)
