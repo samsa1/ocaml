@@ -36,6 +36,9 @@ Working version
   (Antonin Décimo, David Allsopp, Hannes Mehnert, review by
    Nicolás Ojeda Bär)
 
+- #14482: Add DWARF CFI support to POWER backend.
+  (Tim McGilchrist, review by Xavier Leroy)
+
 ### Type system:
 
 - #14512: Improve check for warning 16 (unerasable-optional-argument)
