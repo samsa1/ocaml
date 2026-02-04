@@ -51,9 +51,9 @@ module parameter appears in the right-hand-side (return type) of the
 arrow "(module MSet : Set.S) -> ...", via occurrences of the type
 "MSet.elt".
 
-To apply the "sort" function, we use the construction "(module M : S)"
-to provide the argument, which can typically be written "(module M)"
-as the signature can be inferred from the function.
+To apply the "sort" function, we use the construction "(module M)" to
+provide the argument, or "(module M : S)" to be explicit about the
+intended signature.
 
 \begin{caml_example*}{verbatim}
 module ISetIncr = Set.Make(Int)
@@ -70,7 +70,7 @@ let example = sort (module ISetDecr) [3; 1; 2];;
 \end{caml_example}
 
 This provides a lightweight alternative to functors. Indeed, the
-"sort" _function_ could also be expressed using a "Sort" _functor_:
+"sort" function could also be expressed using a "Sort" functor:
 
 \begin{caml_example}{verbatim}
 module Sort (MSet : Set.S) = struct
@@ -148,7 +148,7 @@ let _ = Hashtbl.add devices "PDF" (module PDF : DEVICE)
 \end{caml_example*}
 
 The module expression "(val e : S)" can then \emph{unpack}
-a packed-module value "(e : module S)" back into a module. In our
+a packed-module value "(e : (module S))" back into a module. In our
 example, one implementation can be selected based on command-line
 arguments:
 \begin{caml_example*}{verbatim}
@@ -219,7 +219,7 @@ let okay =
   sort (module MSet) [2; 4]
 \end{caml_example}
 
-Notice that "MSet.elt" cannot occur in the type of `okay`, as the
+Notice that "MSet.elt" cannot occur in the type of "okay", as the
 module "MSet" is only defined locally. In this example the return type
 of "sort" does mention "MSet.elt", but this type is equal to "int" so
 it can be simplified away.
@@ -246,8 +246,8 @@ let also_okay =
 
 Note that removing dependencies using "(type a)" like this can only be
 done for non-parameterized types like "elt", not with parameterized
-types like "'a t" -- there is no corresponding "(type 'a t)"
-abstraction. It would not be possible for the "mapM" example earlier,
+types like "'a t"; there is no corresponding "(type 'a t)"
+abstraction. It would not be possible for the "mapM" example above,
 which has a dependency on a module containing a parameterized type "'a
 M.t", and thus cannot be passed dynamically-selected module arguments.
 
@@ -443,7 +443,7 @@ are compared using the structural comparison of module types.
 When typechecking we also consider
 @'(' 'module' module-name ':' package-type ')' '->' typexpr@ and
 @'(' 'module' package-type ')' '->' typexpr@ to be identical when @module-name@
-does not appear in @typexpr@.
+can be erased from @typexpr@.
 
 In general, the module expression @'(' "val" expr ":" package-type
 ')'@ cannot be used in the body of a functor, because this could cause
