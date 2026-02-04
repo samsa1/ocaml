@@ -94,15 +94,13 @@ module type Monad = sig
   val bind : 'a t -> ('a -> 'b t) -> 'b t
 end
 
-let rec mapM
-: (module M : Monad) -> ('a -> 'b M.t) -> 'a list -> 'b list M.t
-= fun (module M) f li ->
+let mapM (module M : Monad) (f : 'a -> 'b M.t) (li : 'a list) : 'b list M.t =
+  let ( let* ) = M.bind in
   let rec loop = function
   | [] -> M.return []
   | x::xs ->
-    let ( let* ) = M.bind in
     let* y = f x in
-    let* ys = mapM (module M) f xs in
+    let* ys = loop xs in
     M.return (y :: ys)
   in loop li
 
@@ -185,8 +183,9 @@ There is a restriction on module-dependent functions "fun
 function is only allowed to take static module arguments of the form
 "(module M : S)", rather than arbitrary expressions of type
 "(module S)". There is no such restriction if the type of the body
-does not mention "A", or if the type-checker can easily rewrite it to
-expand away the uses of "A".
+does not mention "A", or if the type-checker can remove the
+occurrences of "A" by inlining type equalities (for example when
+"A.t" equals "int").
 
 Our "sort" function of Paragraph~\ref{p:fst-mod-intro-mod-fun} is such
 a module-dependent function: its type is "(module MSet : Set.S) ->
@@ -265,7 +264,7 @@ let wrong = Fun.id sort (module ISetIncr) [2; 3]
 \end{caml_example}
 
 The problem comes from subtle details in the type-checking of n-ary
-function applications: this is checked as "Fun.id" to which three
+function applications. This is checked as "Fun.id" to which three
 parameters are passed, and only the type of "Fun.id" (not
 its arguments) is used to resolve the module application, so no
 module-dependent function type is known at that point.
@@ -284,9 +283,8 @@ let fixed = (Fun.id sort) (module ISetIncr) [2; 3]
 \lparagraph{p:fst-mod-compatibility}{Compatibility}
 
 Before OCaml 5.5, module-dependent functions were not supported. One
-could use first-class modules, but all module-parameterized functions
+could use first-class modules, but functions taking a first-class module
 had to be non-dependent, so this "(type a)" workaround was often used.
-
 
 \iffalse
 \lparagraph{p:fst-mod-abstract-types}{Abstract types}
@@ -425,9 +423,8 @@ of functors are, no additional parens are needed: "Map.Make(val key)".
 
 The pattern @'(' 'module' module-name ':' package-type ')'@ matches a
 package with type @package-type@ and binds it to @module-name@.
-It is not allowed in toplevel let bindings. When a function takes an argument
-whose pattern is exactly @'(' 'module' module-name ':' package-type ')'@, then
-this function can be a module-dependent function.
+It is not allowed in toplevel let bindings. A function whose parameter
+has this exact pattern can be module-dependent.
 Again @package-type@ can be omitted if it can be inferred from the
 enclosing pattern.
 
@@ -444,7 +441,7 @@ are compared using the structural comparison of module types.
 When typechecking we also consider
 @'(' 'module' module-name ':' package-type ')' '->' typexpr@ and
 @'(' 'module' package-type ')' '->' typexpr@ to be identical when @module-name@
-does not appear in @typexpr@
+does not appear in @typexpr@.
 
 In general, the module expression @'(' "val" expr ":" package-type
 ')'@ cannot be used in the body of a functor, because this could cause
