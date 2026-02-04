@@ -13,8 +13,8 @@ in 4.02; fewer parentheses required starting from
 Module-dependent functions were introduced in 5.5.)
 
 Module-dependent functions and first-class modules make it possible to
-manipulate modules as values, in particular to pass them as function
-parameters.
+manipulate modules as values, in particular to accept modules as
+function parameters.
 
 \subsection{ss:fst-mod-intro}{Introduction}
 
@@ -69,8 +69,8 @@ let example = sort (module ISetIncr) [3; 1; 2];;
 let example = sort (module ISetDecr) [3; 1; 2];;
 \end{caml_example}
 
-This provides a lightweight alternative to functors.
-Indeed, the "sort" function could also be expressed as follows:
+This provides a lightweight alternative to functors. Indeed, the
+"sort" _function_ could also be expressed using a "Sort" _functor_:
 
 \begin{caml_example}{verbatim}
 module Sort (MSet : Set.S) = struct
@@ -85,7 +85,7 @@ let module S = Sort(ISetDecr) in S.f [3; 1; 2];;
 
 \lparagraph{p:fst-mod-intro-algebraic-structures}{Use-case: abstracting over algebraic structures}
 
-Module-dependent functions offer a nice way to implement code that is parametric over families of type structures, for example on any monad.
+Module-dependent functions offer a nice way to implement code that is parametric over families of type structures, for example over any monad.
 
 \begin{caml_example*}{verbatim}
 module type Monad = sig
@@ -219,11 +219,10 @@ let okay =
   sort (module MSet) [2; 4]
 \end{caml_example}
 
-Notice that the module "MSet" is defined locally, so the type of the
-whole declaration cannot mention "MSet.elt", it would be
-ill-scoped. In this example the return type of "sort" does mention
-"MSet.elt", but this type is equal to "int" so it can be simplified
-away.
+Notice that "MSet.elt" cannot occur in the type of `okay`, as the
+module "MSet" is only defined locally. In this example the return type
+of "sort" does mention "MSet.elt", but this type is equal to "int" so
+it can be simplified away.
 
 Finally, it is also possible to remove the dependency from the
 definition of "sort", by replacing the argument signature "Set.S" with
@@ -278,6 +277,9 @@ parentheses:
 \begin{caml_example}{verbatim}
 let fixed = (Fun.id sort) (module ISetIncr) [2; 3]
 \end{caml_example}
+
+(Explicitly annotating the type of `Fun.id` with a module-dependent
+function type would also work.)
 
 
 \lparagraph{p:fst-mod-compatibility}{Compatibility}
