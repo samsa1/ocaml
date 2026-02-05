@@ -23917,7 +23917,13 @@ else $as_nop
   cc) :
 
         saved_CC="$CC"
-        CC="$CC -xc++"
+        saved_CFLAGS="$CFLAGS"
+        if test x"$CXX" = x
+then :
+  CC="$CC -xc++"; CFLAGS="$CXXFLAGS"
+else $as_nop
+  CC="$CXX"; CFLAGS="$CXXFLAGS"
+fi
         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -23941,7 +23947,8 @@ else $as_nop
   ocaml_cv_prog_cxx=""
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-        CC="$saved_CC" ;; #(
+        CC="$saved_CC"
+        CFLAGS="$saved_CFLAGS" ;; #(
   msvc) :
 
         # cl.exe selects between C and C++ based on the file extension
