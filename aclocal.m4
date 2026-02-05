@@ -656,8 +656,8 @@ AC_DEFUN([OCAML_CHECK_WINDOWS_TRIPLET], [
 # This macro is only used for ocamltest to call the C++11 compiler if the
 # default C compiler also can build C++.
 AC_DEFUN([OCAML_CXX_COMPILE_STDCXX_11], [
-  AC_CACHE_CHECK([for a C++11 compiler],
-    [ocaml_cv_prog_cxx], [
+  AC_MSG_CHECKING([for a C++11 compiler])
+  AC_CACHE_VAL([ocaml_cv_prog_cxx], [
     AS_CASE(["$ccomp_type"],
       [cc], [
         saved_CC="$CC"
@@ -675,4 +675,5 @@ AC_DEFUN([OCAML_CXX_COMPILE_STDCXX_11], [
         # cl.exe selects between C and C++ based on the file extension
         ocaml_cv_prog_cxx="$CC"],
       [ocaml_cv_prog_cxx=""])])
+  AC_MSG_RESULT([${ocaml_cv_prog_cxx:-none found}])
   ocamltest_CXX="$ocaml_cv_prog_cxx"])
