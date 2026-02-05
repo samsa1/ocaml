@@ -666,6 +666,7 @@ AC_DEFUN([OCAML_CXX_COMPILE_STDCXX_11], [
 #if !defined(__cplusplus) || __cplusplus < 201103L
 #error "No C++11 support"
 #endif
+#include <iostream>
           ]])],
           [ocaml_cv_prog_cxx="$CC"],
           [ocaml_cv_prog_cxx=""])

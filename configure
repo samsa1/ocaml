@@ -23924,6 +23924,7 @@ else $as_nop
 #if !defined(__cplusplus) || __cplusplus < 201103L
 #error "No C++11 support"
 #endif
+#include <iostream>
 
 int
 main (void)
