@@ -769,7 +769,7 @@ let raise_todo ~loc arg arg_exps =
   let todo_exn_id =
     transl_extension_path Loc_unknown Env.initial Predef.path_todo
   in
-  let fname, line, char =
+  let fname, line, _ =
     let loc = Debuginfo.Scoped_location.to_location loc in
     Location.get_pos_info loc.Location.loc_start
   in
@@ -786,8 +786,7 @@ let raise_todo ~loc arg arg_exps =
               [todo_exn_id;
                Lconst (Const_block (0,
                  [Const_immstring fname;
-                  Const_int line;
-                  Const_int char]))], loc)], loc))
+                  Const_int line]))], loc)], loc))
 
 let lambda_of_prim prim_name prim loc args arg_exps =
   match prim, args with

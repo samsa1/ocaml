@@ -8,8 +8,8 @@ Printexc.record_backtrace true;;
 Fun.todo ();;
 [%%expect {|
 - : unit = ()
-Exception: Stdlib.Fun.Todo.
-Called from unknown location
+Exception: Fun.Todo
+File "-", line 3
 Called from unknown location
 |}];;
 
@@ -27,7 +27,8 @@ Line 5, characters 0-8:
 Alert todo: Stdlib.Fun.todo
 Unimplemented functionality, may lead to runtime errors
 
-Exception: Stdlib.Fun.Todo.
+Exception: Fun.Todo
+File "-", line 5
 |}];;
 
 [@@@ocaml.alert "++todo"];;
