@@ -493,10 +493,10 @@ reconfigure:
 	                                    $(ADDITIONAL_CONFIGURE_ARGS)
 
 utils/domainstate.ml: utils/domainstate.ml.c runtime/caml/domain_state.tbl
-	$(V_GEN)$(CPP) -I runtime/caml $< > $@
+	$(V_GEN)$(CPP) -I runtime $< > $@
 
 utils/domainstate.mli: utils/domainstate.mli.c runtime/caml/domain_state.tbl
-	$(V_GEN)$(CPP) -I runtime/caml $< > $@
+	$(V_GEN)$(CPP) -I runtime $< > $@
 
 configure: tools/autogen configure.ac aclocal.m4 build-aux/ocaml_version.m4
 	$<
