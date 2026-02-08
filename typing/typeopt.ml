@@ -246,7 +246,9 @@ let classify_lazy_argument e =
         List.for_all (fun (_lbl, arg) -> small_and_commutative arg) args
     | Texp_record { fields; extended_expression } ->
         Array.for_all (fun (_lbl, def) ->
-          match def with Overridden (_, e) -> small_and_commutative e | Kept _ -> true
+          match def with
+          | Overridden (_, e) -> small_and_commutative e
+          | Kept _ -> incr size; true
         ) fields
         && Option.for_all small_and_commutative extended_expression
     | Texp_extension_constructor _ -> true
