@@ -14,6 +14,14 @@ Working version
 
 ### Code generation and optimizations:
 
+* #13919: optimize `lazy v` when `v` is a structured constant
+  (below a size threshold), so that `Lazy.from_val v` should not be
+  necessary anymore in most cases.
+  This may in theory break certain recursive value declarations,
+  in that case switching to `lazy ((); v)` should be enough to
+  disable the change in a backward-compatible way.
+  (Gabriel Scherer, review by Vincent Laviron)
+
 ### Standard library:
 
 ### Other libraries:
@@ -182,10 +190,6 @@ OCaml 5.5.0
   (Nick Barnes, review by Gabriel Scherer)
 
 ### Code generation and optimizations:
-
-- #13919: optimize `lazy v` when `v` is a structured constant, so that
-  `Lazy.from_val v` should not be necessary anymore in most cases.
-  (Gabriel Scherer, review by ???)
 
 ### Standard library:
 
