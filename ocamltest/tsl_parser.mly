@@ -38,6 +38,7 @@ let mkenvstmt envstmt =
 %token COMMA LEFT_BRACE RIGHT_BRACE SEMI
 %token LEFT_PAREN RIGHT_PAREN
 %token AND OR NOT
+%token IF THEN ELSE
 %token EQUAL PLUSEQUAL
 /* %token COLON */
 %token INCLUDE SET UNSET WITH
@@ -67,6 +68,11 @@ action:
 | identifier with_environment_modifiers { { name = $1; modifiers = $2 } }
 
 test:
+| test_if { $1 }
+
+test_if:
+| IF test_or THEN test_or { If ($2, $4, None) }
+| IF test_or THEN test_or ELSE test_if { If ($2, $4, Some $6) }
 | test_or { $1 }
 
 test_or:

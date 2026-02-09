@@ -137,6 +137,14 @@ let run ~log ~add_msg ~report_error behavior env summ ast =
       | Fail | Pass -> Ok (env', status1)
       | Skip -> run_test behavior env' t2
       end
+    | If (t1, t2, t3) ->
+      let* (env', status1) = run_test behavior env t1 in
+      begin match status1, t3 with
+      | Fail, _ -> Ok (env', status1)
+      | Pass, _ -> run_test behavior env' t2
+      | Skip, Some t3 -> run_test behavior env' t3
+      | Skip, None -> Ok (env', status1)
+      end
     | Action { name; modifiers } ->
       let (msg, env', result) =
         match behavior with

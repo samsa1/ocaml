@@ -37,6 +37,7 @@ type statement =
   | Not of statement
   | And of statement * statement
   | Or of statement * statement
+  | If of statement * statement * statement option
 
 type t = Ast of statement list * t list
 

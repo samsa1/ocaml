@@ -30,7 +30,20 @@ let print_tsl_ast ~compact oc ast =
 
   and print_statement stmt =
     let rec print_test test =
-      print_test_or test
+      print_test_if test
+    and print_test_if test =
+      let print_self = print_test_if in
+      let print_next = print_test_or in
+      match test with
+      | If (t1, t2, t3) ->
+        pr "if "; print_next t1;
+        pr " then "; print_next t2;
+        begin match t3 with
+        | None -> ()
+        | Some t3 ->
+            pr " else "; print_self t3
+        end;
+      | other -> print_next other
     and print_test_or test =
       let print_self = print_test_or in
       let print_next = print_test_and in
@@ -55,7 +68,7 @@ let print_tsl_ast ~compact oc ast =
       | Action act -> print_action act
       | Environment_statement env -> print_env env
       | (
-        Not _ | And _ | Or _
+        Not _ | And _ | Or _ | If _
         ) as other -> pr "("; print_test other; pr ")"
     and print_action { name; modifiers } =
       pr "%s" name.node;
