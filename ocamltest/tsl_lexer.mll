@@ -61,6 +61,8 @@ and token = parse
   | "," { COMMA }
   | "+=" { PLUSEQUAL }
   | "=" { EQUAL }
+  | "||" { OR }
+  | "&&" { AND }
   | identchar *
     { let s = Lexing.lexeme lexbuf in
       match s with
@@ -73,6 +75,8 @@ and token = parse
     }
   | "{" { LEFT_BRACE }
   | "}" { RIGHT_BRACE }
+  | "(" { LEFT_PAREN }
+  | ")" { RIGHT_PAREN }
   | ";" { SEMI }
   | "(*"
     {

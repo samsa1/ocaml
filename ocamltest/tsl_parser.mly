@@ -36,7 +36,8 @@ let mkenvstmt envstmt =
 %token <[`Above | `Below]> TSL_BEGIN_OCAML_STYLE
 %token TSL_END_OCAML_STYLE
 %token COMMA LEFT_BRACE RIGHT_BRACE SEMI
-%token NOT
+%token LEFT_PAREN RIGHT_PAREN
+%token AND OR NOT
 %token EQUAL PLUSEQUAL
 /* %token COLON */
 %token INCLUDE SET UNSET WITH
@@ -66,9 +67,24 @@ action:
 | identifier with_environment_modifiers { { name = $1; modifiers = $2 } }
 
 test:
+| test_or { $1 }
+
+test_or:
+| test_and OR test_or { Or ($1, $3) }
+| test_and { $1 }
+
+test_and:
+| test_not AND test_and { And ($1, $3) }
+| test_not { $1 }
+
+test_not:
+| NOT test_atom { Not $2 }
+| test_atom { $1 }
+
+test_atom:
 | env_item { mkenvstmt $1 }
 | action   { Action $1 }
-| NOT test { Not $2 }
+| LEFT_PAREN test RIGHT_PAREN { $2 }
 
 statement:
 | test SEMI { $1 }

@@ -35,6 +35,8 @@ type statement =
   | Environment_statement of environment_statement located
   | Action of action
   | Not of statement
+  | And of statement * statement
+  | Or of statement * statement
 
 type t = Ast of statement list * t list
 (* <item>; <item>; ...; { <block> } { <block> } ... *)

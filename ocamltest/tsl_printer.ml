@@ -29,11 +29,35 @@ let print_tsl_ast ~compact oc ast =
     pr "%s}" indent;
 
   and print_statement stmt =
-    match stmt with
-    | Not test ->
-      pr "not";
-      print_statement test
-    | Action { name; modifiers } ->
+    let rec print_test test =
+      print_test_or test
+    and print_test_or test =
+      let print_self = print_test_or in
+      let print_next = print_test_and in
+      match test with
+      | Or (t1, t2) ->
+        print_self t1; pr " || "; print_self t2
+      | other -> print_next other
+    and print_test_and test =
+      let print_self = print_test_and in
+      let print_next = print_test_not in
+      match test with
+      | And (t1, t2) ->
+        print_self t1; pr " && "; print_self t2
+      | other -> print_next other
+    and print_test_not test =
+      let print_next = print_test_atom in
+      match test with
+      | Not t ->
+        pr "not "; print_next t
+      | other -> print_next other
+    and print_test_atom = function
+      | Action act -> print_action act
+      | Environment_statement env -> print_env env
+      | (
+        Not _ | And _ | Or _
+        ) as other -> pr "("; print_test other; pr ")"
+    and print_action { name; modifiers } =
       pr "%s" name.node;
       begin match modifiers with
       | m :: tl ->
@@ -41,8 +65,8 @@ let print_tsl_ast ~compact oc ast =
         List.iter (fun m -> pr ", %s" m.node) tl;
       | [] -> ()
       end;
-    | Environment_statement env ->
-      print_env env
+    in
+    print_test stmt
 
   and print_statements indent stmts =
     match stmts with

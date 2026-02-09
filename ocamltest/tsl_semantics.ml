@@ -115,6 +115,7 @@ let run_environment_statement ~add_msg ~report_error env s =
 
 let run ~log ~add_msg ~report_error behavior env summ ast =
   let rec run_test behavior env stmt =
+    let open Result.Syntax in
     match stmt with
     | Environment_statement s ->
       begin match run_environment_statement ~add_msg ~report_error env s with
@@ -122,8 +123,20 @@ let run ~log ~add_msg ~report_error behavior env summ ast =
       | Error () -> Error ()
       end
     | Not test ->
-      run_test behavior env test
-      |> Result.map (fun (env', status) -> (env', skip_negation status))
+      let+ (env', status) = run_test behavior env test in
+      (env', skip_negation status)
+    | And (t1, t2) ->
+      let* (env', status1) = run_test behavior env t1 in
+      begin match status1 with
+      | Fail | Skip -> Ok (env', status1)
+      | Pass -> run_test behavior env' t2
+      end
+    | Or (t1, t2) ->
+      let* (env', status1) = run_test behavior env t1 in
+      begin match status1 with
+      | Fail | Pass -> Ok (env', status1)
+      | Skip -> run_test behavior env' t2
+      end
     | Action { name; modifiers } ->
       let (msg, env', result) =
         match behavior with

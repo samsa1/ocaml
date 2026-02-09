@@ -19,6 +19,8 @@ let rec tests_in_stmt set stmt =
   match stmt with
   | Environment_statement _ -> set
   | Not test -> tests_in_stmt set test
+  | And (t1, t2) | Or (t1, t2) ->
+    tests_in_stmt (tests_in_stmt set t1) t2
   | Action { name; _ } ->
     begin match Tsl_semantics.lookup_test name with
     | t -> Tests.TestSet.add t set
