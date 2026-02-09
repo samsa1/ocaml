@@ -120,7 +120,7 @@ let run ~log ~add_msg ~report_error behavior env summ ast =
       | Ok env' -> Ok (behavior, env', summ)
       | Error () -> Error Fail
       end
-    | Test (sign, name, mods) ->
+    | Test (sign, { name; modifiers }) ->
       let locstr =
         if name.loc = Location.none then
           "default"
@@ -132,7 +132,7 @@ let run ~log ~add_msg ~report_error behavior env summ ast =
         | Skip_all -> ("=> n/a", Skip_all, env, Test_result.skip)
         | Run ->
           begin try
-            let testenv = List.fold_left apply_modifiers env mods in
+            let testenv = List.fold_left apply_modifiers env modifiers in
             let test = lookup_test name in
             let (result, newenv) = Tests.run log testenv test in
             let result =

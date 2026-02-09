@@ -28,18 +28,22 @@ type environment_statement =
   | Include of string located (* include named environment *)
   | Unset of string located (* clear environment variable *)
 
-type tsl_item =
+type action = {
+  name: string located;
+  modifiers: string located list;
+}
+
+type statement =
   | Environment_statement of environment_statement located
   | Test of
     sign (* when Neg, negate the test *) *
-    string located (* test name *) *
-    string located list (* environment modifiers *)
+    action
 
-type t = Ast of tsl_item list * t list
+type t = Ast of statement list * t list
 (* <item>; <item>; ...; { <block> } { <block> } ... *)
 
 val split_env :
-  tsl_item list -> environment_statement located list * tsl_item list
+  statement list -> environment_statement located list * statement list
 
 val make_identifier : ?loc:Location.t -> string -> string located
 val make_string : ?loc:Location.t -> string -> string located

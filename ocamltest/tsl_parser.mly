@@ -62,10 +62,13 @@ statement_list:
 | { [] }
 | statement statement_list { $1 :: $2 }
 
+action:
+| identifier with_environment_modifiers { { name = $1; modifiers = $2 } }
+
 statement:
-| env_item SEMI { $1 }
-|     identifier with_environment_modifiers SEMI { Test (Pos, $1, $2) }
-| NOT identifier with_environment_modifiers SEMI { Test (Neg, $2, $3) }
+| env_item   SEMI { $1 }
+|     action SEMI { Test (Pos, $1) }
+| NOT action SEMI { Test (Neg, $2) }
 
 tsl_script:
 | TSL_BEGIN_C_STYLE node TSL_END_C_STYLE { $2 }

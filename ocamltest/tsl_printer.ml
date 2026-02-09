@@ -30,12 +30,12 @@ let print_tsl_ast ~compact oc ast =
 
   and print_statements indent stmts =
     match stmts with
-    | Test (sign, name, mods) :: tl ->
+    | Test (sign, { name; modifiers }) :: tl ->
       pr (match sign with
           | Pos -> ""
           | Neg -> "not ");
       pr "%s%s" indent name.node;
-      begin match mods with
+      begin match modifiers with
       | m :: tl ->
         pr " with %s" m.node;
         List.iter (fun m -> pr ", %s" m.node) tl;
