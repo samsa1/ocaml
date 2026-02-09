@@ -65,10 +65,13 @@ statement_list:
 action:
 | identifier with_environment_modifiers { { name = $1; modifiers = $2 } }
 
+test:
+| env_item { mkenvstmt $1 }
+| action   { Action $1 }
+| NOT test { Not $2 }
+
 statement:
-| env_item   SEMI { $1 }
-|     action SEMI { Test (Pos, $1) }
-| NOT action SEMI { Test (Neg, $2) }
+| test SEMI { $1 }
 
 tsl_script:
 | TSL_BEGIN_C_STYLE node TSL_END_C_STYLE { $2 }
@@ -84,16 +87,16 @@ opt_environment_modifiers:
 
 env_item:
 | identifier EQUAL string
-    { mkenvstmt (Assignment (false, $1, $3)) }
+    { Assignment (false, $1, $3) }
 | identifier PLUSEQUAL string
-    { mkenvstmt (Append ($1, $3)) }
+    { Append ($1, $3) }
 | SET identifier EQUAL string
-    { mkenvstmt (Assignment (true, $2, $4)) }
+    { Assignment (true, $2, $4) }
 | UNSET identifier
-    { mkenvstmt (Unset $2) }
+    { Unset $2 }
 
 | INCLUDE identifier
-  { mkenvstmt (Include $2) }
+  { Include $2 }
 
 identifier: IDENTIFIER { mkidentifier $1 }
 

@@ -20,8 +20,6 @@ type 'a located = {
   loc : Location.t
 }
 
-type sign = Pos | Neg
-
 type environment_statement =
   | Assignment of bool * string located * string located (* variable = value *)
   | Append of string located * string located (* variable += value *)
@@ -35,9 +33,8 @@ type action = {
 
 type statement =
   | Environment_statement of environment_statement located
-  | Test of
-    sign (* when Neg, negate the test *) *
-    action
+  | Action of action
+  | Not of statement
 
 type t = Ast of statement list * t list
 (* <item>; <item>; ...; { <block> } { <block> } ... *)

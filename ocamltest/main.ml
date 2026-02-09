@@ -117,7 +117,7 @@ let test_file test_filename =
       let default_tests = Tests.default_tests() in
       let make_tree test =
         let id = make_identifier test.Tests.test_name in
-        Ast ([Test (Pos, id, [])], [])
+        Ast ([Action { name = id; modifiers = [] }], [])
       in
       Ast ([], List.map make_tree default_tests)
     | _ -> tsl_ast

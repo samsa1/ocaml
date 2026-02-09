@@ -15,10 +15,11 @@
 
 open Tsl_ast
 
-let tests_in_stmt set stmt =
+let rec tests_in_stmt set stmt =
   match stmt with
   | Environment_statement _ -> set
-  | Test (_sign, { name; _ }) ->
+  | Not test -> tests_in_stmt set test
+  | Action { name; _ } ->
     begin match Tsl_semantics.lookup_test name with
     | t -> Tests.TestSet.add t set
     | exception Tsl_semantics.No_such_test_or_action _ -> set

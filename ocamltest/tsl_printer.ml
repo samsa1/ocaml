@@ -28,12 +28,12 @@ let print_tsl_ast ~compact oc ast =
     print_ast (indent ^ "  ") ast;
     pr "%s}" indent;
 
-  and print_statements indent stmts =
-    match stmts with
-    | Test (sign, { name; modifiers }) :: tl ->
-      pr (match sign with
-          | Pos -> ""
-          | Neg -> "not ");
+  and print_statement indent stmt =
+    match stmt with
+    | Not test ->
+      pr "%snot" indent;
+      print_statement "" test
+    | Action { name; modifiers } ->
       pr "%s%s" indent name.node;
       begin match modifiers with
       | m :: tl ->
@@ -41,11 +41,15 @@ let print_tsl_ast ~compact oc ast =
         List.iter (fun m -> pr ", %s" m.node) tl;
       | [] -> ()
       end;
+    | Environment_statement env ->
+      print_env indent env
+
+  and print_statements indent stmts =
+    match stmts with
+    | stmt :: tl ->
+      print_statement indent stmt;
       pr ";\n";
       if tl <> [] && not compact then pr "\n";
-      print_statements indent tl;
-    | Environment_statement env :: tl->
-      print_env indent env;
       print_statements indent tl;
     | [] -> ()
 
@@ -61,12 +65,12 @@ let print_tsl_ast ~compact oc ast =
     | Assignment (set, variable, value) ->
       pr "%s" indent;
       if set then pr "set ";
-      pr "%s = \"%s\";\n" variable.node value.node;
+      pr "%s = \"%s\"" variable.node value.node;
     | Append (variable, value) ->
-      pr "%s%s += \"%s\";\n" indent variable.node value.node;
+      pr "%s%s += \"%s\"" indent variable.node value.node;
     | Include ls ->
-      pr "%sinclude %s;\n" indent ls.node;
+      pr "%sinclude %s" indent ls.node;
     | Unset ls ->
-      pr "%sunset %s;\n" indent ls.node;
+      pr "%sunset %s" indent ls.node;
   in
   print_ast " " ast;
