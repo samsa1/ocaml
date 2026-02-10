@@ -20,27 +20,33 @@ type 'a located = {
   loc : Location.t
 }
 
-type environment_statement =
-  | Assignment of bool * string located * string located (* variable = value *)
-  | Append of string located * string located (* variable += value *)
-  | Include of string located (* include named environment *)
-  | Unset of string located (* clear environment variable *)
+type environment_statement = (* <env update> ::= *)
+  | Assignment of bool * string located * string located
+    (* <variable> = <value> *)
+  | Append of string located * string located
+    (* <variable> += <value> *)
+  | Include of string located
+    (* include <named environment> *)
+  | Unset of string located
+    (* clear <variable> *)
 
 type action = {
   name: string located;
   modifiers: string located list;
-}
+} (* <action> ::= <name> [with <named environment>, <named environment>....] *)
 
 type statement =
-  | Environment_statement of environment_statement located
-  | Action of action
-  | Not of statement
-  | And of statement * statement
-  | Or of statement * statement
+  | Environment_statement of environment_statement located (* <env update> *)
+  | Action of action (* <action> *)
+  | Not of statement (* not <statement> *)
+  | And of statement * statement (* <statement> && <statement> *)
+  | Or of statement * statement (* <statement> || <statement> *)
   | If of statement * statement * statement option
+    (* if <statement> then <statement> [else <statement>] *)
 
 type t = Ast of statement list * t list
-(* <item>; <item>; ...; { <block> } { <block> } ... *)
+(* <block> ::=
+     <statement>; <statement>; ...; { <block> } { <block> } ... *)
 
 val split_env :
   statement list -> environment_statement located list * statement list
