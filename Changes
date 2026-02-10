@@ -37,6 +37,11 @@ Working version
   predicate-like action.
   (Gabriel Scherer, review by Olivier Nicole)
 
+- #14532: in ocamltest, support `<action> && <action>`,
+  `<action> || <action>`
+  and `if <action> then <action> [else <action>]`.
+  (Gabriel Scherer, review by Olivier Nicole)
+
 ### Manual and documentation:
 
 ### Compiler user-interface and warnings:
