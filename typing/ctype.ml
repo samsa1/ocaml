@@ -1019,11 +1019,28 @@ let update_level_for tr_exn env level ty =
    generalization (if we generalized non-strictly-positive positions),
    typing more programs.
 
-   In other words, the only generalizable type variables are those
-   that occur in hereditarily positive positions, they are in
-   covariant positions but all the type nodes above them are also in
-   covariant position.
- *)
+   On the other hand, covariant arguments of datatype constructors
+   will not be lowered when the constructor application is in strictly
+   positive position, even if the corresponding variable occurs
+   weakly-positively in the datatype definition. Indeed, the type
+   expressions in datatype definitions are written explicitly by
+   users, so they cannot generate inference ambiguity as in the
+   example above.
+
+   For example, the following will be generalized as expected:
+   {[
+     type ('a, 'b) cps = CPS of (('a -> 'b) -> 'b)
+     let cps consumer = CPS consumer
+     let test : ('c list, unit) cps = cps (fun k -> k [])
+   ]}
+   In this example the ['c] type variable is found in covariant
+   position within a parameter of a type-constructor application at
+   the root of the type, so it is not lowered. The fact that it occurs
+   on the left of an arrow within the definition of [cps] is not
+   relevant. But if [cps] was a type synoym rather than a datatype,
+   then ['c] would be lowered as we do not track whether an explicit
+   type annotation was present in the term.
+*)
 
 let rec lower_contravariant env var_level visited contra ty =
   let must_visit =
