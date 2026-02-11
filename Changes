@@ -1012,6 +1012,9 @@ OCaml 5.4.0 (9 October 2025)
 - #14057: Don't update memprof too early at the end of a minor GC.
   (Nick Barnes, review by Damien Doligez).
 
+- #13629: Major GC ephemeron cleanup.
+  (Nick Barnes, review by Stephen Dolan and Tim McGilchrist).
+
 ### Code generation and optimizations:
 
 - #13262, #14074: fix performance issue on Apple Silicon macOS by emitting
