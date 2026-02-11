@@ -143,7 +143,7 @@ let run ~log ~add_msg ~report_error behavior env summ ast =
       | Fail, _ -> Ok (env', status1)
       | Pass, _ -> run_test behavior env' t2
       | Skip, Some t3 -> run_test behavior env' t3
-      | Skip, None -> Ok (env', status1)
+      | Skip, None -> Ok (env', Pass)
       end
     | Action { name; modifiers } ->
       let (msg, env', result) =
