@@ -241,6 +241,22 @@ val drop_last : int -> string -> string
 
     @since 5.5 *)
 
+val drop_prefix :
+  prefix (* comment thwarts tools/sync_stdlib_docs *) :string ->
+  string -> string option
+(** [drop_prefix ][~prefix s] is [Some t] if [s = prefix ^ t].
+    Otherwise, it is [None].
+
+    @since 5.6 *)
+
+val drop_suffix :
+  suffix (* comment thwarts tools/sync_stdlib_docs *) :string ->
+  string -> string option
+(** [drop_suffix ][~suffix s] is [Some t] if [s = t ^ suffix].
+    Otherwise, it is [None].
+
+    @since 5.6 *)
+
 val cut_first : int -> string -> string * string
 (** [cut_first n v] is [(take_first n v, drop_first n v)].
 
