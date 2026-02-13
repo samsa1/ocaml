@@ -169,8 +169,8 @@ let linux = make
 
 let macos_system = "macosx"
 
-let macos = make
-  ~name:"macos"
+let macosx = make
+  ~name:"macosx"
   ~description:"Pass if running on a MacOS system"
   (Actions_helpers.pass_or_skip (Ocamltest_config.system = macos_system)
     "on a MacOS system"
@@ -404,7 +404,7 @@ let _ =
     target_windows;
     bsd;
     linux;
-    macos;
+    macosx;
     not_macos_amd64_tsan;
     has_cxx;
     arch32;

@@ -48,6 +48,11 @@ Working version
   and `if <action> then <action> [else <action>]`.
   (Gabriel Scherer, review by Olivier Nicole)
 
+- #14545: in ocamltest, support `system` variable that uses
+  the configure-time @System@ value. Rename the `macos` variable to
+  `macosx` to match the configure-time choice.
+  (Tim McGilchrist, review by Gabriel Scherer and Antonin Décimo)
+
 ### Manual and documentation:
 
 ### Compiler user-interface and warnings:
