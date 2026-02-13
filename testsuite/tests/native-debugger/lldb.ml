@@ -1,7 +1,7 @@
 (* TEST
    native-compiler;
    not tsan; (* Skip, TSan inserts extra frames into backtraces *)
-   macos || (linux && not clang); (* Skip, clang is tested on macOS *)
+   macosx || (linux && not clang); (* Skip, clang is tested on macOS *)
    if linux then
      unset BUILD_PATH_PREFIX_MAP;
    arch_amd64 || arch_arm64;
