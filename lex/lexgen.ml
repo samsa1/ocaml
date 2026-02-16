@@ -524,8 +524,10 @@ let encode_lexdef def =
         Automata and Application to Regular Expressions'.
        Symposium on String Processing and Information Retrieval (SPIRE 2000),
      http://laurikari.net/ville/spire2000-tnfa.pdf
+     ( https://zenodo.org/records/18655612 )
 (See also)
      https://laurikari.net/ville/regex-submatch.pdf
+     ( https://zenodo.org/records/18655602 )
 *)
 
 type t_transition =
