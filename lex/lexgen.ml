@@ -523,9 +523,9 @@ let encode_lexdef def =
        'NFAs with Tagged Transitions, their Conversion to Deterministic
         Automata and Application to Regular Expressions'.
        Symposium on String Processing and Information Retrieval (SPIRE 2000),
-     http://kouli.iki.fi/~vlaurika/spire2000-tnfa.ps
+     http://laurikari.net/ville/spire2000-tnfa.pdf
 (See also)
-     http://kouli.iki.fi/~vlaurika/regex-submatch.ps.gz
+     https://laurikari.net/ville/regex-submatch.pdf
 *)
 
 type t_transition =
