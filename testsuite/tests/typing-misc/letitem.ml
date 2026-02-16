@@ -86,7 +86,7 @@ type 'a t
 |}]
 
 (* This was correct in OCaml 5.4,
-   and is currently a regression. *)
+   and was temporarily broken by #13839. *)
 let dog : 'this =
   let module Dog = struct
     external make
@@ -96,7 +96,7 @@ let dog : 'this =
   in
   Dog.make ~bark:(fun (o : 'this) -> ())
 [%%expect{|
-val dog : < bark : '_this -> unit > t = <abstr>
+val dog : < bark : 'a -> unit > t as 'a = <abstr>
 |}]
 
 (* This variant from Samuel Vivien would also
@@ -109,11 +109,11 @@ let dog : 'this =
   in
   make ~bark:(fun (o : 'this) -> ())
 [%%expect{|
-val dog : < bark : '_this -> unit > t = <abstr>
+val dog : < bark : 'a -> unit > t as 'a = <abstr>
 |}]
 
 (* This variant from Gabriel Scherer was already wrong in OCaml 5.4,
-   and is currently still wrong. *)
+   and has been fixed at the same time as the other two. *)
 let dog : 'this =
   let open struct
     external make
@@ -122,7 +122,7 @@ let dog : 'this =
   end in
   make ~bark:(fun (o : 'this) -> ())
 [%%expect{|
-val dog : < bark : '_this -> unit > t = <abstr>
+val dog : < bark : 'a -> unit > t as 'a = <abstr>
 |}]
 
 (* </end of #14554> *)
