@@ -85,6 +85,7 @@ TEST_CXX = @ocamltest_CXX@
 TEST_CXX_CXXFLAGS = @common_cflags@
 TEST_CXX_CPPFLAGS = @common_cppflags@
 CXXFLAGS ?=
+OCAMLTEST_UNIX_DEPS = @ocamltest_unix_deps@
 
 BUILD_PATH_LOGICAL = @srcdir_abs@
 BUILD_PATH_PHYSICAL = @srcdir_abs_real@

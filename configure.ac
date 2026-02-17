@@ -81,6 +81,7 @@ optional_bytecode_tools=''
 optional_native_tools=''
 ocamltest_libunix=None
 ocamltest_unix_impl="dummy"
+ocamltest_unix_deps=''
 unix_library=""
 unix_directory=""
 target_libdir_is_relative=false
@@ -221,6 +222,7 @@ AC_SUBST([optional_native_tools])
 AC_SUBST([ocamltest_CPP])
 AC_SUBST([ocamltest_CXX])
 AC_SUBST([ocamltest_libunix])
+AC_SUBST([ocamltest_unix_deps])
 AC_SUBST([unix_library])
 AC_SUBST([unix_directory])
 AC_SUBST([cc_has_debug_prefix_map])
@@ -989,9 +991,10 @@ AS_IF([test x"$enable_unix_lib" != "xno"],
   AC_CONFIG_LINKS([
     otherlibs/unix/unix.ml:otherlibs/unix/unix_${unix_or_win32}.ml
   ])
-  ocamltest_unix_impl="real"
   unix_directory="otherlibs/unix"
-  unix_library="${unix_directory}/unix"],
+  unix_library="${unix_directory}/unix"
+  ocamltest_unix_impl="real"
+  ocamltest_unix_deps="${unix_library}"],
   [ocamltest_libunix="None"])
 
 AS_IF([test x"$enable_str_lib" != "xno"],
