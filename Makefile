@@ -2033,10 +2033,10 @@ ocamltest_DEPEND_FILES := $(wildcard $(DEPDIR)/ocamltest/*.$(D))
 .PHONY: $(ocamltest_DEPEND_FILES)
 include $(ocamltest_DEPEND_FILES)
 
-ocamltest/ocamltest_unix.cmo: $(addsuffix .cmi, $(OCAMLTEST_UNIX_DEPS)) \
-                              ocamltest/ocamltest_unix.cmi
-ocamltest/ocamltest_unix.cmx: $(addsuffix .cmx, $(OCAMLTEST_UNIX_DEPS)) \
-                              ocamltest/ocamltest_unix.cmi
+ocamltest/ocamltest_unix.cmo: \
+  $(addsuffix .cmi, $(unix_library)) ocamltest/ocamltest_unix.cmi
+ocamltest/ocamltest_unix.cmx: \
+  $(addsuffix .cmx, $(unix_library)) ocamltest/ocamltest_unix.cmi
 
 ocamltest/%: CAMLC = $(BEST_OCAMLC) $(STDLIBFLAGS)
 

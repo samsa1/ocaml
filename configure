@@ -871,7 +871,6 @@ ocaml_cv_prog_as_debug_prefix_map
 cc_has_debug_prefix_map
 unix_directory
 unix_library
-ocamltest_unix_deps
 ocamltest_libunix
 ocamltest_CXX
 ocamltest_CPP
@@ -3407,7 +3406,6 @@ optional_bytecode_tools=''
 optional_native_tools=''
 ocamltest_libunix=None
 ocamltest_unix_impl="dummy"
-ocamltest_unix_deps=''
 unix_library=""
 unix_directory=""
 target_libdir_is_relative=false
@@ -3492,7 +3490,6 @@ LINEAR_MAGIC_NUMBER=Caml1999L038
 # Note: This is present for the flexdll bootstrap where it exposed as the old
 # TOOLPREF variable. It would be better if flexdll where updated to require
 # WINDRES instead.
-
 
 
 
@@ -15353,10 +15350,9 @@ then :
   lib_unix=true
   ac_config_links="$ac_config_links otherlibs/unix/unix.ml:otherlibs/unix/unix_${unix_or_win32}.ml"
 
+  ocamltest_unix_impl="real"
   unix_directory="otherlibs/unix"
   unix_library="${unix_directory}/unix"
-  ocamltest_unix_impl="real"
-  ocamltest_unix_deps="${unix_library}"
 else $as_nop
   ocamltest_libunix="None"
 fi
