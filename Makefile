@@ -2036,6 +2036,11 @@ ocamltest_DEPEND_FILES := $(wildcard $(DEPDIR)/ocamltest/*.$(D))
 .PHONY: $(ocamltest_DEPEND_FILES)
 include $(ocamltest_DEPEND_FILES)
 
+ocamltest/ocamltest_unix.cmo: \
+  $(addsuffix .cmi, $(unix_library)) ocamltest/ocamltest_unix.cmi
+ocamltest/ocamltest_unix.cmx: \
+  $(addsuffix .cmx, $(unix_library)) ocamltest/ocamltest_unix.cmi
+
 ocamltest/%: CAMLC = $(BEST_OCAMLC) $(STDLIBFLAGS)
 
 ocamltest/%: CAMLOPT = $(BEST_OCAMLOPT) $(STDLIBFLAGS)
@@ -2180,7 +2185,8 @@ partialclean::
 ocamltest/ocamltest_config.ml ocamltest/ocamltest_unix.ml: config.status
 	./$< $@
 
-beforedepend:: ocamltest/ocamltest_config.ml ocamltest/ocamltest_unix.ml
+beforedepend:: ocamltest/ocamltest_config.ml ocamltest/tsl_lexer.ml \
+               ocamltest/tsl_parser.ml ocamltest/tsl_parser.mli
 
 # Documentation
 
@@ -2711,6 +2717,12 @@ partialclean::
 %.depend: beforedepend
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I $* $(INCLUDES) \
 	  $(OCAMLDEPFLAGS) $*/*.mli $*/*.ml > $@
+
+ocamltest.depend: beforedepend
+	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I ocamltest $(INCLUDES) \
+	  $(OCAMLDEPFLAGS) \
+	  $(filter-out ocamltest/ocamltest_unix.ml, \
+	               $(ocamltest_ML_FILES) $(ocamltest_MLI_FILES)) > $@
 
 asmcomp.depend:: beforedepend $(cvt_emit)
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I asmcomp $(INCLUDES) \
