@@ -2719,7 +2719,7 @@ ocamltest.depend: beforedepend
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I ocamltest $(INCLUDES) \
 	  $(OCAMLDEPFLAGS) \
 	  $(filter-out ocamltest/ocamltest_unix.ml, \
-	               $(wildcard ocamltest/*.mli ocamltest/*.ml)) > $@
+	               $(ocamltest_ML_FILES) $(ocamltest_MLI_FILES)) > $@
 
 asmcomp.depend:: beforedepend $(cvt_emit)
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I asmcomp $(INCLUDES) \

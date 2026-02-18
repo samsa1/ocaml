@@ -10417,12 +10417,6 @@ ocamltest/ocamltest_stdlib.cmx : \
 ocamltest/ocamltest_stdlib.cmi : \
     utils/misc.cmi
 ocamltest/ocamltest_unix.cmi :
-ocamltest/ocamltest_unix_dummy.cmo :
-ocamltest/ocamltest_unix_dummy.cmx :
-ocamltest/ocamltest_unix_real.cmo : \
-    otherlibs/unix/unix.cmi
-ocamltest/ocamltest_unix_real.cmx : \
-    otherlibs/unix/unix.cmx
 ocamltest/options.cmo : \
     ocamltest/variables.cmi \
     ocamltest/tests.cmi \
