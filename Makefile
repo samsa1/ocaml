@@ -2182,7 +2182,8 @@ partialclean::
 ocamltest/ocamltest_config.ml ocamltest/ocamltest_unix.ml: config.status
 	./$< $@
 
-beforedepend:: ocamltest/ocamltest_config.ml ocamltest/ocamltest_unix.ml
+beforedepend:: ocamltest/ocamltest_config.ml ocamltest/tsl_lexer.ml \
+               ocamltest/tsl_parser.ml ocamltest/tsl_parser.mli
 
 # Documentation
 
@@ -2714,7 +2715,7 @@ partialclean::
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I $* $(INCLUDES) \
 	  $(OCAMLDEPFLAGS) $*/*.mli $*/*.ml > $@
 
-ocamltest.depend:: beforedepend $(cvt_emit)
+ocamltest.depend: beforedepend
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I ocamltest $(INCLUDES) \
 	  $(OCAMLDEPFLAGS) \
 	  $(filter-out ocamltest/ocamltest_unix.ml, \
