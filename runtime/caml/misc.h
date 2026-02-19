@@ -178,14 +178,18 @@ CAMLdeprecated_typedef(addr, char *);
 
 #ifdef CAML_INTERNALS
 #if (__has_builtin(__builtin_prefetch) || defined(__GNUC__))
-#define caml_prefetch(p) __builtin_prefetch((p), 1, 3)
+#define caml_prefetchr(p) __builtin_prefetch((p), 0, 3)
+/* 0 = intent to read; 3 = all cache levels */
+#define caml_prefetchw(p) __builtin_prefetch((p), 1, 3)
 /* 1 = intent to write; 3 = all cache levels */
 #elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64))
 #include <intrin.h>
-#define caml_prefetch(p) _mm_prefetch((char const *) p, _MM_HINT_T0)
+#define caml_prefetchr(p) _mm_prefetch((char const *) p, _MM_HINT_T0)
 /* PreFetchCacheLine(PF_TEMPORAL_LEVEL_1, p) */
+#define caml_prefetchw(p) caml_prefetchr(p)
 #else
-#define caml_prefetch(p)
+#define caml_prefetchr(p)
+#define caml_prefetchw(p)
 #endif
 #endif /* CAML_INTERNALS */
 
