@@ -1656,6 +1656,8 @@ AS_CASE([$target],
     [has_native_backend=yes; arch=power; model=ppc64le; system=linux],
   [[powerpc64*-*-linux-musl*]],
     [has_native_backend=yes; arch=power; model=ppc64; system=linux],
+  [[powerpc64*-*-linux*]],
+    [arch=power; model=ppc64; system=linux],
   [[s390x*-*-linux*]],
     [has_native_backend=yes; arch=s390x; model=z10; system=linux],
   # expected to match "gnueabihf" as well as "musleabihf"
