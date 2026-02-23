@@ -129,9 +129,10 @@ module Mutexed = struct
     | Thunk f as thunk ->
         let mut = Mutex.create () in
         Mutex.lock mut;
-        if not (Atomic.compare_and_set th thunk (Forcing mut)) then
+        if not (Atomic.compare_and_set th thunk (Forcing mut)) then begin
+          Mutex.unlock mut;
           force th (* retry *)
-        else begin
+        end else begin
           begin match f () with
           | v -> Atomic.set th (Result (Ok v))
           | exception exn ->
