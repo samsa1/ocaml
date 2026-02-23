@@ -1574,7 +1574,7 @@ again:
       /* Didn't finish scanning this object, either because budget <= 0,
          or the prefetch buffer filled up. Leave the rest on the stack. */
       mark_stack_push_range(stk, me.start, me.end);
-      caml_prefetchw((void*)(me.start + 1));
+      caml_prefetchr((void*)(me.start + 1));
 
       if (pb_size(&pb) > PREFETCH_BUFFER_MIN) {
         /* We may have just discovered more work when we were about to run out.

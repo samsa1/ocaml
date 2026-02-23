@@ -23,6 +23,11 @@ Working version
   symbols from the runtime. The declarations were removed in 5.0.
   (Antonin Décimo, review by Nicolás Ojeda Bär)
 
+- #14570: Distinguish between prefetching for read and write access in the
+  runtime. Significant performance benefit for some multi-domain programs. For
+  maximum benefit on AMD64, pass -mprfchw to the C compiler.
+  (Nick Barnes, review by Gabriel Scherer, Damien Doligez, and Antonin Décimo)
+
 ### Code generation and optimizations:
 
 * #13919: optimize `lazy v` when `v` is a structured constant
