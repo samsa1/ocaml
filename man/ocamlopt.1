@@ -458,22 +458,34 @@ object code files (.cmx), and libraries (.cmxa). See also option
 Ignore non-optional labels in types. Labels cannot be used in
 applications, and parameter order becomes strict.
 .TP
-.BI \-o " exec\-file"
-Specify the name of the output file produced by the linker. The
-default output name is a.out, in keeping with the Unix tradition. If the
-.B \-a
-option is given, specify the name of the library produced. If the
-.B \-pack
-option is given, specify the name of the packed object file produced.
-If the
-.B \-output\-obj
-option is given, specify the name of the output file produced. If the
-.B \-shared
-option is given, specify the name of plugin file produced.
-This can also be used when compiling an interface or implementation
-file, without linking, in which case it sets the name of the cmi or
-cmo file, and also sets the module name to the file name up to the
-first dot.
+.BI \-o " filename"
+Specify the name of the final output file, whether it is an executable, a
+library
+.RB ( \-a
+option), a packed object
+.RB ( \-pack
+option), a dynlinkable plugin
+.RB ( \-shared
+option) or a C object file
+.RB ( \-output\-obj
+and
+.B \-output\-complete\-obj
+options).
+.IP
+The default output name for an executable depends on the platform, it is the
+traditional
+.B a.out
+on Unix,
+.B camlprog.exe
+on Windows.
+.IP
+This can also be used when compiling but not linking an interface or
+implementation file
+.RB ( \-c
+option), in which case it sets both the name of the cmi or cmx file, and of
+the compilation unit to the
+.I filename
+up to the first dot.
 .TP
 .B \-opaque
 When compiling a .mli interface file, this has the same effect as the
