@@ -219,20 +219,22 @@ directory
 .BI \-color " mode"
 Enable or disable colors in compiler messages (especially warnings and errors).
 The following modes are supported:
-
+.RS
+.TP
 .B auto
 use heuristics to enable colors only if the output supports them (an
 ANSI-compatible tty terminal);
-
+.TP
 .B always
 enable colors unconditionally;
-
+.TP
 .B never
 disable color output.
-
+.RE
+.IP
 The environment variable "OCAML_COLOR" is considered if \-color is not
 provided. Its values are auto/always/never as above.
-
+.IP
 If \-color is not provided, "OCAML_COLOR" is not set and the environment
 variable "NO_COLOR" is set, then color output is disabled. Otherwise,
 the default setting is
@@ -245,14 +247,16 @@ not empty or "dumb", and that isatty(stderr) holds.
 .BI \-error\-style " mode"
 Control the way error messages and warnings are printed.
 The following modes are supported:
-
+.RS
+.TP
 .B short
 only print the error and its location;
-
+.TP
 .B contextual
 like "short", but also display the source code snippet corresponding
 to the location of the error.
-
+.RE
+.IP
 The default setting is
 .B contextual.
 
@@ -604,11 +608,13 @@ supported passes are:
 .BI \-set\-runtime\-default " setting=value"
 When linking an executable, override the default value for a runtime setting.
 The only currently supported setting is:
-
+.RS
+.TP
 .B standard_library_default
 Specifies the default location used by the executable to locate the Standard
 Library. By default, this is the absolute path to the Standard Library the
 compiler itself was configured with.
+.RE
 .TP
 .B \-shared
 Build a plugin (usually .cmxs) that can be dynamically loaded with
