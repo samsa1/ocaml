@@ -29,13 +29,12 @@ ocamlopt \- The OCaml native-code compiler
 .YS
 
 .SH DESCRIPTION
-
 The OCaml high-performance
 native-code compiler
 .BR ocamlopt (1)
 compiles OCaml source files to native code object files and link these
 object files to produce standalone executables.
-
+.P
 The
 .BR ocamlopt (1)
 command has a command-line interface very close to that
@@ -43,7 +42,8 @@ of
 .BR ocamlc (1).
 It accepts the same types of arguments and processes them
 sequentially, after all options have been processed:
-
+.TP 4n
+.B \(bu
 Arguments ending in .mli are taken to be source files for
 compilation unit interfaces. Interfaces specify the names exported by
 compilation units: they declare value names with their types, define
@@ -58,7 +58,8 @@ in the file
 The interface produced is identical to that
 produced by the bytecode compiler
 .BR ocamlc (1).
-
+.TP 4n
+.B \(bu
 Arguments ending in .ml are taken to be source files for compilation
 unit implementations. Implementations provide definitions for the
 names exported by the unit, and also contain expressions to be
@@ -82,7 +83,8 @@ The implementation is checked against the interface file
 .IR x .mli
 (if it exists) as described in the manual for
 .BR ocamlc (1).
-
+.TP 4n
+.B \(bu
 Arguments ending in .cmx are taken to be compiled object code.  These
 files are linked together, along with the object files obtained
 by compiling .ml arguments (if any), and the OCaml standard
@@ -95,7 +97,8 @@ before having initialized it. Hence, a given
 file must come
 before all .cmx files that refer to the unit
 .IR x .
-
+.TP 4n
+.B \(bu
 Arguments ending in .cmxa are taken to be libraries of object code.
 Such a library packs in two files
 .IR lib .cmxa
@@ -110,18 +113,20 @@ files contained in the library are linked as regular .cmx files (see
 above), in the order specified when the library was built. The only
 difference is that if an object file contained in a library is not
 referenced anywhere in the program, then it is not linked in.
-
+.TP 4n
+.B \(bu
 Arguments ending in .c are passed to the C compiler, which generates
 a .o object file. This object file is linked with the program.
-
+.TP 4n
+.B \(bu
 Arguments ending in .o or .a are assumed to be C object files and
 libraries. They are linked with the program.
-
+.P
 The output of the linking phase is a regular Unix executable file. It
 does not need
 .BR ocamlrun (1)
 to run.
-
+.P
 .B ocamlopt.opt
 is the same compiler as
 .BR ocamlopt ,
