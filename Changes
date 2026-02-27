@@ -80,6 +80,10 @@ Working version
 - #14142: print GADT equations in error messages when they introduce a type
   (Stefan Muenzel, review by Florian Angeletti)
 
+- #14359, #14600: when reporting unbound type variables in a type declaration,
+  avoid a possible confusion between type parameters and unbound variables.
+  (Florian Angeletti, report by Florian Weimer, review by Gabriel Scherer)
+
 ### Internal/compiler-libs changes:
 
 ### Build system:
