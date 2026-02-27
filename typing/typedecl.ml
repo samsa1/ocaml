@@ -1961,7 +1961,7 @@ open Format_doc
 module Style = Misc.Style
 module Printtyp = Printtyp.Doc
 
-let explain_unbound_gen ppf params tv tl typ kwd pr =
+let explain_unbound_gen ppf ~params tv tl typ kwd pr =
   try
     let ti = List.find (fun ti -> Ctype.deep_occur tv (typ ti)) tl in
     let ty0 = (* Hack to force aliasing when needed *)
@@ -1973,24 +1973,24 @@ let explain_unbound_gen ppf params tv tl typ kwd pr =
       (Style.as_inline_code Out_type.prepared_type_expr) tv
   with Not_found -> ()
 
-let explain_unbound ppf params tv tl typ kwd lab =
-  explain_unbound_gen ppf params tv tl typ kwd
+let explain_unbound ppf ~params tv tl typ kwd lab =
+  explain_unbound_gen ppf ~params tv tl typ kwd
     (fun ppf ti ->
        fprintf ppf "%s%a" (lab ti) Out_type.prepared_type_expr (typ ti)
     )
 
-let explain_unbound_single ppf params tv ty =
+let explain_unbound_single ppf ~params tv ty =
   let trivial ty =
-    explain_unbound ppf params tv [ty] (fun t -> t) "type" (fun _ -> "") in
+    explain_unbound ppf ~params tv [ty] (fun t -> t) "type" (fun _ -> "") in
   match get_desc ty with
     Tobject(fi,_) ->
       let (tl, rv) = Ctype.flatten_fields fi in
       if eq_type rv tv then trivial ty else
-      explain_unbound ppf params tv tl (fun (_,_,t) -> t)
+      explain_unbound ppf ~params tv tl (fun (_,_,t) -> t)
         "method" (fun (lab,_,_) -> lab ^ ": ")
   | Tvariant row ->
       if eq_type (row_more row) tv then trivial ty else
-      explain_unbound ppf params tv (row_fields row)
+      explain_unbound ppf ~params tv (row_fields row)
         (fun (_l,f) -> match row_field_repr f with
           Rpresent (Some t) -> t
         | Reither (_,[t],_) -> t
@@ -2057,7 +2057,7 @@ let quoted_constr = Style.as_inline_code Pprintast.Doc.constr
 let explain_unbounded params ty decl ppf =
   match decl.type_kind, decl.type_manifest with
   | Type_variant (tl, _rep), _ ->
-      explain_unbound_gen ppf params ty tl (fun c ->
+      explain_unbound_gen ppf ~params ty tl (fun c ->
           let tl = tys_of_constr_args c.Types.cd_args in
           Btype.newgenty (Ttuple (List.map (fun t -> None, t) tl))
         )
@@ -2066,10 +2066,10 @@ let explain_unbounded params ty decl ppf =
             "%a of %a" Printtyp.ident c.Types.cd_id
             Printtyp.constructor_arguments c.Types.cd_args)
   | Type_record (tl, _), _ ->
-      explain_unbound ppf params ty tl (fun l -> l.Types.ld_type)
+      explain_unbound ppf ~params ty tl (fun l -> l.Types.ld_type)
         "field" (fun l -> Ident.name l.Types.ld_id ^ ": ")
   | Type_abstract _, Some ty' ->
-      explain_unbound_single ppf params ty ty'
+      explain_unbound_single ppf ~params ty ty'
   | _ -> ()
 
 let variance (p,n,i) =
@@ -2231,7 +2231,7 @@ let report_error ~loc = function
   | Unbound_type_var_ext (ty, ext) ->
       let explain ppf =
         let args = tys_of_constr_args ext.ext_args in
-        explain_unbound ppf [] ty args (fun c -> c) "type" (fun _ -> "")
+        explain_unbound ppf ~params:[] ty args (fun c -> c) "type" (fun _ -> "")
       in
       Location.errorf ~loc
         "A type variable is unbound in this extension constructor%t"
