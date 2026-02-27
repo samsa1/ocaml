@@ -71,6 +71,8 @@ Working version
 
 ### Manual and documentation:
 
+- #14598: Add `@since` annotations to `Runtime_events`. (Raphaël Proust)
+
 ### Compiler user-interface and warnings:
 
 - #14205: Make inclusion check error message reference the user-written file
