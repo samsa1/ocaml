@@ -9,7 +9,6 @@ type 'a foo = { foo : 'b; } constraint 'a = 'b * 'c [@@unboxed]
 
 let bar : 'c. (unit * 'c) foo = { foo = () }
 [%%expect{|
-Uncaught exception: Ctype.Cannot_apply
-
+val bar : (unit * 'c) foo = {foo = ()}
 |}];;
 

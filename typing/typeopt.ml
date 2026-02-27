@@ -23,7 +23,8 @@ open Lambda
 let scrape_ty env ty =
   let ty =
     match get_desc ty with
-    | Tpoly(ty, _) -> ty
+    | Tpoly(ty, tl) ->
+        Ctype.instance_poly ~keep_names:true tl ty
     | _ -> ty
   in
   match get_desc ty with
