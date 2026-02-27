@@ -68,7 +68,6 @@ type error =
   | Rebind_private of Longident.t
   | Variance of Typedecl_variance.error
   | Unavailable_type_constructor of Path.t
-  | Unbound_type_var_ext of type_expr * extension_constructor
   | Val_in_structure
   | Multiple_native_repr_attributes
   | Cannot_unbox_or_untag_type of native_repr_kind
@@ -1476,14 +1475,6 @@ let transl_type_extension extend env loc styext =
       (ttype_params, type_params, constructors)
     end
   in
-  (* Check that all type variables are closed *)
-  List.iter
-    (fun (ext, _shape) ->
-       match Ctype.closed_extension_constructor ext.ext_type with
-         Some ty ->
-           raise(Error(ext.ext_loc, Unbound_type_var_ext(ty, ext.ext_type)))
-       | None -> ())
-    constructors;
   (* Check variances are correct *)
   List.iter
     (fun (ext, _shape) ->
@@ -1530,12 +1521,6 @@ let transl_exception env sext =
         transl_extension_constructor ~scope env
           Predef.path_exn [] [] Asttypes.Public sext)
   in
-  (* Check that all type variables are closed *)
-  begin match Ctype.closed_extension_constructor ext.ext_type with
-    Some ty ->
-      raise (Error(ext.ext_loc, Unbound_type_var_ext(ty, ext.ext_type)))
-  | None -> ()
-  end;
   let rebind = is_rebind ext in
   let newenv =
     Env.add_extension ~check:true ~shape ~rebind ext.ext_id ext.ext_type env
@@ -2228,14 +2213,6 @@ let report_error ~loc = function
       Location.errorf ~loc
         "A type variable is unbound in this type declaration%t"
         (explain_unbounded params var decl)
-  | Unbound_type_var_ext (ty, ext) ->
-      let explain ppf =
-        let args = tys_of_constr_args ext.ext_args in
-        explain_unbound ppf ~params:[] ty args (fun c -> c) "type" (fun _ -> "")
-      in
-      Location.errorf ~loc
-        "A type variable is unbound in this extension constructor%t"
-        explain
   | Cannot_extend_private_type path ->
       Location.errorf ~loc
         "Cannot extend private type definition@ %a"

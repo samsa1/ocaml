@@ -524,7 +524,6 @@ val free_variables_list: ?env:Env.t -> type_expr list -> type_expr list
 val contains_nongen_variables: ?env:Env.t -> type_expr -> bool
 val closed_type_expr: ?env:Env.t -> type_expr -> bool
 val closed_type_decl: type_declaration -> type_expr option
-val closed_extension_constructor: extension_constructor -> type_expr option
 val closed_class:
         type_expr list -> class_signature ->
         closed_class_failure option
