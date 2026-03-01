@@ -30,6 +30,5 @@ type 'a t0 = 'a t1
 
 type 'a t2 = { t0 : 'a t0 }
 [%%expect{|
-Uncaught exception: Ctype.Cannot_apply
-
+type 'a t2 = { t0 : 'a t0; }
 |}]
