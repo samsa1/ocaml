@@ -780,18 +780,6 @@ let closed_type_decl decl =
     Some ty
   end
 
-let closed_extension_constructor ext =
-  with_type_mark begin fun mark -> try
-    List.iter (mark_type mark) ext.ext_type_params;
-    begin match ext.ext_ret_type with
-    | Some _ -> ()
-    | None -> iter_type_expr_cstr_args (closed_type mark) ext.ext_args
-    end;
-    None
-  with Non_closed (ty, _) ->
-    Some ty
-  end
-
 type closed_class_failure = {
   free_variable: type_expr * variable_kind;
   meth: string;
