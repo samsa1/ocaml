@@ -21,12 +21,7 @@ open Typedtree
 open Lambda
 
 let scrape_ty env ty =
-  let ty =
-    match get_desc ty with
-    | Tpoly(ty, tl) ->
-        Ctype.instance_poly ~keep_names:true tl ty
-    | _ -> ty
-  in
+  let ty = Ctype.maybe_instance_poly ty in
   match get_desc ty with
   | Tconstr _ ->
       let ty = Ctype.expand_head_opt env ty in
