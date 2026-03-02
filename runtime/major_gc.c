@@ -503,6 +503,7 @@ static intnat ephe_mark (intnat budget, uintnat round,
           preserve_data = false;
       }
     }
+    /* TODO: budget. The right thing is not obvious. See ocaml/ocaml#14610. */
 
     if (force_alive) preserve_data = true;
 
