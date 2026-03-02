@@ -54,7 +54,11 @@ type error =
     }
   | Null_arity_external
   | Missing_native_external
-  | Unbound_type_var of type_expr * type_declaration
+  | Unbound_type_var of {
+      var: type_expr;
+      params: type_expr list;
+      decl: type_declaration;
+    }
   | Cannot_extend_private_type of Path.t
   | Not_extensible_type of Path.t
   | Extension_mismatch of Path.t * Env.t * Includecore.type_mismatch
@@ -345,12 +349,13 @@ let shape_map_cstrs =
       @@ Shape.str ~uid:cd_uid cstr_shape_map)
     (Shape.Map.empty)
 
+let param_types params = List.map (fun (cty,_vi) -> cty.ctyp_type) params
 
 let transl_declaration env sdecl (id, uid) =
   (* Bind type parameters *)
   TyVarEnv.reset();
   let tparams = make_params env sdecl.ptype_params in
-  let params = List.map (fun (cty, _) -> cty.ctyp_type) tparams in
+  let params = param_types tparams in
   let constraints = List.map
     (fun (sty, sty', loc) ->
       transl_simple_type env ~closed:false sty,
@@ -1232,9 +1237,11 @@ let transl_type_decl env rec_flag sdecl_list =
   (* Check that all type variables are closed *)
   List.iter2
     (fun sdecl (tdecl, _shape) ->
-      let decl = tdecl.typ_type in
+       let decl = tdecl.typ_type in
        match Ctype.closed_type_decl decl with
-         Some ty -> raise(Error(sdecl.ptype_loc, Unbound_type_var(ty,decl)))
+         Some var ->
+           let params = param_types tdecl.typ_params in
+           raise(Error(sdecl.ptype_loc, Unbound_type_var{ var; params; decl}))
        | None   -> ())
     sdecl_list tdecls;
   (* Check that constraints are enforced *)
@@ -1741,7 +1748,7 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
   let env = outer_env in
   let loc = sdecl.ptype_loc in
   let tparams = make_params env sdecl.ptype_params in
-  let params = List.map (fun (cty, _) -> cty.ctyp_type) tparams in
+  let params = param_types tparams in
   let arity = List.length params in
   let constraints =
     List.map (fun (ty, ty', loc) ->
@@ -1818,7 +1825,8 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
   Option.iter (fun p -> set_private_row env sdecl.ptype_loc p new_sig_decl)
     fixed_row_path;
   begin match Ctype.closed_type_decl new_sig_decl with None -> ()
-  | Some ty -> raise(Error(loc, Unbound_type_var(ty, new_sig_decl)))
+  | Some var ->
+      raise(Error(loc, Unbound_type_var{ var; params; decl=new_sig_decl}))
   end;
   let new_sig_decl = name_recursion sdecl id new_sig_decl in
   let new_type_variance =
@@ -1953,36 +1961,36 @@ open Format_doc
 module Style = Misc.Style
 module Printtyp = Printtyp.Doc
 
-let explain_unbound_gen ppf tv tl typ kwd pr =
+let explain_unbound_gen ppf ~params tv tl typ kwd pr =
   try
     let ti = List.find (fun ti -> Ctype.deep_occur tv (typ ti)) tl in
     let ty0 = (* Hack to force aliasing when needed *)
       Btype.newgenty (Tobject(tv, ref None)) in
-    Out_type.prepare_for_printing [typ ti; ty0];
+    Out_type.prepare_for_printing (params @ [typ ti; ty0]);
     fprintf ppf
       ".@ @[<hov2>In %s@ %a@;<1 -2>the variable %a is unbound@]"
       kwd (Style.as_inline_code pr) ti
       (Style.as_inline_code Out_type.prepared_type_expr) tv
   with Not_found -> ()
 
-let explain_unbound ppf tv tl typ kwd lab =
-  explain_unbound_gen ppf tv tl typ kwd
+let explain_unbound ppf ~params tv tl typ kwd lab =
+  explain_unbound_gen ppf ~params tv tl typ kwd
     (fun ppf ti ->
        fprintf ppf "%s%a" (lab ti) Out_type.prepared_type_expr (typ ti)
     )
 
-let explain_unbound_single ppf tv ty =
+let explain_unbound_single ppf ~params tv ty =
   let trivial ty =
-    explain_unbound ppf tv [ty] (fun t -> t) "type" (fun _ -> "") in
+    explain_unbound ppf ~params tv [ty] (fun t -> t) "type" (fun _ -> "") in
   match get_desc ty with
     Tobject(fi,_) ->
       let (tl, rv) = Ctype.flatten_fields fi in
       if eq_type rv tv then trivial ty else
-      explain_unbound ppf tv tl (fun (_,_,t) -> t)
+      explain_unbound ppf ~params tv tl (fun (_,_,t) -> t)
         "method" (fun (lab,_,_) -> lab ^ ": ")
   | Tvariant row ->
       if eq_type (row_more row) tv then trivial ty else
-      explain_unbound ppf tv (row_fields row)
+      explain_unbound ppf ~params tv (row_fields row)
         (fun (_l,f) -> match row_field_repr f with
           Rpresent (Some t) -> t
         | Reither (_,[t],_) -> t
@@ -2046,10 +2054,10 @@ let quoted_out_type ppf ty = Style.as_inline_code !Oprint.out_type ppf ty
 let quoted_type ppf ty = Style.as_inline_code Printtyp.type_expr ppf ty
 let quoted_constr = Style.as_inline_code Pprintast.Doc.constr
 
-let explain_unbounded ty decl ppf =
+let explain_unbounded params ty decl ppf =
   match decl.type_kind, decl.type_manifest with
   | Type_variant (tl, _rep), _ ->
-      explain_unbound_gen ppf ty tl (fun c ->
+      explain_unbound_gen ppf ~params ty tl (fun c ->
           let tl = tys_of_constr_args c.Types.cd_args in
           Btype.newgenty (Ttuple (List.map (fun t -> None, t) tl))
         )
@@ -2058,10 +2066,10 @@ let explain_unbounded ty decl ppf =
             "%a of %a" Printtyp.ident c.Types.cd_id
             Printtyp.constructor_arguments c.Types.cd_args)
   | Type_record (tl, _), _ ->
-      explain_unbound ppf ty tl (fun l -> l.Types.ld_type)
+      explain_unbound ppf ~params ty tl (fun l -> l.Types.ld_type)
         "field" (fun l -> Ident.name l.Types.ld_id ^ ": ")
   | Type_abstract _, Some ty' ->
-      explain_unbound_single ppf ty ty'
+      explain_unbound_single ppf ~params ty ty'
   | _ -> ()
 
 let variance (p,n,i) =
@@ -2216,14 +2224,14 @@ let report_error ~loc = function
         "An external function with more than 5 arguments \
          requires a second stub function@
          for native-code compilation"
-  | Unbound_type_var (ty, decl) ->
+  | Unbound_type_var { var; params; decl } ->
       Location.errorf ~loc
         "A type variable is unbound in this type declaration%t"
-        (explain_unbounded ty decl)
+        (explain_unbounded params var decl)
   | Unbound_type_var_ext (ty, ext) ->
       let explain ppf =
         let args = tys_of_constr_args ext.ext_args in
-        explain_unbound ppf ty args (fun c -> c) "type" (fun _ -> "")
+        explain_unbound ppf ~params:[] ty args (fun c -> c) "type" (fun _ -> "")
       in
       Location.errorf ~loc
         "A type variable is unbound in this extension constructor%t"
