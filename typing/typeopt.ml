@@ -94,7 +94,8 @@ let classify env ty : classification =
              | `Int32 | `Int64 | `Nativeint
              | `Extension_constructor | `Continuation
              | `Array | `Floatarray | `Iarray
-             | `Atomic_loc)
+             | `Atomic_loc
+             | `Todo_info)
         -> Addr
       | Some #Predef.data_type_constr | None ->
         try
