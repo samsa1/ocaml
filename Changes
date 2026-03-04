@@ -23,9 +23,10 @@ Working version
   symbols from the runtime. The declarations were removed in 5.0.
   (Antonin Décimo, review by Nicolás Ojeda Bär)
 
-- #14570: Distinguish between prefetching for read and write access in the
-  runtime. Significant performance benefit for some multi-domain programs. For
-  maximum benefit on AMD64, pass -mprfchw to the C compiler.
+- #14570, #14616: Distinguish between prefetching for read and write access in
+  the runtime. Significant performance benefit for some multi-domain
+  programs. For maximum benefit on AMD64, pass `-mprfchw` or `-march=native` to
+  the C compiler.
   (Nick Barnes, review by Gabriel Scherer, Damien Doligez, and Antonin Décimo)
 
 - #14651: Remove S390x TSan (Thread Sanitizer) support.
