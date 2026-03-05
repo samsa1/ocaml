@@ -360,10 +360,10 @@ module Utf8_lexeme = struct
     ('s', 0x30c, 0x161); (* š *)   ('z', 0x30c, 0x17e); (* ž *)
   ]
 
-  let normalize_generic ~keep_ascii transform s =
+  let normalize_generic ?first s =
     let rec norm check buf prev i =
       if i >= String.length s then begin
-        Buffer.add_utf_8_uchar buf (transform prev)
+        Buffer.add_utf_8_uchar buf prev
       end else begin
         let d = String.get_utf_8_uchar s i in
         let u = Uchar.utf_decode_uchar d in
@@ -373,12 +373,12 @@ module Utf8_lexeme = struct
         | Some u' ->
             norm check buf u' i'
         | None ->
-            Buffer.add_utf_8_uchar buf (transform prev);
+            Buffer.add_utf_8_uchar buf prev;
             norm check buf u i'
       end in
     let ascii_limit = 128 in
     if s = ""
-    || keep_ascii && String.for_all (fun x -> Char.code x < ascii_limit) s
+    || Option.is_none first && String.for_all (fun x -> Char.code x < ascii_limit) s
     then Ok s
     else
       let buf = Buffer.create (String.length s) in
@@ -389,7 +389,8 @@ module Utf8_lexeme = struct
       let d = String.get_utf_8_uchar s 0 in
       let u = Uchar.utf_decode_uchar d in
       check d u;
-      norm check buf u (Uchar.utf_decode_length d);
+      let u' = match first with None -> u | Some transform -> transform u in
+      norm check buf u' (Uchar.utf_decode_length d);
       let contents = Buffer.contents buf in
       if !valid then
         Ok contents
@@ -397,7 +398,7 @@ module Utf8_lexeme = struct
         Error contents
 
   let normalize s =
-    normalize_generic ~keep_ascii:true (fun u -> u) s
+    normalize_generic s
 
   (* Capitalization *)
 
@@ -427,16 +428,10 @@ module Utf8_lexeme = struct
       | _ -> u
 
   let capitalize s =
-    let first = ref true in
-    normalize_generic ~keep_ascii:false
-      (fun u -> if !first then (first := false; uchar_uppercase u) else u)
-      s
+    normalize_generic ~first:uchar_uppercase s
 
   let uncapitalize s =
-    let first = ref true in
-    normalize_generic ~keep_ascii:false
-      (fun u -> if !first then (first := false; uchar_lowercase u) else u)
-      s
+    normalize_generic ~first:uchar_lowercase s
 
   let is_capitalized s =
     s <> "" &&
