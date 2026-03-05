@@ -378,7 +378,19 @@ module Utf8_lexeme = struct
         (* If the first character is unchanged by the [first] transformation,
            and the string is ascii-only, we can return it unchanged. *)
         Ok s
-      else begin
+      else if only_ascii then begin
+        (* If the first character is changed but the rest
+           of the string is ascii-only, we can concatenate
+           the new first character with the rest. *)
+        let ulen = Uchar.utf_8_byte_length u0' in
+        let restlen = String.length s - i0 in
+        let res = Bytes.create (ulen + restlen) in
+        let ulen' = Bytes.set_utf_8_uchar res 0 u0' in
+        assert (ulen = ulen');
+        BytesLabels.blit_string
+          ~src:s ~src_pos:i0 ~dst:res ~dst_pos:ulen ~len:restlen;
+        Ok (Bytes.unsafe_to_string res)
+      end else begin
         (* Otherwise we are in the slow path where each character
            must be normalized. *)
         let buf = Buffer.create (String.length s) in
