@@ -361,41 +361,54 @@ module Utf8_lexeme = struct
   ]
 
   let normalize_generic ?first s =
-    let rec norm check buf prev i =
-      if i >= String.length s then begin
-        Buffer.add_utf_8_uchar buf prev
-      end else begin
-        let d = String.get_utf_8_uchar s i in
-        let u = Uchar.utf_decode_uchar d in
-        check d u;
-        let i' = i + Uchar.utf_decode_length d in
-        match Hashtbl.find_opt known_pairs (prev, u) with
-        | Some u' ->
-            norm check buf u' i'
-        | None ->
-            Buffer.add_utf_8_uchar buf prev;
-            norm check buf u i'
-      end in
-    let ascii_limit = 128 in
-    if s = ""
-    || Option.is_none first && String.for_all (fun x -> Char.code x < ascii_limit) s
-    then Ok s
+    (* [first : Uchar.t -> Uchar.t] is an optional function to be
+       applied to the first character of [s] only.*)
+    if s = "" then Ok ""
     else
-      let buf = Buffer.create (String.length s) in
-      let valid = ref true in
-      let check d u =
-        valid := !valid && Uchar.utf_decode_is_valid d && u <> Uchar.rep
+      let only_ascii =
+        let ascii_limit = 128 in
+        String.for_all (fun x -> Char.code x < ascii_limit) s
       in
+      (* get the first character of [s] *)
       let d = String.get_utf_8_uchar s 0 in
-      let u = Uchar.utf_decode_uchar d in
-      check d u;
-      let u' = match first with None -> u | Some transform -> transform u in
-      norm check buf u' (Uchar.utf_decode_length d);
-      let contents = Buffer.contents buf in
-      if !valid then
-        Ok contents
-      else
-        Error contents
+      let u0 = Uchar.utf_decode_uchar d in
+      let i0 = Uchar.utf_decode_length d in
+      let u0' = match first with None -> u0 | Some transform -> transform u0 in
+      if u0' = u0 && only_ascii then
+        (* If the first character is unchanged by the [first] transformation,
+           and the string is ascii-only, we can return it unchanged. *)
+        Ok s
+      else begin
+        (* Otherwise we are in the slow path where each character
+           must be normalized. *)
+        let buf = Buffer.create (String.length s) in
+        let valid = ref true in
+        let check d u =
+          valid := !valid && Uchar.utf_decode_is_valid d && u <> Uchar.rep
+        in
+        check d u0;
+        let rec norm prev i =
+          if i >= String.length s then begin
+            Buffer.add_utf_8_uchar buf prev
+          end else begin
+            let d = String.get_utf_8_uchar s i in
+            let u = Uchar.utf_decode_uchar d in
+            check d u;
+            let i' = i + Uchar.utf_decode_length d in
+            match Hashtbl.find_opt known_pairs (prev, u) with
+            | Some u' ->
+                norm u' i'
+            | None ->
+                Buffer.add_utf_8_uchar buf prev;
+                norm u i'
+          end in
+        norm u0' i0;
+        let contents = Buffer.contents buf in
+        if !valid then
+          Ok contents
+        else
+          Error contents
+      end
 
   let normalize s =
     normalize_generic s
