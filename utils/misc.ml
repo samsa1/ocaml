@@ -320,104 +320,101 @@ module Utf8_lexeme = struct
 
   (* NFD to NFC conversion table for the letters above *)
 
-  let known_pairs : (Uchar.t * Uchar.t, Uchar.t) Hashtbl.t = Hashtbl.create 32
+  let get_known_pair c1 n2 =
+    match Uchar.unsafe_to_char c1, Uchar.to_int n2 with
+    | 'A', 0x300 -> Some 0xc0 (* À *)     | 'A', 0x301 -> Some 0xc1 (* Á *)
+    | 'A', 0x302 -> Some 0xc2 (* Â *)     | 'A', 0x303 -> Some 0xc3 (* Ã *)
+    | 'A', 0x308 -> Some 0xc4 (* Ä *)     | 'A', 0x30a -> Some 0xc5 (* Å *)
+    | 'C', 0x327 -> Some 0xc7 (* Ç *)     | 'E', 0x300 -> Some 0xc8 (* È *)
+    | 'E', 0x301 -> Some 0xc9 (* É *)     | 'E', 0x302 -> Some 0xca (* Ê *)
+    | 'E', 0x308 -> Some 0xcb (* Ë *)     | 'I', 0x300 -> Some 0xcc (* Ì *)
+    | 'I', 0x301 -> Some 0xcd (* Í *)     | 'I', 0x302 -> Some 0xce (* Î *)
+    | 'I', 0x308 -> Some 0xcf (* Ï *)     | 'N', 0x303 -> Some 0xd1 (* Ñ *)
+    | 'O', 0x300 -> Some 0xd2 (* Ò *)     | 'O', 0x301 -> Some 0xd3 (* Ó *)
+    | 'O', 0x302 -> Some 0xd4 (* Ô *)     | 'O', 0x303 -> Some 0xd5 (* Õ *)
+    | 'O', 0x308 -> Some 0xd6 (* Ö *)
+    | 'U', 0x300 -> Some 0xd9 (* Ù *)     | 'U', 0x301 -> Some 0xda (* Ú *)
+    | 'U', 0x302 -> Some 0xdb (* Û *)     | 'U', 0x308 -> Some 0xdc (* Ü *)
+    | 'Y', 0x301 -> Some 0xdd (* Ý *)     | 'Y', 0x308 -> Some 0x178  (* Ÿ *)
+    | 'S', 0x30c -> Some 0x160 (* Š *)    | 'Z', 0x30c -> Some 0x17d (* Ž *)
+    | 'a', 0x300 -> Some 0xe0 (* à *)     | 'a', 0x301 -> Some 0xe1 (* á *)
+    | 'a', 0x302 -> Some 0xe2 (* â *)     | 'a', 0x303 -> Some 0xe3 (* ã *)
+    | 'a', 0x308 -> Some 0xe4 (* ä *)     | 'a', 0x30a -> Some 0xe5 (* å *)
+    | 'c', 0x327 -> Some 0xe7 (* ç *)     | 'e', 0x300 -> Some 0xe8 (* è *)
+    | 'e', 0x301 -> Some 0xe9 (* é *)     | 'e', 0x302 -> Some 0xea (* ê *)
+    | 'e', 0x308 -> Some 0xeb (* ë *)     | 'i', 0x300 -> Some 0xec (* ì *)
+    | 'i', 0x301 -> Some 0xed (* í *)     | 'i', 0x302 -> Some 0xee (* î *)
+    | 'i', 0x308 -> Some 0xef (* ï *)     | 'n', 0x303 -> Some 0xf1 (* ñ *)
+    | 'o', 0x300 -> Some 0xf2 (* ò *)     | 'o', 0x301 -> Some 0xf3 (* ó *)
+    | 'o', 0x302 -> Some 0xf4 (* ô *)     | 'o', 0x303 -> Some 0xf5 (* õ *)
+    | 'o', 0x308 -> Some 0xf6 (* ö *)
+    | 'u', 0x300 -> Some 0xf9 (* ù *)     | 'u', 0x301 -> Some 0xfa (* ú *)
+    | 'u', 0x302 -> Some 0xfb (* û *)     | 'u', 0x308 -> Some 0xfc (* ü *)
+    | 'y', 0x301 -> Some 0xfd (* ý *)     | 'y', 0x308 -> Some 0xff (* ÿ *)
+    | 's', 0x30c -> Some 0x161 (* š *)    | 'z', 0x30c -> Some 0x17e (* ž *)
+    | _ -> None
 
-  let _ =
-    List.iter
-      (fun (c1, n2, n) ->
-        Hashtbl.add known_pairs
-          (Uchar.of_char c1, Uchar.of_int n2) (Uchar.of_int n))
-  [
-    ('A', 0x300, 0xc0); (* À *)    ('A', 0x301, 0xc1); (* Á *)
-    ('A', 0x302, 0xc2); (* Â *)    ('A', 0x303, 0xc3); (* Ã *)
-    ('A', 0x308, 0xc4); (* Ä *)    ('A', 0x30a, 0xc5); (* Å *)
-    ('C', 0x327, 0xc7); (* Ç *)    ('E', 0x300, 0xc8); (* È *)
-    ('E', 0x301, 0xc9); (* É *)    ('E', 0x302, 0xca); (* Ê *)
-    ('E', 0x308, 0xcb); (* Ë *)    ('I', 0x300, 0xcc); (* Ì *)
-    ('I', 0x301, 0xcd); (* Í *)    ('I', 0x302, 0xce); (* Î *)
-    ('I', 0x308, 0xcf); (* Ï *)    ('N', 0x303, 0xd1); (* Ñ *)
-    ('O', 0x300, 0xd2); (* Ò *)    ('O', 0x301, 0xd3); (* Ó *)
-    ('O', 0x302, 0xd4); (* Ô *)    ('O', 0x303, 0xd5); (* Õ *)
-    ('O', 0x308, 0xd6); (* Ö *)
-    ('U', 0x300, 0xd9); (* Ù *)    ('U', 0x301, 0xda); (* Ú *)
-    ('U', 0x302, 0xdb); (* Û *)    ('U', 0x308, 0xdc); (* Ü *)
-    ('Y', 0x301, 0xdd); (* Ý *)    ('Y', 0x308, 0x178);  (* Ÿ *)
-    ('S', 0x30c, 0x160); (* Š *)   ('Z', 0x30c, 0x17d); (* Ž *)
-    ('a', 0x300, 0xe0); (* à *)    ('a', 0x301, 0xe1); (* á *)
-    ('a', 0x302, 0xe2); (* â *)    ('a', 0x303, 0xe3); (* ã *)
-    ('a', 0x308, 0xe4); (* ä *)    ('a', 0x30a, 0xe5); (* å *)
-    ('c', 0x327, 0xe7); (* ç *)    ('e', 0x300, 0xe8); (* è *)
-    ('e', 0x301, 0xe9); (* é *)    ('e', 0x302, 0xea); (* ê *)
-    ('e', 0x308, 0xeb); (* ë *)    ('i', 0x300, 0xec); (* ì *)
-    ('i', 0x301, 0xed); (* í *)    ('i', 0x302, 0xee); (* î *)
-    ('i', 0x308, 0xef); (* ï *)    ('n', 0x303, 0xf1); (* ñ *)
-    ('o', 0x300, 0xf2); (* ò *)    ('o', 0x301, 0xf3); (* ó *)
-    ('o', 0x302, 0xf4); (* ô *)    ('o', 0x303, 0xf5); (* õ *)
-    ('o', 0x308, 0xf6); (* ö *)
-    ('u', 0x300, 0xf9); (* ù *)    ('u', 0x301, 0xfa); (* ú *)
-    ('u', 0x302, 0xfb); (* û *)    ('u', 0x308, 0xfc); (* ü *)
-    ('y', 0x301, 0xfd); (* ý *)    ('y', 0x308, 0xff); (* ÿ *)
-    ('s', 0x30c, 0x161); (* š *)   ('z', 0x30c, 0x17e); (* ž *)
-  ]
-
-  let normalize_generic ?first s =
-    (* [first : Uchar.t -> Uchar.t] is an optional function to be
-       applied to the first character of [s] only.*)
-    if s = "" then Ok ""
-    else
-      let only_ascii = String.for_all Char.Ascii.is_valid s in
-      (* get the first character of [s] *)
-      let d = String.get_utf_8_uchar s 0 in
-      let u0 = Uchar.utf_decode_uchar d in
-      let i0 = Uchar.utf_decode_length d in
-      let u0' = match first with None -> u0 | Some transform -> transform u0 in
-      if u0' = u0 && only_ascii then
-        (* If the first character is unchanged by the [first] transformation,
-           and the string is ascii-only, we can return it unchanged. *)
-        Ok s
-      else if only_ascii then begin
-        (* If the first character is changed but the rest
-           of the string is ascii-only, we can concatenate
-           the new first character with the rest. *)
-        let ulen = Uchar.utf_8_byte_length u0' in
-        let restlen = String.length s - i0 in
-        let res = Bytes.create (ulen + restlen) in
-        let ulen' = Bytes.set_utf_8_uchar res 0 u0' in
-        assert (ulen = ulen');
-        BytesLabels.blit_string
-          ~src:s ~src_pos:i0 ~dst:res ~dst_pos:ulen ~len:restlen;
-        Ok (Bytes.unsafe_to_string res)
+  let normalize_generic =
+    let check d u =
+      Uchar.utf_decode_is_valid d && u <> Uchar.rep
+    in
+    let rec norm ~buf ~valid s prev i =
+      if i >= String.length s then begin
+        Buffer.add_utf_8_uchar buf prev;
+        valid
       end else begin
-        (* Otherwise we are in the slow path where each character
-           must be normalized. *)
-        let buf = Buffer.create (String.length s) in
-        let valid = ref true in
-        let check d u =
-          valid := !valid && Uchar.utf_decode_is_valid d && u <> Uchar.rep
-        in
-        check d u0;
-        let rec norm prev i =
-          if i >= String.length s then begin
-            Buffer.add_utf_8_uchar buf prev
-          end else begin
-            let d = String.get_utf_8_uchar s i in
-            let u = Uchar.utf_decode_uchar d in
-            check d u;
-            let i' = i + Uchar.utf_decode_length d in
-            match Hashtbl.find_opt known_pairs (prev, u) with
-            | Some u' ->
-                norm u' i'
-            | None ->
-                Buffer.add_utf_8_uchar buf prev;
-                norm u i'
-          end in
-        norm u0' i0;
-        let contents = Buffer.contents buf in
-        if !valid then
-          Ok contents
-        else
-          Error contents
+        let d = String.get_utf_8_uchar s i in
+        let u = Uchar.utf_decode_uchar d in
+        let valid = valid && check d u in
+        let i' = i + Uchar.utf_decode_length d in
+        match get_known_pair prev u with
+        | Some u' ->
+            let u' = Uchar.unsafe_of_int u' in
+            norm ~buf ~valid s u' i'
+        | None ->
+            Buffer.add_utf_8_uchar buf prev;
+            norm ~buf ~valid s u i'
       end
+    in
+    fun ?first s ->
+      (* [first : Uchar.t -> Uchar.t] is an optional function to be
+         applied to the first character of [s] only.*)
+      if s = "" then Ok ""
+      else
+        let only_ascii = String.for_all Char.Ascii.is_valid s in
+        (* get the first character of [s] *)
+        let d = String.get_utf_8_uchar s 0 in
+        let u0 = Uchar.utf_decode_uchar d in
+        let i0 = Uchar.utf_decode_length d in
+        let u0' = match first with None -> u0 | Some transform -> transform u0 in
+        if u0' = u0 && only_ascii then
+          (* If the first character is unchanged by the [first] transformation,
+             and the string is ascii-only, we can return it unchanged. *)
+          Ok s
+        else if only_ascii then begin
+          (* If the first character is changed but the rest
+             of the string is ascii-only, we can concatenate
+             the new first character with the rest. *)
+          let ulen = Uchar.utf_8_byte_length u0' in
+          let restlen = String.length s - i0 in
+          let res = Bytes.create (ulen + restlen) in
+          let ulen' = Bytes.set_utf_8_uchar res 0 u0' in
+          assert (ulen = ulen');
+          BytesLabels.blit_string
+            ~src:s ~src_pos:i0 ~dst:res ~dst_pos:ulen ~len:restlen;
+          Ok (Bytes.unsafe_to_string res)
+        end else begin
+          (* Otherwise we are in the slow path where each character
+             must be normalized. *)
+          let buf = Buffer.create (String.length s) in
+          let valid = check d u0 in
+          let valid = norm ~buf ~valid s u0' i0 in
+          let contents = Buffer.contents buf in
+          if valid then
+            Ok contents
+          else
+            Error contents
+        end
 
   let normalize s =
     normalize_generic s
