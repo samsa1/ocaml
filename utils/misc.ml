@@ -365,10 +365,7 @@ module Utf8_lexeme = struct
        applied to the first character of [s] only.*)
     if s = "" then Ok ""
     else
-      let only_ascii =
-        let ascii_limit = 128 in
-        String.for_all (fun x -> Char.code x < ascii_limit) s
-      in
+      let only_ascii = String.for_all Char.Ascii.is_valid s in
       (* get the first character of [s] *)
       let d = String.get_utf_8_uchar s 0 in
       let u0 = Uchar.utf_decode_uchar d in
