@@ -6041,12 +6041,6 @@ let unalias ty =
   | desc ->
       newty2 ~level desc
 
-(* Return the arity (as for curried functions) of the given type. *)
-let rec arity ty =
-  match get_desc ty with
-    Tarrow(_, _t1, t2, _) -> 1 + arity t2
-  | _ -> 0
-
 (* Check for non-generalizable type variables *)
 let add_nongen_vars_in_schema =
   let rec loop env ((visited, weak_set) as acc) ty =
