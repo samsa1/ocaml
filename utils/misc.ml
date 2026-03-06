@@ -288,35 +288,98 @@ module Utf8_lexeme = struct
 
   (* Non-ASCII letters that are allowed in identifiers (currently: Latin-9) *)
 
-  type case = Upper of Uchar.t | Lower of Uchar.t
-  let known_chars : (Uchar.t, case) Hashtbl.t = Hashtbl.create 32
+  type case = Upper of int | Lower of int
 
-  let _ =
-    List.iter
-      (fun (upper, lower) ->
-        let upper = Uchar.of_int upper and lower = Uchar.of_int lower in
-        Hashtbl.add known_chars upper (Upper lower);
-        Hashtbl.add known_chars lower (Lower upper))
-  [
-    (0xc0, 0xe0); (* À, à *)    (0xc1, 0xe1); (* Á, á *)
-    (0xc2, 0xe2); (* Â, â *)    (0xc3, 0xe3); (* Ã, ã *)
-    (0xc4, 0xe4); (* Ä, ä *)    (0xc5, 0xe5); (* Å, å *)
-    (0xc6, 0xe6); (* Æ, æ *)    (0xc7, 0xe7); (* Ç, ç *)
-    (0xc8, 0xe8); (* È, è *)    (0xc9, 0xe9); (* É, é *)
-    (0xca, 0xea); (* Ê, ê *)    (0xcb, 0xeb); (* Ë, ë *)
-    (0xcc, 0xec); (* Ì, ì *)    (0xcd, 0xed); (* Í, í *)
-    (0xce, 0xee); (* Î, î *)    (0xcf, 0xef); (* Ï, ï *)
-    (0xd0, 0xf0); (* Ð, ð *)    (0xd1, 0xf1); (* Ñ, ñ *)
-    (0xd2, 0xf2); (* Ò, ò *)    (0xd3, 0xf3); (* Ó, ó *)
-    (0xd4, 0xf4); (* Ô, ô *)    (0xd5, 0xf5); (* Õ, õ *)
-    (0xd6, 0xf6); (* Ö, ö *)    (0xd8, 0xf8); (* Ø, ø *)
-    (0xd9, 0xf9); (* Ù, ù *)    (0xda, 0xfa); (* Ú, ú *)
-    (0xdb, 0xfb); (* Û, û *)    (0xdc, 0xfc); (* Ü, ü *)
-    (0xdd, 0xfd); (* Ý, ý *)    (0xde, 0xfe); (* Þ, þ *)
-    (0x160, 0x161); (* Š, š *)  (0x17d, 0x17e); (* Ž, ž *)
-    (0x152, 0x153); (* Œ, œ *)  (0x178, 0xff); (* Ÿ, ÿ *)
-    (0x1e9e, 0xdf); (* ẞ, ß *)
-  ]
+  let get_known_char c =
+    match Uchar.to_int c with
+    | 0xc0 -> Some (Upper 0xe0) (* À *)
+    | 0xe0 -> Some (Lower 0xc0) (* à *)
+    | 0xc1 -> Some (Upper 0xe1) (* Á *)
+    | 0xe1 -> Some (Lower 0xc1) (* á *)
+
+    | 0xc2 -> Some (Upper 0xe2) (* Â *)
+    | 0xe2 -> Some (Lower 0xc2) (* â *)
+    | 0xc3 -> Some (Upper 0xe3) (* Ã *)
+    | 0xe3 -> Some (Lower 0xc3) (* ã *)
+
+    | 0xc4 -> Some (Upper 0xe4) (* Ä *)
+    | 0xe4 -> Some (Lower 0xc4) (* ä *)
+    | 0xc5 -> Some (Upper 0xe5) (* Å *)
+    | 0xe5 -> Some (Lower 0xc5) (* å *)
+
+    | 0xc6 -> Some (Upper 0xe6) (* Æ *)
+    | 0xe6 -> Some (Lower 0xc6) (* æ *)
+    | 0xc7 -> Some (Upper 0xe7) (* Ç *)
+    | 0xe7 -> Some (Lower 0xc7) (* ç *)
+
+    | 0xc8 -> Some (Upper 0xe8) (* È *)
+    | 0xe8 -> Some (Lower 0xc8) (* è *)
+    | 0xc9 -> Some (Upper 0xe9) (* É *)
+    | 0xe9 -> Some (Lower 0xc9) (* é *)
+
+    | 0xca -> Some (Upper 0xea) (* Ê *)
+    | 0xea -> Some (Lower 0xca) (* ê *)
+    | 0xcb -> Some (Upper 0xeb) (* Ë *)
+    | 0xeb -> Some (Lower 0xcb) (* ë *)
+
+    | 0xcc -> Some (Upper 0xec) (* Ì *)
+    | 0xec -> Some (Lower 0xcc) (* ì *)
+    | 0xcd -> Some (Upper 0xed) (* Í *)
+    | 0xed -> Some (Lower 0xcd) (* í *)
+
+    | 0xce -> Some (Upper 0xee) (* Î *)
+    | 0xee -> Some (Lower 0xce) (* î *)
+    | 0xcf -> Some (Upper 0xef) (* Ï *)
+    | 0xef -> Some (Lower 0xcf) (* ï *)
+
+    | 0xd0 -> Some (Upper 0xf0) (* Ð *)
+    | 0xf0 -> Some (Lower 0xd0) (* ð *)
+    | 0xd1 -> Some (Upper 0xf1) (* Ñ *)
+    | 0xf1 -> Some (Lower 0xd1) (* ñ *)
+
+    | 0xd2 -> Some (Upper 0xf2) (* Ò *)
+    | 0xf2 -> Some (Lower 0xd2) (* ò *)
+    | 0xd3 -> Some (Upper 0xf3) (* Ó *)
+    | 0xf3 -> Some (Lower 0xd3) (* ó *)
+
+    | 0xd4 -> Some (Upper 0xf4) (* Ô *)
+    | 0xf4 -> Some (Lower 0xd4) (* ô *)
+    | 0xd5 -> Some (Upper 0xf5) (* Õ *)
+    | 0xf5 -> Some (Lower 0xd5) (* õ *)
+
+    | 0xd6 -> Some (Upper 0xf6) (* Ö *)
+    | 0xf6 -> Some (Lower 0xd6) (* ö *)
+    | 0xd8 -> Some (Upper 0xf8) (* Ø *)
+    | 0xf8 -> Some (Lower 0xd8) (* ø *)
+
+    | 0xd9 -> Some (Upper 0xf9) (* Ù *)
+    | 0xf9 -> Some (Lower 0xd9) (* ù *)
+    | 0xda -> Some (Upper 0xfa) (* Ú *)
+    | 0xfa -> Some (Lower 0xda) (* ú *)
+
+    | 0xdb -> Some (Upper 0xfb) (* Û *)
+    | 0xfb -> Some (Lower 0xdb) (* û *)
+    | 0xdc -> Some (Upper 0xfc) (* Ü *)
+    | 0xfc -> Some (Lower 0xdc) (* ü *)
+
+    | 0xdd -> Some (Upper 0xfd) (* Ý *)
+    | 0xfd -> Some (Lower 0xdd) (* ý *)
+    | 0xde -> Some (Upper 0xfe) (* Þ *)
+    | 0xfe -> Some (Lower 0xde) (* þ *)
+
+    | 0x160 -> Some (Upper 0x161) (* Š *)
+    | 0x161 -> Some (Lower 0x160) (* š *)
+    | 0x17d -> Some (Upper 0x17e) (* Ž *)
+    | 0x17e -> Some (Lower 0x17d) (* ž *)
+
+    | 0x152 -> Some (Upper 0x153) (* Œ *)
+    | 0x153 -> Some (Lower 0x152) (* œ *)
+    | 0x178 -> Some (Upper 0xff) (* Ÿ *)
+    | 0xff -> Some (Lower 0x178) (* ÿ *)
+
+    | 0x1e9e -> Some (Upper 0xdf) (* ẞ *)
+    | 0xdf -> Some (Lower 0x1e9e) (* ß *)
+    | _ -> None
 
   (* NFD to NFC conversion table for the letters above *)
 
@@ -424,7 +487,7 @@ module Utf8_lexeme = struct
   let uchar_is_uppercase u =
     let c = Uchar.to_int u in
     if c < 0x80 then c >= 65 && c <= 90 else
-      match Hashtbl.find_opt known_chars u with
+      match get_known_char u with
       | Some(Upper _) -> true
       | _ -> false
 
@@ -433,8 +496,8 @@ module Utf8_lexeme = struct
     if c < 0x80 then
       if c >= 65 && c <= 90 then Uchar.of_int (c + 32) else u
     else
-      match Hashtbl.find_opt known_chars u with
-      | Some(Upper u') -> u'
+      match get_known_char u with
+      | Some(Upper u') -> Uchar.unsafe_of_int u'
       | _ -> u
 
   let uchar_uppercase u =
@@ -442,8 +505,8 @@ module Utf8_lexeme = struct
     if c < 0x80 then
       if c >= 97 && c <= 122 then Uchar.of_int (c - 32) else u
     else
-      match Hashtbl.find_opt known_chars u with
-      | Some(Lower u') -> u'
+      match get_known_char u with
+      | Some(Lower u') -> Uchar.unsafe_of_int u'
       | _ -> u
 
   let capitalize s =
@@ -473,7 +536,9 @@ module Utf8_lexeme = struct
       || c = 39 (* single quote *)
       || (with_dot && c = 46) (* dot *)
     else
-      Hashtbl.mem known_chars u
+      match get_known_char u with
+      | Some _ -> true
+      | None -> false
 
   let uchar_not_identifier_start u =
     let c = Uchar.to_int u in
