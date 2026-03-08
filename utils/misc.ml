@@ -418,38 +418,51 @@ module Utf8_lexeme = struct
     | _ -> None
 
   let normalize_generic =
-    let check d u =
-      Uchar.utf_decode_is_valid d && u <> Uchar.rep
-    in
-    let rec norm ~buf ~valid s prev i =
-      if i >= String.length s then begin
-        Buffer.add_utf_8_uchar buf prev;
-        valid
-      end else begin
-        let d = String.get_utf_8_uchar s i in
-        let u = Uchar.utf_decode_uchar d in
-        let valid = valid && check d u in
-        let i' = i + Uchar.utf_decode_length d in
-        match get_known_pair prev u with
-        | Some u' ->
-            let u' = Uchar.unsafe_of_int u' in
-            norm ~buf ~valid s u' i'
-        | None ->
-            Buffer.add_utf_8_uchar buf prev;
-            norm ~buf ~valid s u i'
-      end
+    let slow_path_outside_ascii =
+      let check d u =
+        Uchar.utf_decode_is_valid d && u <> Uchar.rep
+      in
+      let rec norm ~buf ~valid s prev i =
+        if i >= String.length s then begin
+          Buffer.add_utf_8_uchar buf prev;
+          valid
+        end else begin
+          let d = String.get_utf_8_uchar s i in
+          let u = Uchar.utf_decode_uchar d in
+          let valid = valid && check d u in
+          let i' = i + Uchar.utf_decode_length d in
+          match get_known_pair prev u with
+          | Some u' ->
+              let u' = Uchar.unsafe_of_int u' in
+              norm ~buf ~valid s u' i'
+          | None ->
+              Buffer.add_utf_8_uchar buf prev;
+              norm ~buf ~valid s u i'
+        end
+      in
+      fun ~s ~d ~u0 ~u0' ~i0 ->
+        let buf = Buffer.create (String.length s) in
+        let valid = check d u0 in
+        let valid = norm ~buf ~valid s u0' i0 in
+        let contents = Buffer.contents buf in
+        if valid then
+          Ok contents
+        else
+          Error contents
     in
     fun ?first s ->
       (* [first : Uchar.t -> Uchar.t] is an optional function to be
          applied to the first character of [s] only.*)
-      if s = "" then Ok ""
+      if String.is_empty s then Ok ""
       else
         let only_ascii = String.for_all Char.Ascii.is_valid s in
         (* get the first character of [s] *)
         let d = String.get_utf_8_uchar s 0 in
         let u0 = Uchar.utf_decode_uchar d in
         let i0 = Uchar.utf_decode_length d in
-        let u0' = match first with None -> u0 | Some transform -> transform u0 in
+        let u0' = match first with None -> u0
+                                 | Some transform -> transform u0
+        in
         if u0' = u0 && only_ascii then
           (* If the first character is unchanged by the [first] transformation,
              and the string is ascii-only, we can return it unchanged. *)
@@ -469,14 +482,7 @@ module Utf8_lexeme = struct
         end else begin
           (* Otherwise we are in the slow path where each character
              must be normalized. *)
-          let buf = Buffer.create (String.length s) in
-          let valid = check d u0 in
-          let valid = norm ~buf ~valid s u0' i0 in
-          let contents = Buffer.contents buf in
-          if valid then
-            Ok contents
-          else
-            Error contents
+          slow_path_outside_ascii ~s ~d ~u0 ~u0' ~i0
         end
 
   let normalize s =
