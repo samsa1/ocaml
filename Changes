@@ -98,7 +98,8 @@ Working version
    report by Stefan Muenzel)
 
 - #14618: optimize utf8 normalization outside of the ASCII range
-  (Stefan Muenzel, review by Gabriel Scherer)
+  (Stefan Muenzel, review by Gabriel Scherer, Daniel Bünzli, and
+   Florian Angeletti)
 
 - #14601, remove an unreachable path for unbound type variables in extension
   constructor declarations.

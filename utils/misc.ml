@@ -417,76 +417,71 @@ module Utf8_lexeme = struct
     | 's', 0x30c -> Some 0x161 (* š *)    | 'z', 0x30c -> Some 0x17e (* ž *)
     | _ -> None
 
-  let normalize_generic =
-    let slow_path_outside_ascii =
-      let check d u =
-        Uchar.utf_decode_is_valid d && u <> Uchar.rep
-      in
-      let rec norm ~buf ~valid s prev i =
-        if i >= String.length s then begin
+  let is_valid_decode_and_char decode uchar =
+    Uchar.utf_decode_is_valid decode && uchar <> Uchar.rep
+
+  let rec pair_normalize ~buf ~valid s ~prev i =
+    if i >= String.length s then begin
+      Buffer.add_utf_8_uchar buf prev;
+      valid
+    end else begin
+      let d = String.get_utf_8_uchar s i in
+      let u = Uchar.utf_decode_uchar d in
+      let valid = valid && is_valid_decode_and_char d u in
+      let i' = i + Uchar.utf_decode_length d in
+      match get_known_pair prev u with
+      | Some u' ->
+          let u' = Uchar.unsafe_of_int u' in
+          pair_normalize ~buf ~valid s ~prev:u' i'
+      | None ->
           Buffer.add_utf_8_uchar buf prev;
-          valid
-        end else begin
-          let d = String.get_utf_8_uchar s i in
-          let u = Uchar.utf_decode_uchar d in
-          let valid = valid && check d u in
-          let i' = i + Uchar.utf_decode_length d in
-          match get_known_pair prev u with
-          | Some u' ->
-              let u' = Uchar.unsafe_of_int u' in
-              norm ~buf ~valid s u' i'
-          | None ->
-              Buffer.add_utf_8_uchar buf prev;
-              norm ~buf ~valid s u i'
-        end
+          pair_normalize ~buf ~valid s ~prev:u i'
+    end
+
+  let normalize_map_first ?first s =
+    (* [first : Uchar.t -> Uchar.t] is an optional function to be
+         applied to the first character of [s] only.*)
+    if String.is_empty s then Ok ""
+    else
+      let only_ascii = String.for_all Char.Ascii.is_valid s in
+      (* get the first character of [s] *)
+      let d = String.get_utf_8_uchar s 0 in
+      let u0 = Uchar.utf_decode_uchar d in
+      let i0 = Uchar.utf_decode_length d in
+      let u0' = match first with None -> u0
+                               | Some transform -> transform u0
       in
-      fun ~s ~d ~u0 ~u0' ~i0 ->
+      if u0' = u0 && only_ascii then
+        (* If the first character is unchanged by the [first] transformation,
+           and the string is ascii-only, we can return it unchanged. *)
+        Ok s
+      else if only_ascii then begin
+        (* If the first character is changed but the rest
+           of the string is ascii-only, we can concatenate
+           the new first character with the rest. *)
+        let ulen = Uchar.utf_8_byte_length u0' in
+        let restlen = String.length s - i0 in
+        let res = Bytes.create (ulen + restlen) in
+        let ulen' = Bytes.set_utf_8_uchar res 0 u0' in
+        assert (ulen = ulen');
+        BytesLabels.blit_string
+          ~src:s ~src_pos:i0 ~dst:res ~dst_pos:ulen ~len:restlen;
+        Ok (Bytes.unsafe_to_string res)
+      end else begin
+        (* Otherwise we are in the slow path where each character
+           must be normalized. *)
         let buf = Buffer.create (String.length s) in
-        let valid = check d u0 in
-        let valid = norm ~buf ~valid s u0' i0 in
+        let valid = is_valid_decode_and_char d u0 in
+        let valid = pair_normalize ~buf ~valid s ~prev:u0' i0 in
         let contents = Buffer.contents buf in
         if valid then
           Ok contents
         else
           Error contents
-    in
-    fun ?first s ->
-      (* [first : Uchar.t -> Uchar.t] is an optional function to be
-         applied to the first character of [s] only.*)
-      if String.is_empty s then Ok ""
-      else
-        let only_ascii = String.for_all Char.Ascii.is_valid s in
-        (* get the first character of [s] *)
-        let d = String.get_utf_8_uchar s 0 in
-        let u0 = Uchar.utf_decode_uchar d in
-        let i0 = Uchar.utf_decode_length d in
-        let u0' = match first with None -> u0
-                                 | Some transform -> transform u0
-        in
-        if u0' = u0 && only_ascii then
-          (* If the first character is unchanged by the [first] transformation,
-             and the string is ascii-only, we can return it unchanged. *)
-          Ok s
-        else if only_ascii then begin
-          (* If the first character is changed but the rest
-             of the string is ascii-only, we can concatenate
-             the new first character with the rest. *)
-          let ulen = Uchar.utf_8_byte_length u0' in
-          let restlen = String.length s - i0 in
-          let res = Bytes.create (ulen + restlen) in
-          let ulen' = Bytes.set_utf_8_uchar res 0 u0' in
-          assert (ulen = ulen');
-          BytesLabels.blit_string
-            ~src:s ~src_pos:i0 ~dst:res ~dst_pos:ulen ~len:restlen;
-          Ok (Bytes.unsafe_to_string res)
-        end else begin
-          (* Otherwise we are in the slow path where each character
-             must be normalized. *)
-          slow_path_outside_ascii ~s ~d ~u0 ~u0' ~i0
-        end
+      end
 
   let normalize s =
-    normalize_generic s
+    normalize_map_first s
 
   (* Capitalization *)
 
@@ -516,10 +511,10 @@ module Utf8_lexeme = struct
       | _ -> u
 
   let capitalize s =
-    normalize_generic ~first:uchar_uppercase s
+    normalize_map_first ~first:uchar_uppercase s
 
   let uncapitalize s =
-    normalize_generic ~first:uchar_lowercase s
+    normalize_map_first ~first:uchar_lowercase s
 
   let is_capitalized s =
     s <> "" &&
