@@ -444,6 +444,7 @@ static void record_ephe_marking_done (uintnat round)
  * Returns the remaining budget.
  */
 
+static intnat mark(intnat budget);
 static intnat ephe_mark (intnat budget, uintnat round,
                          /* Forces ephemerons and their data to be alive */
                          bool force_alive)
@@ -451,6 +452,7 @@ static intnat ephe_mark (intnat budget, uintnat round,
   value* prev_linkp;
   caml_domain_state* domain_state = Caml_state;
   size_t scanned = 0, preserved = 0;
+  bool some_marking_work = false;
 
   CAMLassert(caml_marking_started());
   if (domain_state->ephe_info->cursor.round == round &&
@@ -517,6 +519,18 @@ static intnat ephe_mark (intnat budget, uintnat round,
       value data = Ephe_data(ephe);
       if (data != caml_ephe_none && Is_block(data)) {
         caml_darken (domain_state, data, 0);
+        if (!domain_state->marking_done) {
+          some_marking_work = true;
+          /* We try to mark the data fully (as budget allows); this
+             can mark the keys of some ephemerons that are later in
+             the todo list, which would otherwise have to wait for the
+             next round.
+             This is important in the happy path where ephemerons occur
+             in the list in dependency order, so a single round suffices
+             to mark all the live ones.
+          */
+          budget = mark(budget);
+        }
       }
       /* Move to 'live' list */
       Ephe_link(ephe) = domain_state->ephe_info->live;
@@ -541,6 +555,10 @@ static intnat ephe_mark (intnat budget, uintnat round,
 
   domain_state->ephe_info->cursor.round = round;
   domain_state->ephe_info->cursor.todop = prev_linkp;
+
+  if (some_marking_work) {
+    ephe_next_round ();
+  }
 
   return budget;
 }
@@ -2235,6 +2253,7 @@ mark_again:
                (budget = get_major_slice_work(mode)) > 0) {
           intnat left = ephe_mark(budget, saved_ephe_round, EPHE_MARK_DEFAULT);
           intnat work_done = budget - left;
+          work_done += mark_work_done_between_slices();
           commit_major_slice_work (work_done);
 
           // FIXME: Can we delete this?
