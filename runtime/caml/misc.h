@@ -186,14 +186,14 @@ CAMLdeprecated_typedef(addr, char *);
 
 #elif defined(_MSC_VER)
 #include <intrin.h>
-#if (defined(_M_IX86) || defined(_M_AMD64))
+#if (defined(_M_IX86) || defined(_M_AMD64)) && !defined(_M_ARM64EC)
 #define caml_prefetchr(p) \
   _mm_prefetch((char const *)(p), _MM_HINT_T0)   /* prefetcht0 */
 #define caml_prefetchw(p) \
   _mm_prefetch((char const *)(p), _MM_HINT_ENTA) /* prefetchw  */
 /* We would like to use _ET0 here, but it is not defined in Windows headers. */
 
-#elif defined(_M_ARM64)
+#elif defined(_M_ARM64) || defined(_M_ARM64EC)
 #define caml_prefetchr(p) __prefetch2((p), 0)  /* prfm pldl1keep */
 #define caml_prefetchw(p) __prefetch2((p), 16) /* prfm pstl1keep */
 #endif
