@@ -1622,7 +1622,6 @@ static intnat mark(intnat budget) {
           }
         }
       } else {
-        ephe_next_round ();
         domain_state->marking_done = 1;
         (void)caml_atomic_counter_decr(&num_domains_to_mark);
       }
@@ -2183,6 +2182,8 @@ mark_again:
       mark_work += work_done;
       commit_major_slice_work(work_done);
     }
+    if (domain_state->marking_done)
+      ephe_next_round ();
 
     if (log_events) CAML_EV_END(EV_MAJOR_MARK);
   }
@@ -2450,7 +2451,8 @@ int caml_mark_stack_is_empty(void)
 
 static void empty_mark_stack (void)
 {
-  while (!Caml_state->marking_done){
+  caml_domain_state* domain_state = Caml_state;
+  while (!domain_state->marking_done){
     /* while, not if: it is possible for caml_empty_minor_heaps_once
        to actually do a full major GC cycle, and end up returning with
        caml_marking_started false, because the next cycle has started */
@@ -2460,6 +2462,9 @@ static void empty_mark_stack (void)
       caml_empty_minor_heaps_once();
     }
     mark(1000);
+    if (domain_state->marking_done) {
+      ephe_next_round();
+    }
     caml_handle_incoming_interrupts();
   }
 
