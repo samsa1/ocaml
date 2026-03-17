@@ -33,7 +33,7 @@ Line 1, characters 0-47:
 1 | type 'a t = [`A of 'a t t] constraint 'a = 'a t;; (* fails since 4.04 *)
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The definition of "t" contains a cycle:
-         the 1st type parameter of "t" is constrained to "'a"
+         the 1st type parameter of "t" is constrained to "'a t" = "'a"
 |}];;
 type 'a t = [`A of 'a t] constraint 'a = 'a t;; (* fails since 4.04 *)
 [%%expect{|
@@ -41,7 +41,7 @@ Line 1, characters 0-45:
 1 | type 'a t = [`A of 'a t] constraint 'a = 'a t;; (* fails since 4.04 *)
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The definition of "t" contains a cycle:
-         the 1st type parameter of "t" is constrained to "'a"
+         the 1st type parameter of "t" is constrained to "'a t" = "'a"
 |}];;
 type 'a t = [`A of 'a] as 'a;;
 [%%expect{|
@@ -118,7 +118,7 @@ module PR6505a :
 Line 6, characters 13-22:
 6 | let _ = lazy PR6505a.y#bang;; (* fails *)
                  ^^^^^^^^^
-Error: This expression has type "<  >"
+Error: This expression has type "(<  >, <  >) PR6505a.abs" = "<  >"
        It has no method "bang"
 |}, Principal{|
 module PR6505a :
@@ -131,7 +131,7 @@ module PR6505a :
 Line 6, characters 13-22:
 6 | let _ = lazy PR6505a.y#bang;; (* fails *)
                  ^^^^^^^^^
-Error: This expression has type "<  >"
+Error: This expression has type "(<  >, <  >) PR6505a.abs" = "<  >"
        It has no method "bang"
 |}]
 

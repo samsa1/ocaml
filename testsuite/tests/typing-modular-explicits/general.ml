@@ -1454,7 +1454,7 @@ Line 1, characters 19-75:
 1 | let too_many_arg = iter (module Iarray) (Format.printf "%d@.") [|0;1;2|] ()
                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The function "iter" has type
-         (module M : Iter) -> ('a -> unit) -> 'a M.t -> unit
+         "(module M : Iter) -> ('b -> unit) -> 'b M.t -> unit"
        It is applied to too many arguments
 Line 1, characters 71-73:
 1 | let too_many_arg = iter (module Iarray) (Format.printf "%d@.") [|0;1;2|] ()
@@ -1472,7 +1472,7 @@ Line 1, characters 23-64:
 1 | let too_many_arg_bis = map (module Iarray) succ [| 0; 1; 2 |] ()
                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The function "map" has type
-         (module M : Map) -> ('a -> 'b) -> 'a M.t -> 'b M.t
+         "(module M : Map) -> ('c -> 'd) -> 'c M.t -> 'd M.t"
        It is applied to too many arguments
 Line 1, characters 62-64:
 1 | let too_many_arg_bis = map (module Iarray) succ [| 0; 1; 2 |] ()

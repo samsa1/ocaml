@@ -1039,17 +1039,6 @@ let is_reachable
    Note: we check that the types at the toplevel of the declaration
    are not reachable unguarded from themselves, that is, we check that
    there is no cycle going through the "root" of the declaration.
-
-   (* CR smuenzel: the below is no longer true. *)
-
-   But we *also* check that all the type sub-expressions reachable from
-   the root even those that are guarded, are themselves
-   well-founded. (So we check the absence of cycles, even for cycles
-   going through inner type subexpressions but not the root.
-
-   We are not actually sure that this "deep check" is necessary
-   (we don't have an example at hand where it is necessary), but we
-   are doing it anyway out of caution.
 *)
 let check_well_founded_decl
     ~abs_env ~final_env ~is_decl_path loc path decl =
@@ -2234,7 +2223,8 @@ module Reaching_path = struct
             i
             (Misc.ordinal_suffix i)
             Style.inline_code (Path.name path)
-            (Style.as_inline_code Out_type.prepared_type_expr) ty
+            (Printtyp.type_expansion Type)
+            (Out_type.prepare_expansion (Errortrace.trivial_expansion ty))
       | Considered_abstract path ->
           Fmt.fprintf ppf "the type %a is considered abstract"
             Style.inline_code (Path.name path)

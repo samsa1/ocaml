@@ -1335,7 +1335,7 @@ class c : object method private test : unit end
 Line 6, characters 9-16:
 6 | let () = (new c)#test
              ^^^^^^^
-Error: This expression has type "c"
+Error: This expression has type "c" = "<  >"
        It has no method "test"
 |}];;
 
@@ -1365,7 +1365,7 @@ class c : object method private test : unit end
 Line 10, characters 9-16:
 10 | let () = (new c)#test
               ^^^^^^^
-Error: This expression has type "c"
+Error: This expression has type "c" = "d"
        It has no method "test"
 |}];;
 
