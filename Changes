@@ -31,6 +31,12 @@ Working version
 - #14651: Remove S390x TSan (Thread Sanitizer) support.
   (Tim McGilchrist, review by Olivier Nicole)
 
+- #14657: optimize garbage-collection of ephemerons that contain long
+  dependency chains: we may still observe quadratic marking behavior,
+  but typically only for a single major GC cycle after the dependency
+  chain is introduced.
+  (Gabriel Scherer, review by Olivier Nicole)
+
 ### Type system:
 
 - #14512: Improve check for warning 16 (unerasable-optional-argument)
