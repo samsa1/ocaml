@@ -52,6 +52,10 @@ Working version
 
 ### Standard library:
 
+- #13554: Add `List.append_map` and `List.rev_append_map`.
+  (Sylvain Boilard and Hugo Heuzard, review by Nicolás Ojeda Bär, Daniel Bünzli,
+   Damien Doligez and Jeremy Yallop)
+
 - #14121: Add Set.S.singleton_to_elt and Map.S.singleton_to_binding
   (Vincent Laviron, review by Daniel Bünzli, Nicolás Ojeda Bär
    and Gabriel Scherer)
