@@ -39,16 +39,14 @@ and type_desc =
   | Tobject of type_expr * (Path.t * type_expr list) option ref
   | Tfield of string * field_kind * type_expr * type_expr
   | Tnil
-  | Tlink of type_expr
-  | Tsubst of type_expr * type_expr option
   | Tvariant of row_desc
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of package
   | Tfunctor of arg_label * Ident.Unscoped.t * package * type_expr
   | Texpand of type_expr * Path.t * type_expr list
-        (* NB: let's move Tlink and Tsubst (temporary nodes) to the end of
-           this definition *)
+  | Tlink of type_expr
+  | Tsubst of type_expr * type_expr option
 
 and package =
     { pack_path : Path.t;
@@ -76,8 +74,12 @@ and _ row_field_gen =
 
 and abbrev_memo =
     Mnil
-  | Mcons of private_flag * Path.t * type_expr * type_expr * abbrev_memo
-        (* NB: should use an inline record *)
+  | Mcons of
+      { privacy : private_flag;
+        path : Path.t;
+        abbreviation : type_expr;
+        expansion : type_expr;
+        rem: abbrev_memo }
   | Mlink of abbrev_memo ref
 
 and any = [`some | `none | `var]

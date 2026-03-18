@@ -111,18 +111,6 @@ type type_desc =
   | Tnil
   (** [Tnil] ==> [<...; >] *)
 
-  | Tlink of type_expr
-  (** Indirection used by unification engine. *)
-
-  | Tsubst of type_expr * type_expr option
-  (** [Tsubst] is used temporarily to store information in low-level
-      functions manipulating representation of types, such as
-      instantiation or copy.
-      The first argument contains a copy of the original node.
-      The second is available only when the first is the row variable of
-      a polymorphic variant.  It then contains a copy of the whole variant.
-      This constructor should not appear outside of these cases. *)
-
   | Tvariant of row_desc
   (** Representation of polymorphic variants, see [row_desc]. *)
 
@@ -144,6 +132,18 @@ type type_desc =
   | Texpand of type_expr * Path.t * type_expr list
   (** [Texpand] is like [Tlink] but the result of an expansion;
       [Path.t] and [type_expr list] remember the original declaration. *)
+
+  | Tlink of type_expr
+  (** Indirection used by unification engine. *)
+
+  | Tsubst of type_expr * type_expr option
+  (** [Tsubst] is used temporarily to store information in low-level
+      functions manipulating representation of types, such as
+      instantiation or copy.
+      The first argument contains a copy of the original node.
+      The second is available only when the first is the row variable of
+      a polymorphic variant.  It then contains a copy of the whole variant.
+      This constructor should not appear outside of these cases. *)
 
 (** [package] corresponds to the type of a first-class module *)
 and package =
@@ -176,11 +176,15 @@ and fixed_explanation =
 and abbrev_memo =
   | Mnil (** No known abbreviation *)
 
-  | Mcons of private_flag * Path.t * type_expr * type_expr * abbrev_memo
+  | Mcons of
+      { privacy : private_flag;
+        path : Path.t;
+        abbreviation : type_expr;
+        expansion : type_expr;
+        rem : abbrev_memo }
   (** Found one abbreviation.
       A valid abbreviation should be at least as visible and reachable by the
-      same path.
-      The first expression is the abbreviation and the second the expansion. *)
+      same path. *)
 
   | Mlink of abbrev_memo ref
   (** Abbreviations can be found after this indirection *)
