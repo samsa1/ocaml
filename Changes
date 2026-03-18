@@ -65,7 +65,7 @@ Working version
 
 - #14553: Add Array.fold_{left,right}2
   (Clément Pottier, review by Nicolás Ojeda Bär and Vincent Laviron)
- 
+
 ### Other libraries:
 
 ### Tools:
