@@ -29,7 +29,7 @@ Working version
   (Nick Barnes, review by Gabriel Scherer, Damien Doligez, and Antonin Décimo)
 
 - #14651: Remove S390x TSan (Thread Sanitizer) support.
-  (Tim McGilchrist, review by ???)
+  (Tim McGilchrist, review by Olivier Nicole)
 
 ### Type system:
 
