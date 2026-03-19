@@ -7710,7 +7710,7 @@ let report_error ~loc env = function
       funct; func_ty; res_ty; previous_arg_loc; extra_arg_loc
     } ->
       begin match get_desc func_ty with
-        Tarrow _ ->
+        Tarrow _ | Tfunctor _ ->
           let returns_unit = match get_desc res_ty with
             | Tconstr (p, _, _) -> Path.same p Predef.path_unit
             | _ -> false
