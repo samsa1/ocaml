@@ -777,10 +777,22 @@ let apply_small_annot2 (f : (module T : Typ) -> T.t -> T.t) g (module T : Typ) x
   g (module T) x
 
 [%%expect{|
+Line 2, characters 10-26:
+2 |   let _ = merge_no_mod f g in
+              ^^^^^^^^^^^^^^^^
+Warning 5 [ignored-partial-application]: this function application is partial,
+  maybe some arguments are missing.
+
 val apply_small_annot2 :
   ((module T : Typ) -> T.t -> T.t) ->
   ((module T : Typ) -> T.t -> T.t) -> (module T : Typ) -> T.t -> T.t = <fun>
 |}, Principal{|
+Line 2, characters 10-26:
+2 |   let _ = merge_no_mod f g in
+              ^^^^^^^^^^^^^^^^
+Warning 5 [ignored-partial-application]: this function application is partial,
+  maybe some arguments are missing.
+
 Line 3, characters 2-3:
 3 |   g (module T) x
       ^

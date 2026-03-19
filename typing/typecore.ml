@@ -3724,7 +3724,7 @@ let check_partial_application ~statement exp =
   let doit () =
     let ty = get_desc (expand_head exp.exp_env exp.exp_type) in
     match ty with
-    | Tarrow _ ->
+    | Tarrow _ | Tfunctor _  ->
         let rec check {exp_desc; exp_loc; exp_extra; _} =
           if List.exists (function
               | (Texp_constraint _, _, _) -> true
@@ -7504,7 +7504,7 @@ let report_literal_type_constraint const = function
 let report_partial_application = function
   | Some tr -> begin
       match get_desc tr.Errortrace.got.Errortrace.expanded with
-      | Tarrow _ ->
+      | Tarrow _ | Tfunctor _ ->
           [ Location.msg
               "@[@{<hint>Hint@}:@ This function application is partial,@ \
                maybe@ some@ arguments@ are missing.@]" ]
