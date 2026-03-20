@@ -4384,6 +4384,8 @@ and type_expect_
               (try Ctype.unify_var env (newvar2 outer_level) ty_arg
                with Unify _ -> assert false);
               lower_args (TypeSet.add ty seen) ty_fun
+          | Tfunctor (_,_,_,ty_fun) ->
+              lower_args (TypeSet.add ty seen) ty_fun
           | _ -> ()
       in
       (* one more level for warning on non-returning functions *)
