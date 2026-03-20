@@ -129,6 +129,9 @@ Working version
   constructor declarations.
   (Florian Angeletti, review by Gabriel Scherer)
 
+- #14654: Fix non-exhaustive directive rule in lexer.
+  (Antonin Décimo, review by Martin Jambon and Gabriel Scherer)
+
 ### Build system:
 
 ### Bug fixes:
