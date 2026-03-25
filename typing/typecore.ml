@@ -4043,28 +4043,27 @@ type type_function_result_param =
 
 (** lower the level of function arguments to the level of the application *)
 let lower_args outer_level env ty_fun =
-  let lower outer_level env ty =
+  let lower env ty =
     try Ctype.unify_var env (newvar2 outer_level) ty
     with Unify _ -> assert false
   in
-  let rec lower_args outer_level env seen ty_fun =
+  let rec lower_args env seen ty_fun =
     let ty = expand_head env ty_fun in
     if TypeSet.mem ty seen then () else
       match get_desc ty with
         Tarrow (_l, ty_arg, ty_fun, _com) ->
-          lower outer_level env ty_arg;
-          lower_args outer_level env (TypeSet.add ty seen) ty_fun
+          lower env ty_arg;
+          lower_args env (TypeSet.add ty seen) ty_fun
       | Tfunctor (_,id,package,ty_fun) ->
-          List.iter (fun (_,ty) -> lower outer_level env ty)
-            package.pack_constraints;
+          List.iter (fun (_,ty) -> lower env ty) package.pack_constraints;
           let env, ty_fun =
             open_tfunctor ~loc:Location.none env id package ty_fun
           in
-          lower_args outer_level env (TypeSet.add ty seen) ty_fun
+          lower_args env (TypeSet.add ty seen) ty_fun
       | _ -> ()
   in
   let ty = instance ty_fun in
-  wrap_trace_gadt_instances env (lower_args outer_level env TypeSet.empty) ty
+  wrap_trace_gadt_instances env (lower_args env TypeSet.empty) ty
 
 (* Generalize expressions *)
 let may_lower_contravariant env exp =
