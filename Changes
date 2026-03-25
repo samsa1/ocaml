@@ -23,9 +23,10 @@ Working version
   symbols from the runtime. The declarations were removed in 5.0.
   (Antonin Décimo, review by Nicolás Ojeda Bär)
 
-- #14570: Distinguish between prefetching for read and write access in the
-  runtime. Significant performance benefit for some multi-domain programs. For
-  maximum benefit on AMD64, pass -mprfchw to the C compiler.
+- #14570, #14616: Distinguish between prefetching for read and write access in
+  the runtime. Significant performance benefit for some multi-domain
+  programs. For maximum benefit on AMD64, pass `-mprfchw` or `-march=native` to
+  the C compiler.
   (Nick Barnes, review by Gabriel Scherer, Damien Doligez, and Antonin Décimo)
 
 - #14651: Remove S390x TSan (Thread Sanitizer) support.
@@ -35,7 +36,12 @@ Working version
   dependency chains: we may still observe quadratic marking behavior,
   but typically only for a single major GC cycle after the dependency
   chain is introduced.
-  (Gabriel Scherer, review by Olivier Nicole)
+  (Gabriel Scherer, review by Olivier Nicole and Damien Doligez)
+
+- #14292: The value returned by `Hashtbl.is_randomized` is now reflected in the
+  `R` parameter of `Sys.runtime_parameters`.
+  (Antonin Décimo, David Allsopp, Hannes Mehnert, review by
+   Nicolás Ojeda Bär)
 
 ### Type system:
 
@@ -58,15 +64,23 @@ Working version
 
 ### Standard library:
 
+- #13554: Add `List.append_map` and `List.rev_append_map`.
+  (Sylvain Boilard and Hugo Heuzard, review by Nicolás Ojeda Bär, Daniel Bünzli,
+   Damien Doligez and Jeremy Yallop)
+
+- #14121: Add Set.S.singleton_to_elt and Map.S.singleton_to_binding
+  (Vincent Laviron, review by Daniel Bünzli, Nicolás Ojeda Bär
+   and Gabriel Scherer)
+
+- #14380: Add Atomic.Array.
+  (Clément Allain and Gabriel Scherer, review by Olivier Nicole
+   and Léo Andrès for the stdlib team)
+
 - #14487: Add String.drop_{prefix,suffix}
   (Michael Neumann, review by Léo Andrès, Nicolás Ojeda Bär and Gabriel Scherer)
 
 - #14553: Add Array.fold_{left,right}2
   (Clément Pottier, review by Nicolás Ojeda Bär and Vincent Laviron)
-
-- #14121: Add Set.S.singleton_to_elt and Map.S.singleton_to_binding
-  (Vincent Laviron, review by Daniel Bünzli, Nicolás Ojeda Bär
-   and Gabriel Scherer)
 
 ### Other libraries:
 
@@ -121,6 +135,9 @@ Working version
 - #14601, remove an unreachable path for unbound type variables in extension
   constructor declarations.
   (Florian Angeletti, review by Gabriel Scherer)
+
+- #14654: Fix non-exhaustive directive rule in lexer.
+  (Antonin Décimo, review by Martin Jambon and Gabriel Scherer)
 
 ### Build system:
 
@@ -566,6 +583,10 @@ OCaml 5.5.0
 
 - #14392: Fix AsciiDoc files, add more markup, xrefs, documentation.
   (Antonin Décimo, review by Gabriel Scherer and David Allsopp)
+
+- #13590: Document automatic command-line expansion of `*` and `?` wildcards by
+  the runtime under Windows.
+  (Benjamin Sigonneau, review by Nicolás Ojeda Bär)
 
 ### Compiler user-interface and warnings:
 
@@ -2515,6 +2536,9 @@ OCaml 5.2.0 (13 May 2024)
   some API changes in Gc.Memprof.
   (Nick Barnes, review by Jacques-Henri Jourdan
    and Guillaume Munch-Maccagnoni).
+
+- #12023: Deprecate Gc.stat
+  (Damien Doligez, review by Gabriel Scherer and Jeremy Yallop)
 
 - #12430: Simplify dynamic bytecode loading in Meta.reify_bytecode
   (Stephen Dolan, review by Sébastien Hinderer, Vincent Laviron and Xavier
