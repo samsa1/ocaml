@@ -49,10 +49,6 @@ class d = object(self : 'self)
   method n (o : 'self) : string = o#m
   method m = 0
 end
-
-let o = new d
-
-let () = print_endline (o#n o)
 [%%expect{|
 class ['a] c : object ('a) constraint 'a = < .. > end
 Line 5, characters 12-17:
@@ -61,7 +57,6 @@ Line 5, characters 12-17:
 Error: The type parameter "< .. >" does not meet its constraint: it should be
          "< .. >"
        Self type cannot escape its class
-Unexecuted phrases: 2 phrases did not execute due to an error
 |}]
 
 class d = object(self : 'self)
@@ -70,17 +65,12 @@ class d = object(self : 'self)
   method n (o : 'self) : string = o#m
   method m = 0
 end
-
-let o = new d
-
-let () = print_endline (o#n o)
 [%%expect{|
 Line 4, characters 34-37:
 4 |   method n (o : 'self) : string = o#m
                                       ^^^
 Error: The method call "o#m" has type "int"
        but an expression was expected of type "string"
-Unexecuted phrases: 2 phrases did not execute due to an error
 |}]
 
 class d = object(self : 'self)
