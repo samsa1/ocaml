@@ -1212,8 +1212,9 @@ and class_expr_aux cl_num final val_env met_env virt self_scope scl =
   | Pcl_apply (scl', sargs) ->
       assert (sargs <> []);
       let cl =
-        Ctype.with_local_level_generalize_structure_if_principal
-          (fun () -> class_expr cl_num final val_env met_env virt self_scope scl')
+        Ctype.with_local_level_generalize_structure_if_principal (fun () ->
+            class_expr cl_num final val_env met_env virt self_scope scl'
+          )
       in
       let rec nonopt_labels ls ty_fun =
         match ty_fun with
