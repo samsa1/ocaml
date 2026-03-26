@@ -907,6 +907,9 @@ OCaml 5.5.0
   (Vincent Laviron, report by Thibaut Mattio,
    review by Nicolás Ojeda Bär, Stephen Dolan and Olivier Nicole)
 
+- #14667: enable application related warnings for module-dependent functions
+  (Florian Angeletti, review by Gabriel Scherer)
+
 OCaml 5.4.0 (9 October 2025)
 ----------------------------
 
