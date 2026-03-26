@@ -323,17 +323,6 @@ static uintnat sweep_work_done_between_slices(void)
  * marked, and data values if they have any unmarked keys). Ephemeron
  * sweeping cannot mark blocks so does not need to take place in
  * rounds.
- *
- * Remark: if the data of ephemeron A is found to be alive before the
- * data of ephemeron B in the current major GC cycle, then A will
- * occur before B in the todo list for the next cycle. In other words,
- * ephemerons dynamically get sorted in dependency order, which
- * reduces the number of rounds necessary.
- * In the details, this dependency order is preserved because
- * `ephe_mark()` pushes the element of `todo` into `live`, which
- * reverses their order, but then `ephe_sweep()` moves `live` into
- * `todo` and pushes them into `live` again, which reverses their
- * order a second time.
 */
 
 extern value caml_ephe_none; /* See weak.c */
@@ -455,7 +444,6 @@ static void record_ephe_marking_done (uintnat round)
  * Returns the remaining budget.
  */
 
-static intnat mark(intnat budget);
 static intnat ephe_mark (intnat budget, uintnat round,
                          /* Forces ephemerons and their data to be alive */
                          bool force_alive)
@@ -463,7 +451,6 @@ static intnat ephe_mark (intnat budget, uintnat round,
   value* prev_linkp;
   caml_domain_state* domain_state = Caml_state;
   size_t scanned = 0, preserved = 0;
-  bool some_marking_work = false;
 
   CAMLassert(caml_marking_started());
   if (domain_state->ephe_info->cursor.round == round &&
@@ -531,18 +518,6 @@ static intnat ephe_mark (intnat budget, uintnat round,
       value data = Ephe_data(ephe);
       if (data != caml_ephe_none && Is_block(data)) {
         caml_darken (domain_state, data, 0);
-        if (!domain_state->marking_done) {
-          some_marking_work = true;
-          /* We try to mark the data fully (as budget allows); this
-             can mark the keys of some ephemerons that are later in
-             the todo list, which would otherwise have to wait for the
-             next round.
-             This is important in the happy path where ephemerons occur
-             in the list in dependency order, so a single round suffices
-             to mark all the live ones.
-          */
-          budget = mark(budget);
-        }
       }
       /* Move to 'live' list */
       Ephe_link(ephe) = domain_state->ephe_info->live;
@@ -567,10 +542,6 @@ static intnat ephe_mark (intnat budget, uintnat round,
 
   domain_state->ephe_info->cursor.round = round;
   domain_state->ephe_info->cursor.todop = prev_linkp;
-
-  if (some_marking_work) {
-    ephe_next_round ();
-  }
 
   return budget;
 }
@@ -1652,6 +1623,7 @@ static intnat mark(intnat budget) {
           }
         }
       } else {
+        ephe_next_round ();
         domain_state->marking_done = 1;
         (void)caml_atomic_counter_decr(&num_domains_to_mark);
       }
@@ -2212,8 +2184,6 @@ mark_again:
       mark_work += work_done;
       commit_major_slice_work(work_done);
     }
-    if (domain_state->marking_done)
-      ephe_next_round ();
 
     if (log_events) CAML_EV_END(EV_MAJOR_MARK);
   }
@@ -2265,7 +2235,6 @@ mark_again:
                (budget = get_major_slice_work(mode)) > 0) {
           intnat left = ephe_mark(budget, saved_ephe_round, EPHE_MARK_DEFAULT);
           intnat work_done = budget - left;
-          work_done += mark_work_done_between_slices();
           commit_major_slice_work (work_done);
 
           // FIXME: Can we delete this?
@@ -2482,8 +2451,7 @@ int caml_mark_stack_is_empty(void)
 
 static void empty_mark_stack (void)
 {
-  caml_domain_state* domain_state = Caml_state;
-  while (!domain_state->marking_done){
+  while (!Caml_state->marking_done){
     /* while, not if: it is possible for caml_empty_minor_heaps_once
        to actually do a full major GC cycle, and end up returning with
        caml_marking_started false, because the next cycle has started */
@@ -2493,9 +2461,6 @@ static void empty_mark_stack (void)
       caml_empty_minor_heaps_once();
     }
     mark(1000);
-    if (domain_state->marking_done) {
-      ephe_next_round();
-    }
     caml_handle_incoming_interrupts();
   }
 
