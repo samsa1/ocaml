@@ -14,12 +14,14 @@
 .\"**************************************************************************
 .\"
 .TH OCAMLOPT 1
-
+.\"*****
 .SH NAME
-
+.\"*****
 ocamlopt \- The OCaml native-code compiler
-
+.
+.\"*********
 .SH SYNOPSIS
+.\"*********
 .SY ocamlopt
 .RI [ options ]
 .IR filename ...
@@ -27,8 +29,10 @@ ocamlopt \- The OCaml native-code compiler
 .RI [ options ]
 .IR filename ...
 .YS
-
+.
+.\"************
 .SH DESCRIPTION
+.\"************
 The OCaml high-performance
 native-code compiler
 .BR ocamlopt (1)
@@ -78,7 +82,7 @@ should always be referred to under the name
 (when given a .o file,
 .BR ocamlopt (1)
 assumes that it contains code compiled from C, not from OCaml).
-
+.IP
 The implementation is checked against the interface file
 .IR x .mli
 (if it exists) as described in the manual for
@@ -137,9 +141,10 @@ Thus, it behaves exactly like
 but compiles faster.
 .B ocamlopt.opt
 is not available in all installations of OCaml.
-
+.
+.\"********
 .SH OPTIONS
-
+.\"********
 The following command-line options are recognized by
 .BR ocamlopt (1).
 .TP
@@ -149,7 +154,7 @@ files) given on the command line, instead of linking them into an
 executable file. The name of the library must be set with the
 .B \-o
 option.
-
+.IP
 If
 .BR \-cclib " or " \-ccopt
 options are passed on the command
@@ -242,7 +247,6 @@ the default setting is
 and the current heuristic
 checks that the "TERM" environment variable exists and is
 not empty or "dumb", and that isatty(stderr) holds.
-
 .TP
 .BI \-error\-style " mode"
 Control the way error messages and warnings are printed.
@@ -259,11 +263,10 @@ to the location of the error.
 .IP
 The default setting is
 .B contextual.
-
+.IP
 The environment variable "OCAML_ERROR_STYLE" is considered if
 \-error\-style is not provided. Its values are short/contextual as
 above.
-
 .TP
 .B \-compact
 Optimize the produced code for space rather than for time. This
@@ -332,7 +335,7 @@ are searched after the current directory, in the order in which they
 were given on the command line, but before the standard library
 directory. See also option
 .BR \-nostdlib .
-
+.IP
 If the given directory starts with
 .BR + ,
 it is taken relative to the
@@ -532,14 +535,14 @@ compilation unit having three sub-modules A, B and C,
 corresponding to the contents of the object files A.cmx, B.cmx and
 C.cmx.  These contents can be referenced as P.A, P.B and P.C
 in the remainder of the program.
-
+.IP
 The .cmx object files being combined must have been compiled with
 the appropriate
 .B \-for\-pack
 option.  In the example above,
 A.cmx, B.cmx and C.cmx must have been compiled with
 .BR ocamlopt\ \-for\-pack\ P .
-
+.IP
 Multiple levels of packing can be achieved by combining
 .B \-pack
 with
@@ -736,13 +739,13 @@ sign (or an uppercase letter) marks the corresponding warnings as fatal, a
 sign (or a lowercase letter) turns them back into non-fatal warnings, and a
 .B @
 sign both enables and marks as fatal the corresponding warnings.
-
+.IP
 Note: it is not recommended to use the
 .B \-warn\-error
 option in production code, because it will almost certainly prevent
 compiling your program with later versions of OCaml when they add new
 warnings or modify existing warnings.
-
+.IP
 The default setting is
 .B \-warn\-error \-a
 (no warning is fatal).
@@ -767,9 +770,10 @@ as a file name, even if it starts with a dash (-) character.
 .TP
 .BR \-help " or " \-\-help
 Display a short usage summary and exit.
-
+.
+.\"***********************************
 .SH OPTIONS FOR THE FLAMBDA MIDDLE-END
-
+.\"***********************************
 When the Flambda code generator has been enabled at configuration time,
 its behavior may be tuned up with the following additional options:
 .TP
@@ -790,9 +794,10 @@ compilation times and code that probably runs rather slower.
 .B \-inlining-report
 Emit .inlining files (one per round of optimisation) showing all of the
 inliner's decisions.
-
+.
+.\"***********************************
 .SH OPTIONS FOR THE AMD64 ARCHITECTURE
-
+.\"***********************************
 The AMD64 code generator (64-bit versions of Intel Pentium and AMD
 Athlon) supports the following additional options:
 .TP
@@ -801,8 +806,10 @@ Generate position-independent machine code.  This is the default.
 .TP
 .B \-fno\-PIC
 Generate position-dependent machine code.
-
+.
+.\"*********
 .SH SEE ALSO
+.\"*********
 .BR ocamlc (1).
 .br
 .IR The\ OCaml\ user's\ manual ,
