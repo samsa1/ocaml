@@ -1144,6 +1144,12 @@ AS_CASE([$ocaml_cc_vendor],
     internal_cflags="$cc_warnings"],
   [common_cflags="-O"])
 
+# Enable the prefetchw instruction on x86 and x86_64.
+AS_CASE([$target],
+  [i686*|x86_64*],
+    [AX_CHECK_COMPILE_FLAG([-mprfchw],
+      [internal_cflags="$internal_cflags -mprfchw"], [], [$warn_error_flag])])
+
 # Enable SSE2 on x86 mingw to avoid using 80-bit registers.
 # Enable 64-bit time_t in time.h
 AS_CASE([$target],
