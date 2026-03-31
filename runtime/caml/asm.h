@@ -78,6 +78,7 @@
 
 #define DW_CFA_def_cfa_expression 0x0f
 #define DW_CFA_val_expression     0x16
+#define DW_CFA_val_offset         0x14
 #define DW_OP_breg                0x70
 #define DW_OP_deref               0x06
 #define DW_OP_plus_uconst         0x23

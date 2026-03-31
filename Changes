@@ -146,6 +146,11 @@ Working version
 - #14492: Fix Obj.dup on closures.
   (Mark Shinwell and Nick Barnes, review by Gabriel Scherer and Damien Doligez)
 
+- #14500: Fix CFI information emitted for s390x architecture. This helps
+  debuggers to unwind the stack correctly and print accurate backtraces
+  for OCaml code.
+  (Tim McGilchrist, review by Miod Vallat, Zane Hambly and Olivier Nicole)
+
 OCaml 5.5.0
 -----------
 
