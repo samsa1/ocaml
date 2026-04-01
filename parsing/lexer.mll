@@ -339,23 +339,24 @@ let check_label_name ?(raw_escape=false) lexbuf name =
 
 (* Update the current location with file name and line number. *)
 
-let update_loc_ lexbuf ~absolute ~file ~lines ~chars =
+(* [chars] is the number of characters between the beginning of the
+   line and the current position. *)
+let update_loc lexbuf ~lines ~chars =
   let pos = lexbuf.lex_curr_p in
-  let new_file = match file with
-                 | None -> pos.pos_fname
-                 | Some s -> s
-  in
   lexbuf.lex_curr_p <- { pos with
-    pos_fname = new_file;
-    pos_lnum = if absolute then lines else pos.pos_lnum + lines;
+    pos_lnum = pos.pos_lnum + lines;
     pos_bol = pos.pos_cnum - chars;
   }
 
+(* This should only be called on the beginning of a new line --
+   otherwise we would add a [chars] parameter like [update_loc]. *)
 let set_loc lexbuf ~file ~line =
-  update_loc_ lexbuf ~absolute:true ~file:(Some file) ~lines:line ~chars:0
-
-let update_loc lexbuf ~lines ~chars =
-  update_loc_ lexbuf ~absolute:false ~file:None ~lines ~chars
+  let pos = lexbuf.lex_curr_p in
+  lexbuf.lex_curr_p <- { pos with
+    pos_fname = file;
+    pos_lnum = line;
+    pos_bol = pos.pos_cnum;
+  }
 
 let preprocessor = ref None
 
