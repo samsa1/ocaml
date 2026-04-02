@@ -234,6 +234,7 @@ CAMLexport void caml_shutdown(void)
   call_registered_value("Pervasives.do_at_exit");
   call_registered_value("Thread.at_shutdown");
   if (!caml_domain_alone()) {
+    caml_set_domains_exiting();
     /* Give up on cleanup on shutdown */
     if (caml_runtime_warnings_active()) {
       fprintf(stderr,
