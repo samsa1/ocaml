@@ -23,6 +23,11 @@ Working version
   symbols from the runtime. The declarations were removed in 5.0.
   (Antonin Décimo, review by Nicolás Ojeda Bär)
 
+- #14642: Ignore cleanup-at-exit / caml_shutdown when other domains remain
+  running
+  (Gabriel Scherer and Olivier Nicole, report by Olivier Nicole, review by Miod
+   Vallat and Damien Doligez)
+
 - #14570, #14616, #14665: Distinguish between prefetching for read and write
   access in the runtime. Significant performance benefit for some multi-domain
   programs.
