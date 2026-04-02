@@ -937,6 +937,11 @@ OCaml 5.5.0
 - #14667: enable application related warnings for module-dependent functions
   (Florian Angeletti, review by Gabriel Scherer)
 
+- #14702: Fix hidden directory files leaking into the visible load path table.
+  When a hidden directory contained a file whose basename was already present,
+  the file could be incorrectly added to the visible table.
+  (Hugo Heuzard, review by Florian Angeletti)
+
 OCaml 5.4.0 (9 October 2025)
 ----------------------------
 
