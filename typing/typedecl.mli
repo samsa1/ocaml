@@ -129,6 +129,8 @@ type error =
   | Invalid_private_row_declaration of type_expr
   | Atomic_field_must_be_mutable of string
   | External_with_non_syntactic_arity
+  | Primitive_alias_does_not_refer_to_primitive of value_kind
+  | Primitive_type_mismatch of Env.t * Errortrace.unification_error
 
 exception Error of Location.t * error
 

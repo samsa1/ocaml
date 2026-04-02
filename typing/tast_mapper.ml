@@ -202,9 +202,14 @@ let value_description sub x =
 let primitive_description sub x =
   let prim_loc = sub.location sub x.prim_loc in
   let prim_name = map_loc sub x.prim_name in
-  let prim_desc = sub.typ sub x.prim_desc in
+  let prim_kind =
+    match x.prim_kind with
+    | Tprim_decl (typ, prim) -> Tprim_decl (sub.typ sub typ, prim)
+    | Tprim_alias (typ, path, lid) ->
+      Tprim_alias (Option.map (sub.typ sub) typ, path, map_loc_lid sub lid)
+  in
   let prim_attributes = sub.attributes sub x.prim_attributes in
-  {x with prim_loc; prim_name; prim_desc; prim_attributes}
+  {x with prim_loc; prim_name; prim_kind; prim_attributes}
 
 let label_decl sub x =
   let ld_loc = sub.location sub x.ld_loc in

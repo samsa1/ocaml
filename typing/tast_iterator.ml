@@ -177,7 +177,12 @@ let primitive_description sub x =
   sub.location sub x.prim_loc;
   sub.attributes sub x.prim_attributes;
   iter_loc sub x.prim_name;
-  sub.typ sub x.prim_desc
+  match x.prim_kind with
+  | Tprim_decl (typ, _)->
+    sub.typ sub typ
+  | Tprim_alias (typ, _, lid) ->
+    Option.iter (sub.typ sub) typ;
+    iter_loc_lid sub lid
 
 let label_decl sub ({ld_loc; ld_name; ld_type; ld_attributes; _} as ld) =
   sub.item_declaration sub (Label ld);

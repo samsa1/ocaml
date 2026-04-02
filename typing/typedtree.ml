@@ -531,12 +531,15 @@ and value_description =
 and primitive_description =
   { prim_id: Ident.t;
     prim_name: string loc;
-    prim_desc: core_type;
+    prim_kind: primitive_kind;
     prim_val: Types.value_description;
-    prim_prim: string list;
     prim_loc: Location.t;
     prim_attributes: attributes;
   }
+
+and primitive_kind =
+  | Tprim_decl of core_type * string list
+  | Tprim_alias of core_type option * Path.t * Longident.t loc
 
 and type_declaration =
   { typ_id: Ident.t;

@@ -206,10 +206,12 @@ let value_description sub v =
 let primitive_description sub p =
   let loc = sub.location sub p.prim_loc in
   let attrs = sub.attributes sub p.prim_attributes in
-  Prim.mk ~loc ~attrs
-    ~prim:p.prim_prim
-    (map_loc sub p.prim_name)
-    (sub.typ sub p.prim_desc)
+  let name = map_loc sub p.prim_name in
+  match p.prim_kind with
+  | Tprim_decl (typ, prim) ->
+    Prim.mk_decl ~loc ~attrs ~prim name (sub.typ sub typ)
+  | Tprim_alias (typ, _, lid) ->
+    Prim.mk_alias ~loc ~attrs name (Option.map (sub.typ sub) typ) lid
 
 let module_binding sub mb =
   let loc = sub.location sub mb.mb_loc in

@@ -175,7 +175,8 @@ and core_type_desc =
            - As the {{!value_description.pval_type}[pval_type]} field of a
            {!value_description}.
 
-           - As the {{!primitive_description.pprim_type}[pprim_type]} field of a
+           - As the {!core_type} in the
+           {{!primitive_description.pprim_kind}[pprim_kind]} field of a
            {!primitive_description}.
          *)
   | Ptyp_package of package_type  (** [(module S)]. *)
@@ -539,14 +540,24 @@ and value_description =
 and primitive_description =
   {
     pprim_name: string loc;
-    pprim_type: core_type;
-    pprim_prim: string list;
+    pprim_kind: primitive_kind;
     pprim_attributes: attributes;
     pprim_loc: Location.t
   }
-(** Values of type {!primitive_description} represent
-    [external x: T = "s1" ... "sn"] with
-    {{!primitive_description.pprim_prim}[pprim_prim]} being [["s1";..."sn"]]. *)
+(** Values of type {!primitive_description} represent:
+  - [external x: T = "s1" ... "sn"] when
+    {{!primitive_description.pprim_kind}[pprim_kind]} is
+    [Pprim_decl (T, ["s1";..."sn"])].
+  - [external x: T = M.y] when {{!primitive_description.pprim_kind}[pprim_kind]}
+    is [Pprim_alias (Some T, M.y)]
+  - [external x = M.y] when {{!primitive_description.pprim_kind}[pprim_kind]}
+    is [Pprim_alias (None, M.y)]
+*)
+
+and primitive_kind =
+  | Pprim_decl of core_type * string list
+  | Pprim_alias of core_type option * Longident.t loc
+(** See the comment on {{!primitive_description}[primitive_description]}. *)
 
 (** {2 Type declarations} *)
 
@@ -931,7 +942,9 @@ and signature_item_desc =
   | Psig_value of value_description
       (** [val x: T] *)
   | Psig_primitive of primitive_description
-      (** [external x: T = "s1" ... "sn"] *)
+      (** - [external x: T = "s1" ... "sn" ]
+          - [external x = y]
+          - [external x: T = y] *)
   | Psig_type of rec_flag * type_declaration list
       (** [type t1 = ... and ... and tn  = ...] *)
   | Psig_typesubst of type_declaration list
@@ -1082,7 +1095,9 @@ and structure_item_desc =
   | Pstr_val of value_description
       (** [val x: T] *)
   | Pstr_primitive of primitive_description
-      (** [external x: T = "s1" ... "sn" ] *)
+      (** - [external x: T = "s1" ... "sn" ]
+          - [external x = y]
+          - [external x: T = y] *)
   | Pstr_type of rec_flag * type_declaration list
       (** [type t1 = ... and ... and tn = ...] *)
   | Pstr_typext of type_extension  (** [type t1 += ...] *)

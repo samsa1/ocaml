@@ -496,8 +496,18 @@ and primitive_description i ppf x =
   line i ppf "primitive_description %a %a\n" fmt_ident x.prim_id fmt_location
        x.prim_loc;
   attributes i ppf x.prim_attributes;
-  core_type (i+1) ppf x.prim_desc;
-  list (i+1) string ppf x.prim_prim
+  let i = i + 1 in
+  match x.prim_kind with
+  | Tprim_decl (typ, prim) ->
+    line i ppf "Tprim_decl\n";
+    let i = i + 1 in
+    core_type i ppf typ;
+    list i string ppf prim
+  | Tprim_alias (typ, path, _) ->
+    line i ppf "Tprim_alias\n";
+    let i = i + 1 in
+    option i core_type ppf typ;
+    line i ppf "%a\n" fmt_path path
 
 and binding_op i ppf x =
   line i ppf "binding_op %a %a\n" fmt_path x.bop_op_path
