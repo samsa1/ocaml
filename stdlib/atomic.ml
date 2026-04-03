@@ -129,7 +129,7 @@ module Loc = struct
     let rec loop ~backoff f t =
       let v_old = get t in
       let v_new = f v_old in
-      if compare_and_set t v_old v_new
+      if v_old == v_new || compare_and_set t v_old v_new
       then ()
       else loop ~backoff:(Backoff.once backoff) f t
     in loop ~backoff:Backoff.default f t

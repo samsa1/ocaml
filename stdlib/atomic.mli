@@ -74,6 +74,9 @@ val decr : int t -> unit
     current value, sets this new value or retries (calling [f] again)
     if [r] was concurrently changed to a physically different value.
 
+    Remark: no [set] is performed when [f] returns a value that is
+    physically equal to its input, the update terminates immediately.
+
     Example:
 {[
 let global_list = Atomic.make []
