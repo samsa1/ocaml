@@ -281,7 +281,7 @@ external record_backtrace: bool -> unit = "caml_record_backtrace"
 external backtrace_status: unit -> bool = "caml_backtrace_status"
 
 let register_printer fn =
-  Atomic.modify (List.cons fn) printers
+  Atomic.update (List.cons fn) printers
 
 external get_callstack: int -> raw_backtrace = "caml_get_current_callstack"
 

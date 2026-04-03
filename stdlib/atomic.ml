@@ -125,7 +125,7 @@ module Loc = struct
   let decr t =
     ignore (fetch_and_add t (-1))
 
-  let modify f t =
+  let update f t =
     let rec loop ~backoff f t =
       let v_old = get t in
       let v_new = f v_old in
@@ -160,8 +160,8 @@ let incr t =
 let decr t =
   Loc.decr [%atomic.loc t.contents]
 
-let modify f t =
-  Loc.modify f [%atomic.loc t.contents]
+let update f t =
+  Loc.update f [%atomic.loc t.contents]
 
 module Array = struct
   type !'a t =
@@ -215,11 +215,11 @@ module Array = struct
     check_array_bound t i;
     unsafe_fetch_and_add t i incr
 
-  let[@inline] unsafe_modify f t i =
-    Loc.modify f (unsafe_index t i)
-  let[@inline] modify f t i =
+  let[@inline] unsafe_update f t i =
+    Loc.update f (unsafe_index t i)
+  let[@inline] update f t i =
     check_array_bound t i;
-    unsafe_modify f t i
+    unsafe_update f t i
 
   let make len v =
     if len < 0 then

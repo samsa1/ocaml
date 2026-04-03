@@ -40,7 +40,7 @@ let () =
 
 let () =
   let r = Atomic.make 1 in
-  Atomic.modify (fun i ->
+  Atomic.update (fun i ->
     begin
       (* simulate concurrent modifications *)
       if i < 10 then Atomic.incr r;

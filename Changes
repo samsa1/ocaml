@@ -95,7 +95,7 @@ Working version
 ### Standard library:
 
 - #10798: Atomic helper function
-    modify : ('a -> 'a) -> 'a t -> unit
+    update : ('a -> 'a) -> 'a t -> unit
   (Gabriel Scherer, review by Simon Cruanes, Stephen Dolan,
    Xavier Leroy, Guillaume Munch-Maccagnoni, Vesa Karvonen,
    Noah Bogart, Léo Andrès and Olivier Nicole)

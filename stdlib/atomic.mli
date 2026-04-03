@@ -70,19 +70,19 @@ val incr : int t -> unit
 (** [decr r] atomically decrements the value of [r] by [1]. *)
 val decr : int t -> unit
 
-(** [modify f r] computes a new value for [r] by applying [f] to its
+(** [update f r] computes a new value for [r] by applying [f] to its
     current value, sets this new value or retries (calling [f] again)
     if [r] was concurrently changed to a physically different value.
 
     Example:
 {[
 let global_list = Atomic.make []
-let global_push elem = Atomic.modify (List.cons elem) global_list
+let global_push elem = Atomic.update (List.cons elem) global_list
 ]}
 
     @since 5.6
 *)
-val modify : ('a -> 'a) -> 'a t -> unit
+val update : ('a -> 'a) -> 'a t -> unit
 
 (** Atomic "locations", such as record fields.
 
@@ -110,7 +110,7 @@ module Loc : sig
   external fetch_and_add : int t -> int -> int = "%atomic_fetch_add_loc"
   val incr : int t -> unit
   val decr : int t -> unit
-  val modify : ('a -> 'a) -> 'a t -> unit
+  val update : ('a -> 'a) -> 'a t -> unit
 end
 
 
@@ -155,9 +155,9 @@ module Array : sig
   val fetch_and_add :
     int t -> int -> int -> int
 
-  val unsafe_modify :
+  val unsafe_update :
     ('a -> 'a) -> 'a t -> int -> unit
-  val modify :
+  val update :
     ('a -> 'a) -> 'a t -> int -> unit
 end
 
@@ -264,9 +264,9 @@ end
     ]}
 
     The simple retry-loop pattern of [push] can be expressed
-    with {!Atomic.modify} instead:
+    with {!Atomic.update} instead:
 
     {[
-    let push stack elt = Atomic.modify (fun li -> elt :: li) stack
+    let push stack elt = Atomic.update (fun li -> elt :: li) stack
     ]}
   *)
