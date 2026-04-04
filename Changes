@@ -122,6 +122,10 @@ Working version
   `macosx` to match the configure-time choice.
   (Tim McGilchrist, review by Gabriel Scherer and Antonin Décimo)
 
+- #12418, #14713: ocamltest, 'cold' predicate to mark tests
+  that it would be okay to run only rarely.
+  (Gabriel Scherer)
+
 ### Manual and documentation:
 
 - #14598: Add `@since` annotations to `Runtime_events`. (Raphaël Proust)
