@@ -291,6 +291,27 @@ let not_root = make
     "current user is not root"
     "current user is root")
 
+let cold =
+  let cold_default =
+    (* cold tests are enabled by default *)
+    true in
+  let cold_tests_enabled = match Sys.getenv_opt "OCAMLTEST_COLD_TESTS" with
+    | None -> cold_default
+    | Some "1" -> true
+    | Some "0" -> false
+    | Some s ->
+      Printf.eprintf
+        "Unknown value '%s' for OCAMLTEST_COLD_TESTS, expected '0' or '1'.\n%!"
+        s;
+      cold_default
+  in
+  make
+    ~name:"cold"
+    ~description:"Pass when 'cold' tests are enabled (OCAMLTEST_COLD_TESTS=1)"
+    (Actions_helpers.pass_or_skip cold_tests_enabled
+       "cold tests enabled"
+       "cold tests disabled")
+
 let setup_build_env = make
   ~name:"setup-build-env"
   ~description:"Create a dedicated directory for the test and populates it"
@@ -411,6 +432,7 @@ let _ =
     arch64;
     has_symlink;
     not_root;
+    cold;
     setup_build_env;
     setup_simple_build_env;
     run;
