@@ -141,7 +141,7 @@ Working version
 
 - #12418, #14713: ocamltest, 'cold' predicate to mark tests
   that it would be okay to run only rarely.
-  (Gabriel Scherer)
+  (Gabriel Scherer, review by Florian Angeletti)
 
 ### Manual and documentation:
 
