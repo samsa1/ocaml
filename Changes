@@ -49,6 +49,20 @@ Working version
 
 ### Type system:
 
+* #11648: Keep expansion and new well-foundedness check implementation.
+  Do expansion in place during unification, rather than only memoizing it
+  in a temporary cache. This fixes a number of non-terminations and crashes
+  (#9314, #13230, #13881, #14036) and losses of principality (#14307 among
+  others). The well-foundedness check of type definitions was rewritten.
+  To be able to still show abbreviations in printed types, they are kept
+  inside the edges of the graph representation of types. However, due to path
+  compression we keep only a single abbreviation, and it may get invalidated
+  in some cases, resulting in bigger types printed. Also, while the
+  implementation strives to follow the specification, some unspecified
+  behaviors may change: stricter behavior of the well-foundedness check in
+  some cases, or expansions kept in cmis in rare cases.
+  (Jacques Garrigue and Stefan Muenzel, cross reviewed)
+
 - #14512: Improve check for warning 16 (unerasable-optional-argument)
   (Alistair O'Brien, review by Florian Angeletti, Gabriel Scherer)
 

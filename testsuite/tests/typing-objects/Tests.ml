@@ -18,7 +18,7 @@ end and ['a] d () = object
   inherit ['a] c ()
 end;;
 [%%expect{|
-class ['a] c : unit -> object constraint 'a = int method f : int c end
+class ['a] c : unit -> object constraint 'a = int method f : 'a c end
 and ['a] d : unit -> object constraint 'a = int method f : 'a c end
 |}];;
 (* class ['a] c : unit -> object constraint 'a = int method f : 'a c end *)
@@ -93,7 +93,7 @@ class ['a] c :
 |}];;
 new c;;
 [%%expect{|
-- : ('a c as 'a) -> 'a = <fun>
+- : (< f : 'a > as 'a) -> 'a = <fun>
 |}];;
 (* class ['a] c :
   'a -> object ('a) constraint 'a = < f : 'a; .. > method f : 'a end *)
@@ -219,24 +219,21 @@ and 'a d = <f : int c>;;
 type 'a c = < f : 'a c >
 and 'a d = < f : int c >
 |}];;
+(* succeeds with keep-expansion *)
 type 'a u = < x : 'a>
 and 'a t = 'a t u;;
 [%%expect{|
-Line 2, characters 0-17:
-2 | and 'a t = 'a t u;;
-    ^^^^^^^^^^^^^^^^^
-Error: The type abbreviation "t" is cyclic:
-         "'a t u" contains "'a t",
-         "'a t" = "'a t u",
-         "'a t u" contains "'a t"
-|}];; (* fails since 4.04 *)
+type 'a u = < x : 'a >
+and 'a t = 'a t u
+|}];;
+(* fails since 4.04 *)
 type 'a u = 'a
 and 'a t = 'a t u;;
 [%%expect{|
 Line 2, characters 0-17:
 2 | and 'a t = 'a t u;;
     ^^^^^^^^^^^^^^^^^
-Error: The type abbreviation "t" is cyclic:
+Error: The definition of "t" contains a cycle:
          "'a t" = "'a t u",
          "'a t u" = "'a t"
 |}];;
@@ -249,7 +246,7 @@ type t = t u * t u;;
 Line 1, characters 0-18:
 1 | type t = t u * t u;;
     ^^^^^^^^^^^^^^^^^^
-Error: The type abbreviation "t" is cyclic:
+Error: The definition of "t" contains a cycle:
          "t" = "t u * t u",
          "t u * t u" contains "t u",
          "t u" = "t"
@@ -265,11 +262,11 @@ type 'a u = 'a
 |}];;
 fun (x : t) (y : 'a u) -> x = y;;
 [%%expect{|
-- : t -> t u -> bool = <fun>
+- : t -> (< x : 'a > as 'a) -> bool = <fun>
 |}];;
 fun (x : t) (y : 'a u) -> y = x;;
 [%%expect{|
-- : t -> t u -> bool = <fun>
+- : t -> t -> bool = <fun>
 |}];;
 (* - : t -> t u -> bool = <fun> *)
 
@@ -666,7 +663,7 @@ class c : unit -> object method m : c end
 |}];;
 (new c ())#m;;
 [%%expect{|
-- : c = <obj>
+- : < m : 'a > as 'a = <obj>
 |}];;
 module M = struct class c () = object method m = new c () end end;;
 [%%expect{|
@@ -674,7 +671,7 @@ module M : sig class c : unit -> object method m : c end end
 |}];;
 (new M.c ())#m;;
 [%%expect{|
-- : M.c = <obj>
+- : < m : 'a > as 'a = <obj>
 |}];;
 
 type uu = A of int | B of (<leq: 'a> as 'a);;
@@ -817,7 +814,7 @@ type 'a t = < x : 'a >
 |}];;
 fun (x : 'a t as 'a) -> ();;
 [%%expect{|
-- : ('a t as 'a) -> unit = <fun>
+- : (< x : 'a > as 'a) -> unit = <fun>
 |}];;
 fun (x : 'a t) -> (x : 'a); ();;
 [%%expect{|
@@ -826,7 +823,7 @@ Line 1, characters 18-26:
                       ^^^^^^^^
 Warning 10 [non-unit-statement]: this expression should have type unit.
 
-- : ('a t as 'a) t -> unit = <fun>
+- : (< x : 'a > as 'a) t -> unit = <fun>
 |}];;
 fun ((x : 'a) | (x : 'a t)) -> ();;
 [%%expect{|
@@ -835,7 +832,7 @@ Line 1, characters 17-18:
                      ^
 Warning 12 [redundant-subpat]: this sub-pattern is unused.
 
-- : ('a t as 'a) -> unit = <fun>
+- : (< x : 'a > as 'a) -> unit = <fun>
 |}];;
 
 class ['a] c () = object
@@ -1182,8 +1179,7 @@ Line 2, characters 12-32:
 2 | class c = [ < foo : string; .. > ] p;;
                 ^^^^^^^^^^^^^^^^^^^^
 Error: The type parameter "< foo : string; .. >"
-       does not meet its constraint: it should be
-         "< foo : int; .. > as 'a" = "< foo : int; .. >"
+       does not meet its constraint: it should be "< foo : int; .. >"
        The method "foo" has type "string", but the expected method type was "int"
 |}];;
 
@@ -1341,7 +1337,7 @@ class c : object method private test : unit end
 Line 6, characters 9-16:
 6 | let () = (new c)#test
              ^^^^^^^
-Error: This expression has type "c"
+Error: This expression has type "c" = "<  >"
        It has no method "test"
 |}];;
 
@@ -1371,7 +1367,7 @@ class c : object method private test : unit end
 Line 10, characters 9-16:
 10 | let () = (new c)#test
               ^^^^^^^
-Error: This expression has type "c"
+Error: This expression has type "c" = "d"
        It has no method "test"
 |}];;
 

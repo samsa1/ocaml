@@ -282,16 +282,25 @@ val apply:
            Exception [Cannot_apply] is raised in case of failure. *)
 
 val try_expand_once_opt: Env.t -> type_expr -> type_expr
+val try_expand_once_gen_nolink:
+  find_type_expansion:(Path.t -> Env.t -> type_expr list * type_expr * int) ->
+  Env.t ->
+  type_expr ->
+  type_expr
 val try_expand_safe_opt: Env.t -> type_expr -> type_expr
 
 val expand_head_once: Env.t -> type_expr -> type_expr
 val expand_head: Env.t -> type_expr -> type_expr
+val expand_head_nolink: Env.t -> type_expr -> type_expr
 val expand_head_opt: Env.t -> type_expr -> type_expr
 (** The compiler's own version of [expand_head] necessary for type-based
     optimisations. *)
 
 (** Expansion of types for error traces; lives here instead of in [Errortrace]
     because the expansion machinery lives here. *)
+
+val expand_type
+  : Env.t -> type_expr -> Errortrace.expanded_type
 
 (** Create an [Errortrace.Diff] by expanding the two types *)
 val expanded_diff :
@@ -405,8 +414,6 @@ val arrow_spine
   -> (arg_label * arrow_arg) list * arrow_ret
 
 val occur_in: Env.t -> type_expr -> type_expr -> bool
-val deep_occur: type_expr -> type_expr -> bool
-val deep_occur_list: type_expr -> type_expr list -> bool
 val moregeneral: Env.t -> type_expr -> type_expr -> unit
         (* Check if the first type scheme is more general than the second. *)
 val is_moregeneral: Env.t -> type_expr -> type_expr -> bool

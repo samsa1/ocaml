@@ -199,7 +199,7 @@ Error: The value "param" has type
          "< redrawWidget : #parameter_contains_self -> unit; .. >"
        Type "parameter_contains_self" = "< invalidate : unit >"
        is not compatible with type
-         "#parameter_contains_self as 'a" = "< invalidate : unit; .. >"
+         "#parameter_contains_self" = "< invalidate : unit; .. >"
        Self type cannot be unified with a closed object type
 |}]
 
@@ -216,7 +216,7 @@ Error: The value "param" has type
          "< redrawWidget : #parameter_contains_self -> unit; .. >"
        Type "parameter_contains_self" = "< invalidate : unit >"
        is not compatible with type
-         "#parameter_contains_self as 'a" = "< invalidate : unit; .. >"
+         "#parameter_contains_self" = "< invalidate : unit; .. >"
        Self type cannot be unified with a closed object type
 |}]
 

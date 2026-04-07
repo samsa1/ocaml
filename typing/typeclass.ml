@@ -402,7 +402,7 @@ and class_type_aux env virt self_scope scty =
          escaping. *)
       Ctype.add_dummy_method env ~scope:self_scope sign;
       Ctype.reveal_private_methods env sign;
-      Ctype.set_object_name path params sign.csig_self;
+      Ctype.set_object_name decl.clty_path params sign.csig_self;
       if List.length params <> List.length styl then
         raise(Error(scty.pcty_loc, env,
                     Parameter_arity_mismatch (lid.txt, List.length params,
@@ -1085,7 +1085,7 @@ and class_expr_aux cl_num final val_env met_env virt self_scope scl =
          escaping. *)
       add_dummy_method val_env final ~scope:self_scope sign;
       Ctype.reveal_private_methods val_env sign;
-      Ctype.set_object_name path params sign.csig_self;
+      Ctype.set_object_name decl.cty_path params sign.csig_self;
       if List.length params <> List.length tyl then
         raise(Error(scl.pcl_loc, val_env,
                     Parameter_arity_mismatch (lid.txt, List.length params,
@@ -1614,6 +1614,7 @@ let class_infos define_class kind
     begin try
       Ctype.unify env ty constr
     with Ctype.Unify _ ->
+      let constr = Ctype.newconstr (Path.Pident obj_id) obj_params in
       raise(Error(cl.pci_loc, env,
         Abbrev_type_clash (constr, ty, Ctype.expand_head env constr)))
     end
