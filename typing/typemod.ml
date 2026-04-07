@@ -80,6 +80,7 @@ type error =
   | Non_packable_local_modtype_subst of Path.t
   | With_cannot_remove_packed_modtype of Path.t * module_type
   | Cannot_alias of Path.t
+  | Val_in_structure
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -1605,6 +1606,15 @@ and transl_signature env sg =
             mksig (Tsig_value tdesc) env loc :: trem,
             Sig_value(tdesc.val_id, tdesc.val_val, Exported) :: rem,
               final_env
+        | Psig_primitive sdesc ->
+            let (tdesc, newenv) =
+              Typedecl.transl_prim_desc env item.psig_loc sdesc
+            in
+            Signature_names.check_value names tdesc.prim_loc tdesc.prim_id;
+            let (trem,rem, final_env) = transl_sig newenv srem in
+            mksig (Tsig_primitive tdesc) env loc :: trem,
+            Sig_value(tdesc.prim_id, tdesc.prim_val, Exported) :: rem,
+              final_env
         | Psig_type (rec_flag, sdecls) ->
             let (decls, newenv, _) =
               Typedecl.transl_type_decl env rec_flag sdecls
@@ -2784,12 +2794,14 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         List.rev items,
         shape_map,
         newenv
+    | Pstr_val sdesc ->
+        raise (Error (sdesc.pval_loc, env, Val_in_structure))
     | Pstr_primitive sdesc ->
-        let (desc, newenv) = Typedecl.transl_value_decl env loc sdesc in
-        Signature_names.check_value names desc.val_loc desc.val_id;
+        let (desc, newenv) = Typedecl.transl_prim_desc env loc sdesc in
+        Signature_names.check_value names desc.prim_loc desc.prim_id;
         Tstr_primitive desc,
-        [Sig_value(desc.val_id, desc.val_val, Exported)],
-        Shape.Map.add_value shape_map desc.val_id desc.val_val.val_uid,
+        [Sig_value(desc.prim_id, desc.prim_val, Exported)],
+        Shape.Map.add_value shape_map desc.prim_id desc.prim_val.val_uid,
         newenv
     | Pstr_type (rec_flag, sdecls) ->
         let (decls, newenv, shapes) =
@@ -3715,6 +3727,8 @@ let report_error ~loc _env = function
          for an anonymous module type.@ %a"
         Style.inline_code (Path.name p)
         Misc.print_see_manual manual_ref
+  | Val_in_structure ->
+      Location.errorf ~loc "Value declarations are only allowed in signatures"
 
 let report_error env ~loc err =
   Printtyp.wrap_printing_env ~error:true env

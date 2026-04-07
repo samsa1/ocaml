@@ -629,7 +629,7 @@ and transl_struct_item ~scopes fields rootpath item next =
       let body = next ext_fields in
       mk_lam_let body
   | Tstr_primitive descr ->
-      record_primitive descr.val_val;
+      record_primitive descr.prim_val;
       next fields
   | Tstr_type _ ->
       next fields
@@ -1001,7 +1001,7 @@ let transl_store_structure ~scopes glob map prims aliases str =
                       transl_store ~scopes rootpath
                         (add_idents false ids subst) cont rem)
         | Tstr_primitive descr ->
-            record_primitive descr.val_val;
+            record_primitive descr.prim_val;
             transl_store ~scopes rootpath subst cont rem
         | Tstr_type _ ->
             transl_store ~scopes rootpath subst cont rem
@@ -1518,7 +1518,7 @@ let transl_toplevel_item ~scopes item =
       Llet(Strict, Pgenval, mid,
            transl_module ~scopes Tcoerce_none None modl, set_idents 0 ids)
   | Tstr_primitive descr ->
-      record_primitive descr.val_val;
+      record_primitive descr.prim_val;
       lambda_unit
   | Tstr_open od ->
       let pure = pure_module od.open_expr in

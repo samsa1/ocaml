@@ -412,7 +412,7 @@ let primitives_table =
   ]
 
 
-let lookup_primitive loc p =
+let lookup_primitive loc (p : Primitive.description) =
   match Hashtbl.find primitives_table p.prim_name with
   | prim -> prim
   | exception Not_found ->
@@ -913,7 +913,8 @@ let check_primitive_arity loc p =
     | Atomic_index -> p.prim_arity = 2
     | Check_array_bound -> p.prim_arity = 2
   in
-  if not ok then raise(Error(loc, Wrong_arity_builtin_primitive p.prim_name))
+  if not ok
+  then raise(Error(loc, Wrong_arity_builtin_primitive p.Primitive.prim_name))
 
 (* Eta-expand a primitive *)
 
@@ -931,7 +932,7 @@ let transl_primitive loc p env ty path =
   in
   let params = make_params p.prim_arity in
   let args = List.map (fun (id, _) -> Lvar id) params in
-  let body = lambda_of_prim p.prim_name prim loc args None in
+  let body = lambda_of_prim p.Primitive.prim_name prim loc args None in
   match params with
   | [] -> body
   | _ ->
@@ -1013,7 +1014,9 @@ let transl_primitive_application loc p env ty path exp args arg_exps =
     | None -> prim
     | Some prim -> prim
   in
-  let lam = lambda_of_prim p.prim_name prim loc args (Some arg_exps) in
+  let lam =
+    lambda_of_prim p.Primitive.prim_name prim loc args (Some arg_exps)
+  in
   let lam =
     if primitive_needs_event_after prim then begin
       match exp with

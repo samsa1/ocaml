@@ -68,7 +68,6 @@ type error =
   | Rebind_private of Longident.t
   | Variance of Typedecl_variance.error
   | Unavailable_type_constructor of Path.t
-  | Val_in_structure
   | Multiple_native_repr_attributes
   | Cannot_unbox_or_untag_type of native_repr_kind
   | Deep_unbox_or_untag_attribute of native_repr_kind
@@ -81,6 +80,8 @@ type error =
   | Invalid_private_row_declaration of type_expr
   | Atomic_field_must_be_mutable of string
   | External_with_non_syntactic_arity
+  | Primitive_alias_does_not_refer_to_primitive of value_kind
+  | Primitive_type_mismatch of Env.t * Errortrace.unification_error
 
 open Typedtree
 
@@ -1654,42 +1655,10 @@ let transl_value_decl env loc valdecl =
   let cty = Typetexp.transl_type_scheme env valdecl.pval_type in
   let ty = cty.ctyp_type in
   let v =
-  match valdecl.pval_prim with
-    [] when Env.is_in_signature env ->
-      { val_type = ty; val_kind = Val_reg; Types.val_loc = loc;
-        val_attributes = valdecl.pval_attributes;
-        val_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
-      }
-  | [] ->
-      raise (Error(valdecl.pval_loc, Val_in_structure))
-  | _ ->
-      let global_repr =
-        match
-          get_native_repr_attribute valdecl.pval_attributes ~global_repr:None
-        with
-        | Native_repr_attr_present repr -> Some repr
-        | Native_repr_attr_absent -> None
-      in
-      let native_repr_args, native_repr_res =
-        parse_native_repr_attributes env valdecl.pval_type ty ~global_repr
-      in
-      let prim =
-        Primitive.parse_declaration valdecl
-          ~native_repr_args
-          ~native_repr_res
-      in
-      if prim.prim_arity = 0 &&
-         (prim.prim_name = "" || prim.prim_name.[0] <> '%') then
-        raise(Error(valdecl.pval_type.ptyp_loc, Null_arity_external));
-      if !Clflags.native_code
-      && prim.prim_arity > 5
-      && prim.prim_native_name = ""
-      then raise(Error(valdecl.pval_type.ptyp_loc, Missing_native_external));
-      check_unboxable env loc ty;
-      { val_type = ty; val_kind = Val_prim prim; Types.val_loc = loc;
-        val_attributes = valdecl.pval_attributes;
-        val_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
-      }
+    { val_type = ty; val_kind = Val_reg; Types.val_loc = loc;
+      val_attributes = valdecl.pval_attributes;
+      val_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
+    }
   in
   let (id, newenv) =
     Env.enter_value valdecl.pval_name.txt v env
@@ -1700,7 +1669,6 @@ let transl_value_decl env loc valdecl =
      val_id = id;
      val_name = valdecl.pval_name;
      val_desc = cty; val_val = v;
-     val_prim = valdecl.pval_prim;
      val_loc = valdecl.pval_loc;
      val_attributes = valdecl.pval_attributes;
     }
@@ -1710,6 +1678,102 @@ let transl_value_decl env loc valdecl =
 let transl_value_decl env loc valdecl =
   Builtin_attributes.warning_scope valdecl.pval_attributes
     (fun () -> transl_value_decl env loc valdecl)
+
+(* Translate a primitive description *)
+let transl_prim_desc env loc primdesc =
+  match primdesc.pprim_kind with
+  | Pprim_decl (pprim_type, pprim_prim) ->
+    let cty = Typetexp.transl_type_scheme env pprim_type in
+    let ty = cty.ctyp_type in
+    let v =
+      let global_repr =
+        match
+          get_native_repr_attribute primdesc.pprim_attributes ~global_repr:None
+        with
+        | Native_repr_attr_present repr -> Some repr
+        | Native_repr_attr_absent -> None
+      in
+      let native_repr_args, native_repr_res =
+        parse_native_repr_attributes env pprim_type ty ~global_repr
+      in
+      let prim =
+        Primitive.parse_description
+          ~native_repr_args
+          ~native_repr_res
+          ~prim:pprim_prim
+          ~attrs:primdesc.pprim_attributes
+          ~loc:primdesc.pprim_loc
+      in
+      if prim.prim_arity = 0 &&
+         (prim.prim_name = "" || prim.prim_name.[0] <> '%') then
+        raise(Error(pprim_type.ptyp_loc, Null_arity_external));
+      if !Clflags.native_code
+      && prim.prim_arity > 5
+      && prim.prim_native_name = ""
+      then raise(Error(pprim_type.ptyp_loc, Missing_native_external));
+      check_unboxable env loc ty;
+      { val_type = ty; val_kind = Val_prim prim; Types.val_loc = loc;
+        val_attributes = primdesc.pprim_attributes;
+        val_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
+      }
+    in
+    let (id, newenv) =
+      Env.enter_value primdesc.pprim_name.txt v env
+        ~check:(fun s -> Warnings.Unused_value_declaration s)
+    in
+    let desc =
+      {
+       prim_id = id;
+       prim_name = primdesc.pprim_name;
+       prim_kind = Tprim_decl (cty, pprim_prim); prim_val = v;
+       prim_loc = primdesc.pprim_loc;
+       prim_attributes = primdesc.pprim_attributes;
+      }
+    in
+    desc, newenv
+  | Pprim_alias (pprim_type, pprim_ident) ->
+    let path, v =
+      Env.lookup_value ~use:true ~loc:pprim_ident.loc pprim_ident.txt env
+    in
+    (match v.val_kind with
+     | Val_prim _ ->
+       let cty, v =
+         match pprim_type with
+         | None -> None, v
+         | Some pprim_type ->
+           let cty = Typetexp.transl_type_scheme env pprim_type in
+           (* When the alias has a type ascription, we check that it is no more
+              general than the type of the aliased declaration. *)
+           match
+             Ctype.matches ~expand_error_trace:true env
+               cty.ctyp_type v.val_type
+           with
+           | () -> Some cty, { v with val_type = cty.ctyp_type; val_loc = loc }
+           | exception (Ctype.Matches_failure (env, err)) ->
+             raise(Error(cty.ctyp_loc, Primitive_type_mismatch (env, err)))
+       in
+       let (id, newenv) =
+         Env.enter_value primdesc.pprim_name.txt v env
+           ~check:(fun s -> Warnings.Unused_value_declaration s)
+       in
+       let desc =
+         {
+          prim_id = id;
+          prim_name = primdesc.pprim_name;
+          prim_kind = Tprim_alias (cty, path, pprim_ident);
+          prim_val = v;
+          prim_loc = primdesc.pprim_loc;
+          prim_attributes = primdesc.pprim_attributes;
+         }
+       in
+       desc, newenv
+     | Val_reg | Val_ivar _ | Val_self _ | Val_anc _ as val_kind ->
+       raise(Error(pprim_ident.loc,
+                   Primitive_alias_does_not_refer_to_primitive val_kind)))
+
+let transl_prim_desc env loc primdesc =
+  Builtin_attributes.warning_scope primdesc.pprim_attributes
+    (fun () -> transl_prim_desc env loc primdesc)
 
 (* Translate a "with" constraint -- much simplified version of
    transl_type_decl. For a constraint [Sig with t = sdecl],
@@ -2273,8 +2337,6 @@ let report_error ~loc = function
          cannot be checked%t"
         n (Misc.ordinal_suffix n)
         reason_text
-  | Val_in_structure ->
-      Location.errorf ~loc "Value declarations are only allowed in signatures"
   | Multiple_native_repr_attributes ->
       Location.errorf ~loc "Too many %a/%a attributes"
         Style.inline_code "[@@unboxed]"
@@ -2364,7 +2426,25 @@ let report_error ~loc = function
       Location.errorf ~loc
         "This external declaration has a non-syntactic arity,@ \
          its arity is greater than its syntactic arity."
-
+  | Primitive_alias_does_not_refer_to_primitive val_kind ->
+      Location.errorf ~loc
+        "@[This@ identifier@ should@ be@ a@ primitive,@ but@ it@ is@ bound@ \
+         to@ %s.@]"
+        (match val_kind with
+         | Val_prim _ ->
+           Misc.fatal_error "Typedecl.report_error: value is a primitive"
+         | Val_reg -> "a regular value"
+         | Val_ivar _ -> "an instance variable"
+         | Val_self _ -> "the self object"
+         | Val_anc _ -> "an ancestor object")
+  | Primitive_type_mismatch (env, err) ->
+      let msg = Format_doc.Doc.msg in
+      Location.errorf ~loc
+        "@[<v>The type of this alias does not match that of the aliased \
+         primitive.@,%t@]" @@ fun ppf ->
+        Errortrace_report.unification ppf env err
+          (msg "Type")
+          (msg "is not compatible with type")
 
 let () =
   Location.register_error_of_exn

@@ -36,6 +36,10 @@ val transl_value_decl:
     Env.t -> Location.t ->
     Parsetree.value_description -> Typedtree.value_description * Env.t
 
+val transl_prim_desc:
+    Env.t -> Location.t ->
+    Parsetree.primitive_description -> Typedtree.primitive_description * Env.t
+
 (* If the [fixed_row_path] optional argument is provided,
    the [Parsetree.type_declaration] argument should satisfy [is_fixed_type] *)
 val transl_with_constraint:
@@ -113,7 +117,6 @@ type error =
   | Rebind_private of Longident.t
   | Variance of Typedecl_variance.error
   | Unavailable_type_constructor of Path.t
-  | Val_in_structure
   | Multiple_native_repr_attributes
   | Cannot_unbox_or_untag_type of native_repr_kind
   | Deep_unbox_or_untag_attribute of native_repr_kind
@@ -126,6 +129,8 @@ type error =
   | Invalid_private_row_declaration of type_expr
   | Atomic_field_must_be_mutable of string
   | External_with_non_syntactic_arity
+  | Primitive_alias_does_not_refer_to_primitive of value_kind
+  | Primitive_type_mismatch of Env.t * Errortrace.unification_error
 
 exception Error of Location.t * error
 
