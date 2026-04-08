@@ -346,7 +346,12 @@ let type_one_application_to_path = ref (fun ~loc:_ _ _ _ _ -> assert false)
 
 let build_solution ~loc env name path args =
   let rec build_mexp pme path tme = function
-    | [] -> Some { psol = pme; tsol = tme; path }
+    | [] ->
+      Some {
+        psol = pme;
+        tsol = tme;
+        path = Env.normalize_module_path (Some Location.none) env path
+      }
     | Arg { desc = Solved sol} :: tl ->
       begin match
           !type_one_application_to_path ~loc:Location.none env
@@ -378,13 +383,19 @@ let rec compute_nb_unsolved acc = function
   | (Arg {desc = Working _} | Unit) :: tl -> compute_nb_unsolved (acc + 1) tl
   | Arg {desc = NoSolution} :: _ -> raise Not_found
 
+let rec remove_duplicate_sols : implicit_inference_solution list -> _ = function
+  | sol1 :: sol2 :: tl when Path.same sol1.path sol2.path ->
+    remove_duplicate_sols (sol1 :: tl)
+  | sols -> sols
+
 let rec refine_solution ~loc trace {problem; desc} =
   match desc with
   | Solved s -> {problem; desc = Solved s}
   | NoSolution -> {problem; desc = NoSolution}
   | Working { solutions; current; next } ->
     let solutions =
-      List.filter (solution_is_still_valid problem) solutions
+      remove_duplicate_sols
+        (List.filter (solution_is_still_valid problem) solutions)
     in
     if match solutions with _ :: _ :: _ -> true | _ -> false
     then begin
