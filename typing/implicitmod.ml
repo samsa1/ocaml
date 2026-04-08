@@ -190,15 +190,15 @@ type implicit_inference = {
   problem : problem;
   desc : implicit_inference_desc;
 }
-and status =
+and args_status =
   | RecLimit of (Env.t * Types.module_type) option list
   | Node of implicit_inference option list * int
 and implicit_inference_desc =
   | Solved of implicit_inference_solution
   | Working of {
       solutions : implicit_inference_solution list;
-      current : (string * Env.t * Types.module_type * status) option;
-      next : (string * Path.t) Seq.t;
+      current : (Misc.modname * Env.t * Types.module_type * args_status) option;
+      next : (Misc.modname * Path.t) Seq.t;
     }
   | NoSolution
 
