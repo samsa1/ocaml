@@ -23,6 +23,10 @@
 val type_module :
     (Env.t -> Parsetree.module_expr -> Typedtree.module_expr * Shape.t) ref
 
+val type_one_application_to_path :
+    (loc:Location.t -> Env.t -> Typedtree.module_expr -> Path.t ->
+      Typedtree.module_expr -> Typedtree.module_expr option) ref
+
 val open_module_type : Env.t -> Types.module_type -> Types.module_type
 
 val infer :

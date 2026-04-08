@@ -924,14 +924,16 @@ typing/ident.cmi : \
     utils/format_doc.cmi
 typing/implicitmod.cmo : \
     typing/types.cmi \
+    typing/typedtree.cmi \
     typing/printtyp.cmi \
+    parsing/pprintast.cmi \
     typing/path.cmi \
     parsing/parsetree.cmi \
     utils/misc.cmi \
     parsing/longident.cmi \
     parsing/location.cmi \
     typing/includemod.cmi \
-    typing/ident.cmi \
+    utils/format_doc.cmi \
     typing/env.cmi \
     typing/ctype.cmi \
     typing/btype.cmi \
@@ -939,14 +941,16 @@ typing/implicitmod.cmo : \
     typing/implicitmod.cmi
 typing/implicitmod.cmx : \
     typing/types.cmx \
+    typing/typedtree.cmx \
     typing/printtyp.cmx \
+    parsing/pprintast.cmx \
     typing/path.cmx \
     parsing/parsetree.cmi \
     utils/misc.cmx \
     parsing/longident.cmx \
     parsing/location.cmx \
     typing/includemod.cmx \
-    typing/ident.cmx \
+    utils/format_doc.cmx \
     typing/env.cmx \
     typing/ctype.cmx \
     typing/btype.cmx \
@@ -954,6 +958,9 @@ typing/implicitmod.cmx : \
     typing/implicitmod.cmi
 typing/implicitmod.cmi : \
     typing/types.cmi \
+    typing/typedtree.cmi \
+    typing/shape.cmi \
+    typing/path.cmi \
     parsing/parsetree.cmi \
     parsing/location.cmi \
     typing/env.cmi
@@ -2087,6 +2094,7 @@ typing/typedtree.cmo : \
     typing/primitive.cmi \
     typing/path.cmi \
     parsing/parsetree.cmi \
+    utils/misc.cmi \
     parsing/longident.cmi \
     parsing/location.cmi \
     typing/ident.cmi \
@@ -2102,6 +2110,7 @@ typing/typedtree.cmx : \
     typing/primitive.cmx \
     typing/path.cmx \
     parsing/parsetree.cmi \
+    utils/misc.cmx \
     parsing/longident.cmx \
     parsing/location.cmx \
     typing/ident.cmx \
@@ -2138,6 +2147,7 @@ typing/typemod.cmo : \
     typing/shape_reduce.cmi \
     typing/shape.cmi \
     typing/printtyp.cmi \
+    parsing/pprintast.cmi \
     typing/path.cmi \
     parsing/parsetree.cmi \
     parsing/parse.cmi \
@@ -2178,6 +2188,7 @@ typing/typemod.cmx : \
     typing/shape_reduce.cmx \
     typing/shape.cmx \
     typing/printtyp.cmx \
+    parsing/pprintast.cmx \
     typing/path.cmx \
     parsing/parsetree.cmi \
     parsing/parse.cmx \

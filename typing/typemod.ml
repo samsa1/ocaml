@@ -3253,6 +3253,31 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
   in
   { str_desc = desc; str_loc = loc; str_env = env }, sg, shape_map, new_env
 
+let type_one_application_to_path ~loc env funct path arg =
+  match Env.scrape_alias env funct.mod_type with
+    | Mty_functor (Named (_is_pure, param, mty_param), mty_res) ->
+      let coercion =
+        Includemod.modtypes ~loc:arg.mod_loc ~mark:true env
+              arg.mod_type mty_param
+      in
+      let mty_appl =
+        let scope = Ctype.create_scope () in
+        let subst =
+          match param with
+          | None -> Subst.identity
+          | Some p -> Subst.add_module p path Subst.identity
+        in
+        Subst.modtype (Rescope scope) subst mty_res
+      in
+      check_well_formed_module env loc
+        "the signature of this functor application" mty_appl;
+      Some { mod_desc = Tmod_apply(funct, arg, coercion);
+        mod_type = mty_appl;
+        mod_env = env;
+        mod_attributes = [];
+        mod_loc = loc }
+  | _ -> None
+
 let _ = new_implicit_module (* Just to remove ununsed warning *)
 
 let type_toplevel_phrase env s =
@@ -3426,6 +3451,7 @@ let type_str_item env pstri =
 
 let () =
   Implicitmod.type_module := type_module;
+  Implicitmod.type_one_application_to_path := type_one_application_to_path;
   Typecore.type_module := type_module_alias;
   Typecore.type_str_item := type_str_item;
   Typetexp.transl_modtype_longident := transl_modtype_longident;
