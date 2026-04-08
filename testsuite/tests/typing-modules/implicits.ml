@@ -142,15 +142,10 @@ implicit module SBoolbis = SBool
 Line 3, characters 18-47:
 3 | module SBool_fail : Show with type t = bool = _
                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Inference of signature sig type t = bool val print : t -> unit end
-       failed because inference could not make
-       any more progress.
-       Final state was :
-       ?1.
-?1 awaited an argument of signature
-             sig type t = bool val print : t -> unit end
-            It can be filled by either  SBoolbis  or  SBool.
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SBoolbis"
 
+module SBool_fail : sig type t = bool val print : t -> unit end
 |}]
 
 (* Multiple solution because generative *)
@@ -571,4 +566,79 @@ Warning 76 [implicit-module-expression]: module expression left implict.
   Infered module expression: "M"
 
 module FunctorArg : (M : Show) => sig type t = M.t val print : t -> unit end
+|}]
+
+module type Eq = sig
+  type t
+  val eq : t -> t -> bool
+end
+
+module type Ord = sig
+  type t
+  val cmp : t -> t -> int
+  module Eq : Eq with type t = t
+end
+
+implicit module EInt : Eq with type t = int = struct
+  type t = int
+  let eq = Int.equal
+end
+
+implicit module EInt2 = EInt
+
+[%%expect{|
+module type Eq = sig type t val eq : t -> t -> bool end
+module type Ord =
+  sig
+    type t
+    val cmp : t -> t -> int
+    module Eq : sig type t = t/2 val eq : t -> t -> bool end
+  end
+implicit module EInt : sig type t = int val eq : t -> t -> bool end
+implicit module EInt2 = EInt
+|}]
+
+module EInt3 : Eq with type t = int = _
+
+[%%expect{|
+Line 1, characters 13-39:
+1 | module EInt3 : Eq with type t = int = _
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "EInt2"
+
+module EInt3 : sig type t = int val eq : t -> t -> bool end
+|}]
+
+implicit module OrdToEq (O : Ord) = O.Eq
+
+implicit module OInt = struct
+  type t = int
+  let cmp = Int.compare
+  module Eq = EInt
+end
+
+[%%expect{|
+implicit module OrdToEq :
+  (O : Ord) => sig type t = O.t val eq : t -> t -> bool end
+implicit module OInt :
+  sig type t = int val cmp : int -> int -> int module Eq = EInt end
+|}]
+
+(* Fails because OrdToEq loses module equality. *)
+module EInt4 : Eq with type t = int = _
+
+[%%expect{|
+Line 1, characters 13-39:
+1 | module EInt4 : Eq with type t = int = _
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature sig type t = int val eq : t -> t -> bool end
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       ?1.
+?1 awaited an argument of signature
+             sig type t = int val eq : t -> t -> bool end
+            It can be filled by either  OrdToEq(OInt)  or  EInt2.
+
 |}]
