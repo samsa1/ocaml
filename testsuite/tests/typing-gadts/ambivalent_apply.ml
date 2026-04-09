@@ -81,4 +81,6 @@ Line 20, characters 18-38:
 Error: This expression has type "a" but an expression was expected of type "'a"
        This instance of "a" is ambiguous:
        it would escape the scope of its equation
+       Hint (manual section 7.2): A type annotation may resolve the ambiguity,
+       either on this expression or the whole function.
 |}]
