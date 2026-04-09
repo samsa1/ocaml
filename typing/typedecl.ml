@@ -679,7 +679,8 @@ let check_coherence env loc dpath decl =
                 match Ctype.equal env false args decl.type_params with
                 | exception Ctype.Equality err ->
                     Some (Includecore.Constraint err)
-                | () ->
+                | constraints ->
+                    assert (Implicitmod_constraints.is_empty constraints);
                     let subst =
                       Subst.Unsafe.add_type_path dpath path Subst.identity in
                     let decl =
@@ -689,12 +690,16 @@ let check_coherence env loc dpath decl =
                            (* no module type substitution in [subst] *)
                           assert false
                     in
-                    Includecore.type_declarations ~loc ~equality:true env
+                    match Includecore.type_declarations ~loc ~equality:true env
                       ~mark:true
                       (Path.last path)
                       decl'
                       dpath
-                      decl
+                      decl with
+                    | Ok constraints ->
+                      assert (Implicitmod_constraints.is_empty constraints);
+                      None
+                    | Error err -> Some err
               end
             in
             if err <> None then

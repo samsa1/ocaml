@@ -98,7 +98,7 @@ end
 
 type t =
   | Local of { name: string; stamp: int }
-  | Scoped of { name: string; stamp: int; scope: int }
+  | Scoped of { name: string; stamp: int; scope: int; rigid : bool }
   | Global of string
   | Predef of { name: string; stamp: int }
       (* the stamp is here only for fast comparison, but the name of
@@ -107,7 +107,11 @@ type t =
 
 let create_scoped ~scope s =
   incr currentstamp;
-  Scoped { name = s; stamp = !currentstamp; scope }
+  Scoped { name = s; stamp = !currentstamp; scope; rigid = true }
+
+let create_flex ~scope s =
+  incr currentstamp;
+  Scoped { name = s; stamp = !currentstamp; scope; rigid = false }
 
 let create_local s =
   incr currentstamp;
@@ -171,6 +175,10 @@ let unique_toplevel_name = function
 let persistent = function
   | Global _ -> true
   | _ -> false
+
+let rigid = function
+  | Scoped {rigid; _} -> rigid
+  | _ -> true
 
 let equal i1 i2 =
   match i1, i2 with

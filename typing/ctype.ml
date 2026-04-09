@@ -4661,6 +4661,7 @@ type comparison_context = {
   kind : eq_kind;
   type_pairs : TypePairs.t;
   subst : (type_expr * type_expr) list ref;
+  constraints : Implicitmod_constraints.t ref;
 }
 
 let expand_head_rigid env ty =
@@ -4682,16 +4683,6 @@ let eqtype_subst ctxt t1 t2 =
     ctxt.subst := (t1, t2) :: !(ctxt.subst);
     TypePairs.add ctxt.type_pairs (t1, t2)
   end
-
-let pairs_to_unify = ref []
-
-let with_fresh_unif_list env f =
-  Misc.try_finally ~always:(fun () -> pairs_to_unify := [])
-    begin fun () ->
-      pairs_to_unify := [];
-      f ();
-      List.iter (fun (t1, t2) -> unify env t1 t2) !pairs_to_unify;
-    end
 
 let rec eqtype ctxt env t1 t2 =
   let check_phys_eq t1 t2 =
@@ -4770,6 +4761,10 @@ let rec eqtype ctxt env t1 t2 =
           | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
                 when Env_unscoped.path_equiv env p1 p2 ->
               eqtype_list_same_length ctxt env tl1 tl2
+          | (Tconstr (p, tl, _), _) when not (Path.rigid p) ->
+              ctxt.constraints := Implicitmod_constraints.add p tl t2' !(ctxt.constraints);
+          | (_, Tconstr (p, tl, _)) when not (Path.rigid p) ->
+              ctxt.constraints := Implicitmod_constraints.add p tl t1' !(ctxt.constraints);
           | (Tpackage pack1, Tpackage pack2) ->
               eqtype_package ctxt env
                 (get_level t1') pack1 (get_level t2') pack2
@@ -4792,16 +4787,6 @@ let rec eqtype ctxt env t1 t2 =
                 (eqtype ctxt env)
           | (Tunivar _, Tunivar _) ->
               unify_univar_for Equality t1' t2' !univar_pairs
-          | (_, _) when ctxt.kind = Equality true
-            && (get_level t1' < generic_level
-                || (get_level t2' < generic_level)) ->
-              let t1' =
-                if get_level t1' < generic_level then t1' else instance t1'
-              and t2' =
-                if get_level t2' < generic_level then t2' else instance t2'
-              in
-              pairs_to_unify := (t1', t2') :: !pairs_to_unify;
-              unify env t1' t2';
           | (_, _) ->
               raise_unexplained_for Equality
         end
@@ -5078,10 +5063,30 @@ and eqtype_row_moregen ctxt env row1 row2 =
     (* Undo [link_type] if we failed *)
     set_type_desc rm1 md1; raise exn
 
+let incompatible env ty1 ty2 =
+  match get_desc ty1, get_desc ty2 with
+  | (Tvar _, _) | (_, Tvar _) -> false
+  | (Tconstr (p1, [], _), Tconstr (p2, [], _))
+    when Env_unscoped.path_equiv env p1 p2 ->
+        false
+  | _ ->
+    let ty1' = expand_head_rigid env ty1 in
+    let ty2' = expand_head_rigid env ty2 in
+    match get_desc ty1', get_desc ty2' with
+    | Tconstr (p1, _, _), Tconstr (p2, _, _) ->
+      Path.rigid p1 && Path.rigid p2 && not (Env_unscoped.path_equiv env p1 p2)
+    | _ -> false
+
+
+let () = Implicitmod_constraints.incompatible := incompatible
+
 (* Must empty univar_pairs first *)
 let moregen type_pairs env patt subj =
+  let constraints = ref Implicitmod_constraints.empty in
   with_univar_pairs [] (fun () ->
-    eqtype {kind = Moregen; type_pairs; subst = ref []} env patt subj)
+    eqtype {kind = Moregen; type_pairs; subst = ref []; constraints}
+           env patt subj);
+  !constraints
 
 (*
    Non-generic variable can be instantiated only if [inst_nongen] is
@@ -5120,25 +5125,28 @@ let moregeneral env pat_sch subj_sch =
       try Ok (moregen (TypePairs.create 13) env patt subj)
       with Equality_trace trace -> Error trace
     end with
-    | Ok () -> ()
+    | Ok constraints -> constraints
     | Error trace -> raise (Moregen (expand_to_moregen_error env trace))
   end
 
 let is_moregeneral env pat_sch subj_sch =
   match moregeneral env pat_sch subj_sch with
-  | () -> true
+  | constraints ->
+    assert (Implicitmod_constraints.is_empty constraints);
+    true
   | exception Moregen _ -> false
 
 (* Must empty univar_pairs first *)
 let eqtype_list_same_length rename type_pairs subst env tl1 tl2 =
   let kind = Equality rename in
+  let constraints = ref Implicitmod_constraints.empty in
   with_univar_pairs [] (fun () ->
-    with_fresh_unif_list env (fun () ->
-      let snap = Btype.snapshot () in
-      Misc.try_finally
-        ~always:(fun () -> backtrack snap)
-        (fun () -> eqtype_list_same_length {kind; type_pairs; subst} env tl1 tl2))
-  )
+    let snap = Btype.snapshot () in
+    Misc.try_finally
+      ~always:(fun () -> backtrack snap)
+      (fun () -> eqtype_list_same_length {kind; type_pairs; subst; constraints} env tl1 tl2)
+  );
+  !constraints
 
 let eqtype rename type_pairs subst env t1 t2 =
   eqtype_list_same_length rename type_pairs subst env [t1] [t2]
@@ -5147,20 +5155,23 @@ let eqtype rename type_pairs subst env t1 t2 =
 let equal env rename tyl1 tyl2 =
   if List.length tyl1 <> List.length tyl2 then
     raise_unexplained_for Equality;
-  if List.for_all2 eq_type tyl1 tyl2 then () else
+  if List.for_all2 eq_type tyl1 tyl2 then Implicitmod_constraints.empty else
   let subst = ref [] in
-  try eqtype_list_same_length rename (TypePairs.create 11) subst env tyl1 tyl2
+  try
+    eqtype_list_same_length rename (TypePairs.create 11) subst env tyl1 tyl2
   with Equality_trace trace ->
     raise (Equality (expand_to_equality_error env trace !subst))
 
 let is_equal env rename tyl1 tyl2 =
   match equal env rename tyl1 tyl2 with
-  | () -> true
+  | constraints ->
+    assert (Implicitmod_constraints.is_empty constraints);
+    true
   | exception Equality _ -> false
 
 let rec equal_private env params1 ty1 params2 ty2 =
   match equal env true (params1 @ [ty1]) (params2 @ [ty2]) with
-  | () -> ()
+  | constraints -> constraints
   | exception (Equality _ as err) ->
       match try_expand_safe_opt env (expand_head_nolink env ty1) with
       | ty1' -> equal_private env params1 ty1' params2 ty2
@@ -5255,7 +5266,7 @@ let rec moregen_clty ~arrow_index trace type_pairs env cty1 cty2 =
     | Cty_arrow (l1, ty1, cty1'), Cty_arrow (l2, ty2, cty2') when l1 = l2 ->
         let arrow_index = arrow_index + 1 in
         begin
-          try moregen type_pairs env ty1 ty2 with Equality_trace trace ->
+          try assert (Implicitmod_constraints.is_empty (moregen type_pairs env ty1 ty2)) with Equality_trace trace ->
             raise (Failure [
                 CM_Parameter_mismatch
                   (arrow_index, env, expand_to_moregen_error env trace)])
@@ -5270,7 +5281,7 @@ let rec moregen_clty ~arrow_index trace type_pairs env cty1 cty2 =
                   all methods in sign2 are present in sign1. *)
                assert false
              | (_, _, ty') ->
-                 match moregen type_pairs env ty' ty with
+                 match assert (Implicitmod_constraints.is_empty (moregen type_pairs env ty' ty)) with
                  | () -> ()
                  | exception Equality_trace trace ->
                      raise (Failure [
@@ -5288,7 +5299,7 @@ let rec moregen_clty ~arrow_index trace type_pairs env cty1 cty2 =
                   all instance variables in sign2 are present in sign1. *)
                assert false
              | (_, _, ty') ->
-                 match moregen type_pairs env ty' ty with
+                 match assert (Implicitmod_constraints.is_empty (moregen type_pairs env ty' ty)) with
                  | () -> ()
                  | exception Equality_trace trace ->
                      raise (Failure [
@@ -5349,7 +5360,7 @@ let match_class_types ?(trace=true) env pat_sch subj_sch =
           let row2 = sign2.csig_self_row in
           TypePairs.add type_pairs (self1, self2);
           (* Always succeeds *)
-          moregen type_pairs env row1 row2;
+          assert (Implicitmod_constraints.is_empty (moregen type_pairs env row1 row2));
           (* May fail *)
           try moregen_clty trace type_pairs env patt subj; []
           with Failure res -> res
@@ -5369,7 +5380,7 @@ let equal_clsig trace type_pairs subst env sign1 sign2 =
              assert false
          | (_, _, ty') ->
              match eqtype true type_pairs subst env ty' ty with
-             | () -> ()
+             | constraints -> assert (Implicitmod_constraints.is_empty constraints)
              | exception Equality_trace trace ->
                  raise (Failure [
                    CM_Meth_type_mismatch
@@ -5387,7 +5398,7 @@ let equal_clsig trace type_pairs subst env sign1 sign2 =
              assert false
          | (_, _, ty') ->
              match eqtype true type_pairs subst env ty' ty with
-             | () -> ()
+             | constraints -> assert (Implicitmod_constraints.is_empty constraints)
              | exception Equality_trace trace ->
                  raise (Failure [
                    CM_Val_type_mismatch
@@ -5416,13 +5427,13 @@ let match_class_declarations env patt_params patt_type subj_params subj_type =
         let row2 = sign2.csig_self_row in
         TypePairs.add type_pairs (self1, self2);
         (* Always succeeds *)
-        eqtype true type_pairs subst env row1 row2;
+        assert (Implicitmod_constraints.is_empty (eqtype true type_pairs subst env row1 row2));
         let lp = List.length patt_params in
         let ls = List.length subj_params in
         if lp  <> ls then
           raise (Failure [CM_Parameter_arity_mismatch (lp, ls)]);
         Stdlib.List.iteri2 (fun n p s ->
-          try eqtype true type_pairs subst env p s with Equality_trace trace ->
+          try assert (Implicitmod_constraints.is_empty (eqtype true type_pairs subst env p s)) with Equality_trace trace ->
             raise (Failure
                      [CM_Type_parameter_mismatch
                         (n+1, env, expand_to_equality_error env trace !subst)]))

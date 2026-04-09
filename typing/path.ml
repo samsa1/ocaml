@@ -191,6 +191,20 @@ let is_constructor_typath p =
   | Pident _ | Pdot _ | Papply _ -> false
   | Pextra_ty _ -> true
 
+let rec rigid p =
+  match p with
+  | Pident id -> Ident.rigid id
+  | Papply(p1, p2) -> rigid p1 && rigid p2
+  | Pdot (p, _) | Pextra_ty (p, _) -> rigid p
+
+let get_flexs p =
+  let rec aux acc = function
+  | Pident id when not (Ident.rigid id) -> id :: acc
+  | Pident _ -> acc
+  | Papply(p1, p2) -> aux (aux acc p2) p1
+  | Pdot (p, _) | Pextra_ty (p, _) -> aux acc p
+  in aux [] p
+
 module T = struct
   type nonrec t = t
   let compare = compare

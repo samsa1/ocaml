@@ -31,6 +31,7 @@ val print_with_scope : t Format_doc.printer
 
 
 val create_scoped: scope:int -> string -> t
+val create_flex: scope:int -> string -> t
 val create_local: string -> t
 val create_persistent: string -> t
 val create_predef: string -> t
@@ -44,6 +45,7 @@ val name: t -> string
 val unique_name: t -> string
 val unique_toplevel_name: t -> string
 val persistent: t -> bool
+val rigid: t -> bool
 val same: t -> t -> bool
         (** Compare identifiers by binding location.
             Two identifiers are the same either if they are both

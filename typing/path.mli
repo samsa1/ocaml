@@ -88,5 +88,8 @@ val last: t -> string
 
 val is_constructor_typath: t -> bool
 
+val rigid: t -> bool
+val get_flexs: t -> Ident.t list
+
 module Map : Map.S with type key = t
 module Set : Set.S with type elt = t
