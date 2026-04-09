@@ -47,6 +47,9 @@ Working version
 - #14482: Add DWARF CFI support to POWER backend.
   (Tim McGilchrist, review by Xavier Leroy)
 
+- #14717: assign 'unique_id' early during domain creation to help debugging
+  (Gabriel Scherer, review by Olivier Nicole)
+
 ### Type system:
 
 * #11648: Keep expansion and new well-foundedness check implementation.
