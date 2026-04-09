@@ -3,5 +3,10 @@ empty
 misc
  1 2 3
 end of tests
+empty
+ 4
+misc
+ 5 6 7
+end of tests
 
 All tests succeeded.
