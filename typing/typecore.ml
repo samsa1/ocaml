@@ -6980,10 +6980,9 @@ and type_effect_cases
                -> k case list
   = fun category env ty_res_explained loc caselist conts ->
       let { ty = ty_res; explanation = _ } = ty_res_explained in
-      let _ = newvar () in
       (* remember original level *)
       with_local_level begin fun () ->
-        (* Create a locally type abstract type for effect type. *)
+        (* Create a locally abstract type for effect type. *)
         let new_env, ty_arg, ty_cont =
           let decl = Ctype.new_local_type ~loc Definition in
           let scope = create_scope () in
