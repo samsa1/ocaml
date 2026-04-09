@@ -108,18 +108,20 @@ type type_mismatch =
 
 val value_descriptions:
   loc:Location.t -> Env.t -> string ->
-  value_description -> value_description -> module_coercion
+  value_description -> value_description ->
+  module_coercion * Implicitmod_constraints.t
 
 val type_declarations:
   ?equality:bool ->
   loc:Location.t ->
   Env.t -> mark:bool -> string ->
-  type_declaration -> Path.t -> type_declaration -> type_mismatch option
+  type_declaration -> Path.t -> type_declaration ->
+  (Implicitmod_constraints.t, type_mismatch) result
 
 val extension_constructors:
   loc:Location.t -> Env.t -> mark:bool -> Ident.t ->
   extension_constructor -> extension_constructor ->
-  extension_constructor_mismatch option
+  (Implicitmod_constraints.t, extension_constructor_mismatch) result
 
 (** The functions [value_descriptions_consistency] and
     [type_declarations_consistency] check if two declaration are consistent.

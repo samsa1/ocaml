@@ -145,6 +145,10 @@ val is_runtime_component: Types.signature_item -> bool
 
 (* Typechecking *)
 
+val modtypes_collect_constraint:
+  loc:Location.t -> Env.t -> mark:bool ->
+  module_type -> module_type -> Implicitmod_constraints.t
+
 val modtypes:
   loc:Location.t -> Env.t -> mark:bool ->
   module_type -> module_type -> module_coercion

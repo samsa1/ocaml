@@ -44,6 +44,8 @@ module Doc = struct
     prepare_for_printing [ty];
     prepared_type_expr ppf ty
 
+  let () = Implicitmod_constraints.type_expr_printer := type_expr
+
   let shared_type_scheme ppf ty =
     add_type_to_preparation ty;
     typexp Type_scheme ppf ty

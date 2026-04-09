@@ -262,8 +262,8 @@ module Core_inclusion = struct
       Includecore.type_declarations ~loc env ~mark
         (Ident.name id) decl1 (Path.Pident id) decl2
     with
-    | None -> Ok Tcoerce_none
-    | Some err ->
+    | Ok constraints -> Ok (Tcoerce_none, constraints)
+    | Error err ->
         Error Error.(Core(Type_declarations (diff decl1 decl2 err)))
 
   (* Inclusion between extension constructors *)
@@ -273,8 +273,8 @@ module Core_inclusion = struct
     let ext1 = Subst.extension_constructor Subst.identity ext1 in
     let ext2 = Subst.extension_constructor subst ext2 in
     match Includecore.extension_constructors ~loc env ~mark id ext1 ext2 with
-    | None -> Ok Tcoerce_none
-    | Some err ->
+    | Ok constraints -> Ok (Tcoerce_none, constraints)
+    | Error err ->
         Error Error.(Core(Extension_constructors(diff ext1 ext2 err)))
 
   (* Inclusion between class declarations *)
@@ -283,7 +283,7 @@ module Core_inclusion = struct
     let decl1 = Subst.cltype_declaration Subst.identity decl1 in
     let decl2 = Subst.cltype_declaration subst decl2 in
     match Includeclass.class_type_declarations ~loc env decl1 decl2 with
-      []     -> Ok Tcoerce_none
+      []     -> Ok (Tcoerce_none, Implicitmod_constraints.empty)        (* TODO *)
     | reason ->
         Error Error.(Core(Class_type_declarations(diff decl1 decl2 reason)))
 
@@ -291,7 +291,7 @@ module Core_inclusion = struct
     let decl1 = Subst.class_declaration Subst.identity decl1 in
     let decl2 = Subst.class_declaration subst decl2 in
     match Includeclass.class_declarations env decl1 decl2 with
-      []     -> Ok Tcoerce_none
+      []     -> Ok (Tcoerce_none, Implicitmod_constraints.empty)        (* TODO *)
     | reason ->
         Error Error.(Core(Class_declarations(diff decl1 decl2 reason)))
 end
@@ -473,6 +473,7 @@ module Sign_diff = struct
     deep_modifications:bool;
     errors: (signature_item * Error.sigitem_symptom) list;
     untypables: ((Types.signature_item as 'it) * 'it * int) list;
+    constraints: Implicitmod_constraints.t;
   }
 
   let empty = {
@@ -481,6 +482,7 @@ module Sign_diff = struct
     deep_modifications = false;
     errors = [];
     untypables = [];
+    constraints = Implicitmod_constraints.empty;
   }
 
   let merge x y =
@@ -492,6 +494,7 @@ module Sign_diff = struct
       deep_modifications = x.deep_modifications || y.deep_modifications;
       errors = x.errors @ y.errors;
       untypables = x.untypables @ y.untypables;
+      constraints = Implicitmod_constraints.merge x.constraints y.constraints;
     }
 end
 
@@ -503,7 +506,7 @@ end
    [d1 C d2] if there is an environment [E] such that [E |- d1 <: d2]. *)
 type 'a core_incl =
   loc:Location.t -> Env.t -> direction:Directionality.t -> Subst.t -> Ident.t ->
-  'a -> 'a -> (module_coercion, Error.sigitem_symptom) result
+  'a -> 'a -> (module_coercion * Implicitmod_constraints.t, Error.sigitem_symptom) result
 
 type core_relation = {
   value_descriptions: Types.value_description core_incl;
@@ -531,7 +534,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   match mty1, mty2 with
   | (Mty_alias p1, Mty_alias p2) ->
       if (equal_module_paths env p1 subst p2) then
-          Ok (Tcoerce_none, orig_shape)
+          Ok (Tcoerce_none, Implicitmod_constraints.empty, orig_shape)
       else
         Error Error.(Mt_core Incompatible_aliases)
   | (Mty_alias p1, _) -> begin
@@ -554,7 +557,8 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   | (Mty_ident p1, Mty_ident p2) ->
       let p1 = Env.normalize_modtype_path env p1 in
       let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
-      if Path.same p1 p2 then Ok (Tcoerce_none, orig_shape)
+      if Path.same p1 p2 then
+        Ok (Tcoerce_none, Implicitmod_constraints.empty, orig_shape)
       else
         begin match expand_modtype_path env p1, expand_modtype_path env p2 with
         | Some mty1, Some mty2 ->
@@ -616,20 +620,27 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
         modtypes ~core ~direction ~loc env subst res1 res2 res_shape
       in
       begin match cc_arg, cc_res with
-      | Ok Tcoerce_none, Ok (Tcoerce_none, final_res_shape) ->
+      | Ok (Tcoerce_none, cstrs_arg),
+        Ok (Tcoerce_none, cstrs_res, final_res_shape) ->
           let final_shape =
             if final_res_shape == res_shape
             then orig_shape
             else Shape.abs var final_res_shape
           in
-          Ok (Tcoerce_none, final_shape)
-      | Ok cc_arg, Ok (cc_res, final_res_shape) ->
+          Ok (Tcoerce_none,
+              Implicitmod_constraints.(merge cstrs_arg
+                                        (generalize param1 cstrs_res)),
+              final_shape)
+      | Ok (cc_arg, cstrs_arg), Ok (cc_res, cstrs_res, final_res_shape) ->
           let final_shape =
             if final_res_shape == res_shape
             then orig_shape
             else Shape.abs var final_res_shape
           in
-          Ok (Tcoerce_functor(cc_arg, cc_res), final_shape)
+          Ok (Tcoerce_functor(cc_arg, cc_res),
+              Implicitmod_constraints.(merge cstrs_arg
+                            (generalize param1 cstrs_res)),
+              final_shape)
       | _, Error {Error.symptom = Error.Functor Error.Params res; _} ->
           let got = Error.cons_arg param1 res.got in
           let expected = Error.cons_arg param2 res.expected in
@@ -655,7 +666,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
 and functor_param ~core ~direction ~loc env subst param1 param2 =
   match param1, param2 with
   | Unit, Unit ->
-      Ok Tcoerce_none, env, subst
+      Ok (Tcoerce_none, Implicitmod_constraints.empty), env, subst
   | Named (b1, name1, arg1), Named (b2, name2, arg2)
     when b1 = Asttypes.Pure || b2 = Asttypes.Impure ->
       let arg2' = Subst.modtype Keep subst arg2 in
@@ -664,7 +675,7 @@ and functor_param ~core ~direction ~loc env subst param1 param2 =
           modtypes ~core ~direction ~loc env Subst.identity arg2' arg1
                 Shape.dummy_mod
         with
-        | Ok (cc, _) -> Ok cc
+        | Ok (cc, cstrs, _) -> Ok (cc, cstrs)
         | Error err -> Error (Error.Mismatch err)
       in
       let env, subst = equate_one_functor_param subst env arg2' name1 name2 in
@@ -693,7 +704,7 @@ and strengthened_modtypes ~core ~direction ~loc ~aliasable env
     subst mty1 path1 mty2 shape =
   match mty1, mty2 with
   | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
-      Ok (Tcoerce_none, shape)
+      Ok (Tcoerce_none, Implicitmod_constraints.empty, shape)
   | _, _ ->
       let mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
       modtypes ~core ~direction ~loc env subst mty1 mty2 shape
@@ -702,7 +713,7 @@ and strengthened_module_decl ~core ~loc ~aliasable ~direction env
     subst md1 path1 md2 shape =
   match md1.md_type, md2.md_type with
   | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
-      Ok (Tcoerce_none, shape)
+      Ok (Tcoerce_none, Implicitmod_constraints.empty, shape)
   | _, _ ->
       let md1 = Mtype.strengthen_decl ~aliasable env md1 path1 in
       modtypes ~core ~direction ~loc env subst md1.md_type md2.md_type shape
@@ -770,9 +781,11 @@ and signatures ~core ~direction ~loc env subst sig1 sig2 mod_shape =
                   else Shape.str ?uid:mod_shape.Shape.uid d.shape_map
                 in
                 if runtime_len1 = runtime_len2 then (* see PR#5098 *)
-                  Ok (simplify_structure_coercion cc id_pos_list, shape)
+                  Ok (simplify_structure_coercion cc id_pos_list,
+                      d.constraints, shape)
                 else
-                  Ok (Tcoerce_structure (cc, id_pos_list), shape)
+                  Ok (Tcoerce_structure (cc, id_pos_list),
+                      d.constraints, shape)
             | missings, incompatibles, runtime_coercions, untypables ->
                 let additions = additions |> FieldMap.to_list |> List.map snd in
                 Error {
@@ -869,10 +882,10 @@ and signature_components ~core ~direction ~loc old_env env subst
               in
               let item, shape_map =
                 match item with
-                | Ok (cc, shape) ->
+                | Ok (cc, cstrs, shape) ->
                     if shape != orig_shape then shape_modified := true;
                     let mod_shape = Shape.set_uid_if_none shape mty1.md_uid in
-                    Ok cc, Shape.Map.add_module shape_map id1 mod_shape
+                    Ok (cc, cstrs), Shape.Map.add_module shape_map id1 mod_shape
                 | Error diff ->
                     Error (Error.Module_type diff),
                     (* We add the original shape to the map, even though
@@ -885,7 +898,8 @@ and signature_components ~core ~direction ~loc old_env env subst
                 | Mp_present, Mp_present, _ -> true, item
                 | _, Mp_absent, _ -> false, item
                 | Mp_absent, Mp_present, Mty_alias p1 ->
-                    true, Result.map (fun i -> Tcoerce_alias (env, p1, i)) item
+                  true,
+                  Result.map (fun (i, c) -> Tcoerce_alias (env, p1, i), c) item
                 | Mp_absent, Mp_present, _ -> assert false
               in
               let item = mark_error_as_unrecoverable item in
@@ -926,7 +940,7 @@ and signature_components ~core ~direction ~loc old_env env subst
       let deep_modifications = !shape_modified in
       let first =
         match item with
-        | Ok x ->
+        | Ok (x, constraints) ->
             begin match direction with
             | { Directionality.in_eq = true; pos = Negative }
             | { Directionality.mark_as_used = Mark_neither; _ } ->
@@ -949,9 +963,11 @@ and signature_components ~core ~direction ~loc old_env env subst
             let runtime_coercions =
               if present_at_runtime then [pos,x] else []
             in
-            Sign_diff.{ empty with deep_modifications; runtime_coercions }
+            Sign_diff.{ empty with
+              deep_modifications; runtime_coercions; constraints;
+            }
         | Error { error; recoverable=_ } ->
-            Sign_diff.{ empty with errors=[sigi1,error]; deep_modifications }
+            Sign_diff.{ empty with errors=[sigi1,error]; deep_modifications; }
       in
       let continue = match item with
         | Ok _ -> true
@@ -990,8 +1006,8 @@ and modtype_infos ~core ~loc env ~direction subst id info1 info2 =
   let info2 = Subst.modtype_declaration Keep subst info2 in
   let r =
     match (info1.mtd_type, info2.mtd_type) with
-      (None, None) -> Ok Tcoerce_none
-    | (Some _, None) -> Ok Tcoerce_none
+      (None, None) -> Ok (Tcoerce_none, Implicitmod_constraints.empty)
+    | (Some _, None) -> Ok (Tcoerce_none, Implicitmod_constraints.empty)
     | (Some mty1, Some mty2) ->
         check_modtype_equiv ~core ~direction ~loc env mty1 mty2
     | (None, Some mty2) ->
@@ -1021,8 +1037,9 @@ and check_modtype_equiv ~core ~direction ~loc env mty1 mty2 =
       )
   in
   match c1, c2 with
-  | Ok (Tcoerce_none, _), (Some Ok (Tcoerce_none, _)|None) -> Ok Tcoerce_none
-  | Ok (c1, _), (Some Ok _ | None) ->
+  | Ok (Tcoerce_none, cstrs, _), (Some Ok (Tcoerce_none, _, _)|None) ->
+      Ok (Tcoerce_none, cstrs)
+  | Ok (c1, _, _), (Some Ok _ | None) ->
       (* Format.eprintf "@[c1 = %a@ c2 = %a@]@."
            print_coercion _c1 print_coercion _c2; *)
       Error Error.(Illegal_permutation c1)
@@ -1045,16 +1062,16 @@ let core_inclusion = Core_inclusion.{
 let core_consistency =
   let type_declarations ~loc:_ env ~direction:_ _ _ d1 d2 =
     match Includecore.type_declarations_consistency env d1 d2 with
-    | None -> Ok Tcoerce_none
+    | None -> Ok (Tcoerce_none, Implicitmod_constraints.empty)            (* TODO *)
     | Some err ->  Error Error.(Core(Type_declarations (diff d1 d2 err)))
   in
   let value_descriptions ~loc:_ env ~direction:_ _ _ vd1 vd2 =
     match Includecore.value_descriptions_consistency env vd1 vd2 with
-    | x -> Ok x
+    | x -> Ok (x, Implicitmod_constraints.empty)                          (* TODO *)
     | exception Includecore.Dont_match err ->
         Error Error.(Core (Value_descriptions (diff vd1 vd2 err)))
   in
-  let accept ~loc:_ _env ~direction:_ _subst _id _d1 _d2 = Ok Tcoerce_none in
+  let accept ~loc:_ _env ~direction:_ _subst _id _d1 _d2 = Ok (Tcoerce_none, Implicitmod_constraints.empty) (* TODO *) in
   {
     type_declarations;
     value_descriptions;
@@ -1083,7 +1100,7 @@ let check_modtype_inclusion_raw ~loc env mty1 path1 mty2 =
   let direction = Directionality.unknown ~mark:true in
   strengthened_modtypes ~core:core_inclusion ~direction ~loc ~aliasable env
     Subst.identity mty1 path1 mty2 Shape.dummy_mod
-  |> Result.map fst
+  |> Result.map (fun (cc, _, _) -> cc)
 
 let check_modtype_inclusion ~loc env mty1 path1 mty2 =
   match check_modtype_inclusion_raw ~loc env mty1 path1 mty2 with
@@ -1126,7 +1143,9 @@ let compunit env ~mark impl_name impl_sig intf_name intf_sig unit_shape =
     let cdiff =
       Error.In_Compilation_unit(Error.diff impl_name intf_name reasons) in
     raise(Error(env, cdiff))
-  | Ok x -> x
+  | Ok (c, constraints, shape) ->
+    assert (Implicitmod_constraints.is_empty constraints);
+    c, shape
 
 (* Functor diffing computation:
    The diffing computation uses the internal typing function
@@ -1229,7 +1248,7 @@ module Functor_inclusion_diff = struct
             functor_param ~core:core_inclusion ~direction ~loc st.env
               st.subst mty1 mty2
           in
-          res
+          Result.map Pair.fst res
         let update = update
         let weight = weight
       end)
@@ -1331,7 +1350,7 @@ module Functor_app_diff = struct
                     Shape.dummy_mod
                 with
                 | Error mty -> Result.Error (Error.Mismatch mty)
-                | Ok (cc, _) -> Ok cc
+                | Ok (cc, _, _) -> Ok cc
           in
           res
         let weight = weight
@@ -1355,7 +1374,9 @@ let modtypes_constraint ~shape ~loc env ~mark mty1 mty2 =
     modtypes ~core:core_inclusion ~direction ~loc env Subst.identity
       mty1 mty2 shape
   with
-  | Ok (cc, shape) -> cc, shape
+  | Ok (cc, constraints, shape) ->
+    assert (Implicitmod_constraints.is_empty constraints);
+    cc, shape
   | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
 
 let modtypes_consistency ~loc env mty1 mty2 =
@@ -1367,13 +1388,25 @@ let modtypes_consistency ~loc env mty1 mty2 =
   | Ok _ -> ()
   | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
 
-let modtypes ~loc env ~mark mty1 mty2 =
+let modtypes_collect_constraint ~loc env ~mark mty1 mty2 =
   let direction = Directionality.unknown ~mark in
   match
     modtypes ~core:core_inclusion ~direction ~loc env Subst.identity
       mty1 mty2 Shape.dummy_mod
   with
-  | Ok (cc, _) -> cc
+  | Ok (_, constraints, _) ->
+    constraints
+  | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
+
+  let modtypes ~loc env ~mark mty1 mty2 =
+  let direction = Directionality.unknown ~mark in
+  match
+    modtypes ~core:core_inclusion ~direction ~loc env Subst.identity
+      mty1 mty2 Shape.dummy_mod
+  with
+  | Ok (cc, constraints, _) ->
+    assert (Implicitmod_constraints.is_empty constraints);
+    cc
   | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
 
 let gen_signatures env ?(subst=Subst.identity) ~direction sig1 sig2 =
@@ -1382,7 +1415,9 @@ let gen_signatures env ?(subst=Subst.identity) ~direction sig1 sig2 =
       ~core:core_inclusion ~direction ~loc:Location.none env
       subst sig1 sig2 Shape.dummy_mod
   with
-  | Ok (cc, _) -> cc
+  | Ok (cc, constraints, _) ->
+    assert (Implicitmod_constraints.is_empty constraints);
+    cc
   | Error reason -> raise (Error(env,Error.(In_Signature reason)))
 
 let signatures env ?subst ~mark sig1 sig2 =
@@ -1409,7 +1444,9 @@ let strengthened_module_decl ~loc ~aliasable env ~mark md1 path1 md2 =
   let direction = Directionality.unknown ~mark in
   match strengthened_module_decl ~core:core_inclusion ~loc ~aliasable ~direction
           env Subst.identity md1 path1 md2 Shape.dummy_mod with
-  | Ok (x, _shape) -> x
+  | Ok (x, constraints, _shape) ->
+    assert (Implicitmod_constraints.is_empty constraints);
+    x
   | Error mdiff ->
       raise (Error(env,Error.(In_Module_type mdiff)))
 

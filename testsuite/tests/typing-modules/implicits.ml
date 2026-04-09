@@ -226,14 +226,8 @@ module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
 [%%expect{|
 implicit module SPair :
   (A : Show) (B : Show) => sig type t = A.t * B.t val print : t -> unit end
-Line 11, characters 17-65:
-11 | module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 76 [implicit-module-expression]: module expression left implict.
-  Infered module expression: "SPair(SInt)"
+Uncaught exception: File "typing/implicitmod_constraints.ml", line 78, characters 2-8: Assertion failed
 
-module SIntXPair :
-  (X : Show) -> sig type t = int * X.t val print : t -> unit end
 |}]
 
 (* Inference between functor arguments *)
@@ -309,8 +303,7 @@ Error: Inference of signature SSol2
        any more progress.
        Final state was :
        F2Imp1 (?1) (M1).
-?1 awaited an argument of signature
-                           sig type t2 = int end
+?1 awaited an argument of signature  S2
                           It can be filled by either  M2c  or  M2a.
 
 |}]
@@ -545,15 +538,10 @@ module Sol_with_private3 : Sol_with_private = _
 Line 1, characters 25-47:
 1 | module Sol_with_private3 : Sol_with_private = _
                              ^^^^^^^^^^^^^^^^^^^^^^
-Error: Inference of signature Sol_with_private
-       failed because inference could not make
-       any more progress.
-       Final state was :
-       F (?1) (M2).
-?1 awaited an argument of signature
-                      sig type t_maybe_private = 'a end
-                     It can be filled by either  M3  or  M.
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "F(M3)(M2)"
 
+module Sol_with_private3 : Sol_with_private
 |}]
 
 module FunctorArg {M : Show} : Show with type t = M.t = _

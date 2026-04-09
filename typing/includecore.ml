@@ -101,7 +101,7 @@ let value_descriptions ~loc env name
     name;
   match Ctype.moregeneral env vd1.val_type vd2.val_type with
   | exception Ctype.Moregen err -> raise (Dont_match (Type err))
-  | () -> value_descriptions_consistency env vd1 vd2
+  | constraints -> value_descriptions_consistency env vd1 vd2, constraints
 
 (* Inclusion between manifest types (particularly for private row types) *)
 
@@ -487,7 +487,7 @@ module Record_diffing = struct
     if ld1.ld_mutable <> ld2.ld_mutable
     then
       let ord = if ld1.ld_mutable = Asttypes.Mutable then First else Second in
-      Some (Mutability  ord)
+      Error (Mutability  ord)
     else if ld1.ld_atomic <> ld2.ld_atomic
     then
       let ord =
@@ -495,14 +495,14 @@ module Record_diffing = struct
         | Atomic -> First
         | Nonatomic -> Second
       in
-      Some (Atomicity  ord)
+      Error (Atomicity  ord)
     else
     let tl1 = params1 @ [ld1.ld_type] in
     let tl2 = params2 @ [ld2.ld_type] in
     match Ctype.equal env true tl1 tl2 with
     | exception Ctype.Equality err ->
-        Some (Type err : label_mismatch)
-    | () -> None
+        Error (Type err : label_mismatch)
+    | constraints -> Ok constraints
 
   let rec equal ~loc env params1 params2
       (labels1 : Types.label_declaration list)
@@ -521,9 +521,10 @@ module Record_diffing = struct
             ld1.ld_attributes ld2.ld_attributes
             (Ident.name ld1.ld_id);
           match compare_labels env params1 params2 ld1 ld2 with
-          | Some _ -> false
+          | Error _ -> false
           (* add arguments to the parameters, cf. PR#7378 *)
-          | None ->
+          | Ok constraints ->
+              assert (Implicitmod_constraints.is_empty constraints);
               equal ~loc env
                 (ld1.ld_type::params1) (ld2.ld_type::params2)
                 rem1 rem2
@@ -553,18 +554,18 @@ module Record_diffing = struct
     if  name1 <> name2 then
       let types_match =
         match compare_labels env params1 params2 lbl1 lbl2 with
-        | Some _ -> false
-        | None -> true
+        | Error _ -> false
+        | Ok _ -> true
       in
       Error
         (Diffing_with_keys.Name {types_match; pos; got=name1; expected=name2})
     else
       match compare_labels env params1 params2 lbl1 lbl2 with
-      | Some reason ->
+      | Error reason ->
           Error (
             Diffing_with_keys.Type {pos; got=lbl1; expected=lbl2; reason}
           )
-      | None -> Ok ()
+      | Ok _ -> Ok ()
 
   let weight: Diff.change -> _ = function
     | Insert _ | Delete _ ->
@@ -650,29 +651,32 @@ module Variant_diffing = struct
     match arg1, arg2 with
     | Types.Cstr_tuple arg1, Types.Cstr_tuple arg2 ->
         if List.length arg1 <> List.length arg2 then
-          Some (Arity : constructor_mismatch)
+          Error (Arity : constructor_mismatch)
         else begin
         (* Ctype.equal must be called on all arguments at once, cf. PR#7378 *)
         match Ctype.equal env true (params1 @ arg1) (params2 @ arg2) with
-        | exception Ctype.Equality err -> Some (Type err)
-        | () -> None
+        | exception Ctype.Equality err -> Error (Type err)
+        | constraints -> Ok constraints
       end
     | Types.Cstr_record l1, Types.Cstr_record l2 ->
-        Option.map
-          (fun rec_err -> Inline_record rec_err)
-          (Record_diffing.compare env ~loc params1 params2 l1 l2)
-    | Types.Cstr_record _, _ -> Some (Kind First : constructor_mismatch)
-    | _, Types.Cstr_record _ -> Some (Kind Second : constructor_mismatch)
+        begin match Record_diffing.compare env ~loc params1 params2 l1 l2 with
+        | Some rec_err -> Error (Inline_record rec_err)
+        | None -> Ok Implicitmod_constraints.empty
+        end
+    | Types.Cstr_record _, _ -> Error (Kind First : constructor_mismatch)
+    | _, Types.Cstr_record _ -> Error (Kind Second : constructor_mismatch)
 
   let compare_constructors ~loc env params1 params2 res1 res2 args1 args2 =
     match res1, res2 with
     | Some r1, Some r2 ->
         begin match Ctype.equal env true [r1] [r2] with
-        | exception Ctype.Equality err -> Some (Type err)
-        | () -> compare_constructor_arguments ~loc env [r1] [r2] args1 args2
+        | exception Ctype.Equality err -> Error (Type err)
+        | constraints ->
+          Result.map (Implicitmod_constraints.merge constraints)
+            (compare_constructor_arguments ~loc env [r1] [r2] args1 args2)
         end
-    | Some _, None -> Some (Explicit_return_type First)
-    | None, Some _ -> Some (Explicit_return_type Second)
+    | Some _, None -> Error (Explicit_return_type First)
+    | None, Some _ -> Error (Explicit_return_type Second)
     | None, None ->
         compare_constructor_arguments ~loc env params1 params2 args1 args2
 
@@ -694,8 +698,8 @@ module Variant_diffing = struct
           ;
         match compare_constructors ~loc env params1 params2
                 cd1.cd_res cd2.cd_res cd1.cd_args cd2.cd_args with
-        | Some _ -> false
-        | None -> true
+        | Error _ -> false
+        | Ok _ -> true
       end) cstrs1 cstrs2
 
   module Defs = struct
@@ -724,17 +728,17 @@ module Variant_diffing = struct
       let types_match =
         match compare_constructors ~loc env params1 params2
                 cd1.cd_res cd2.cd_res cd1.cd_args cd2.cd_args with
-        | Some _ -> false
-        | None -> true
+        | Error _ -> false
+        | Ok _ -> true
       in
       Error
         (Diffing_with_keys.Name {types_match; pos; got=name1; expected=name2})
     else
       match compare_constructors ~loc env params1 params2
               cd1.cd_res cd2.cd_res cd1.cd_args cd2.cd_args with
-      | Some reason ->
+      | Error reason ->
           Error (Diffing_with_keys.Type {pos; got=cd1; expected=cd2; reason})
-      | None -> Ok ()
+      | Ok _ -> Ok ()
 
   let diffing loc env params1 params2 cstrs_1 cstrs_2 =
     let key (x:Defs.left) = Ident.name x.cd_id in
@@ -838,7 +842,9 @@ let private_variant env row1 params1 row2 params2 =
           match Ctype.equal env true tl1 tl2 with
           | exception Ctype.Equality err ->
               Some (Types err : private_variant_mismatch)
-          | () -> None
+          | constraints ->
+            assert (Implicitmod_constraints.is_empty constraints);
+            None
         end
       | (s, f1, f2) :: pairs -> begin
           match row_field_repr f1, row_field_repr f2 with
@@ -890,7 +896,9 @@ let private_object env fields1 params1 fields2 params2 =
   begin
     match Ctype.equal env true (params1 @ tl1) (params2 @ tl2) with
     | exception Ctype.Equality err -> Some (Types err)
-    | () -> None
+    | constraints ->
+      assert (Implicitmod_constraints.is_empty constraints);
+      None
   end
 
 let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
@@ -901,8 +909,8 @@ let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
     when is_absrow env (row_more row2) -> begin
       assert (Ctype.is_equal env true (ty1::params1) (row_more row2::params2));
       match private_variant env row1 params1 row2 params2 with
-      | None -> None
-      | Some err -> Some (Private_variant(ty1, ty2, err))
+      | None -> Ok Implicitmod_constraints.empty
+      | Some err -> Error (Private_variant(ty1, ty2, err))
     end
   | Tobject (fi1, _), Tobject (fi2, _)
     when is_absrow env (snd (Ctype.flatten_fields fi2)) -> begin
@@ -910,8 +918,8 @@ let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
       let (fields1,_) = Ctype.flatten_fields fi1 in
       assert (Ctype.is_equal env true (ty1::params1) (rest2::params2));
       match private_object env fields1 params1 fields2 params2 with
-      | None -> None
-      | Some err -> Some (Private_object(ty1, ty2, err))
+      | None -> Ok Implicitmod_constraints.empty
+      | Some err -> Error (Private_object(ty1, ty2, err))
     end
   | _ -> begin
       let is_private_abbrev_2 =
@@ -934,8 +942,8 @@ let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
           Ctype.equal env true (params1 @ [ty1]) (params2 @ [ty2])
       with
       | exception Ctype.Equality err ->
-          Some (Manifest err)
-      | () -> None
+          Error (Manifest err)
+      | constraints -> Ok constraints
     end
 
 (* A type declarations [td1] is consistent with the type declaration [td2] if
@@ -958,13 +966,13 @@ let type_declarations ?(equality = false) ~loc env ~mark name
     decl1.type_attributes decl2.type_attributes
     name;
   let err = type_declarations_consistency env decl1 decl2 in
-  if err <> None then err else
+  match err with Some e -> Error e | None ->
   let err = match (decl1.type_manifest, decl2.type_manifest) with
       (_, None) ->
         begin
           match Ctype.equal env true decl1.type_params decl2.type_params with
-          | exception Ctype.Equality err -> Some (Constraint err)
-          | () -> None
+          | exception Ctype.Equality err -> Error (Constraint err)
+          | constraints -> Ok constraints
         end
     | (Some ty1, Some ty2) ->
          type_manifest env ty1 decl1.type_params ty2 decl2.type_params
@@ -974,13 +982,14 @@ let type_declarations ?(equality = false) ~loc env ~mark name
           Btype.newgenty (Tconstr(path, decl2.type_params, ref Mnil))
         in
         match Ctype.equal env true decl1.type_params decl2.type_params with
-        | exception Ctype.Equality err -> Some (Constraint err)
-        | () ->
+        | exception Ctype.Equality err -> Error (Constraint err)
+        | constraints1 ->
           match Ctype.equal env false [ty1] [ty2] with
-          | exception Ctype.Equality err -> Some (Manifest err)
-          | () -> None
+          | exception Ctype.Equality err -> Error (Manifest err)
+          | constraints2 ->
+            Ok (Implicitmod_constraints.merge constraints1 constraints2)
   in
-  if err <> None then err else
+  match err with Error e -> Error e | Ok constraints ->
   let err = match (decl1.type_kind, decl2.type_kind) with
       (_, Type_abstract _) -> None
     | (Type_variant (cstrs1, rep1), Type_variant (cstrs2, rep2)) ->
@@ -1026,7 +1035,7 @@ let type_declarations ?(equality = false) ~loc env ~mark name
     | (Type_external n1, Type_external n2) when n1 = n2 -> None
     | (_, _) -> Some (Kind (of_kind decl1.type_kind, of_kind decl2.type_kind))
   in
-  if err <> None then err else
+  match err with Some e -> Error e | None ->
   let abstr = Btype.type_kind_is_abstract decl2 && decl2.type_manifest = None in
   (* If attempt to assign a non-immediate type (e.g. string) to a type that
    * must be immediate, then we error *)
@@ -1040,7 +1049,7 @@ let type_declarations ?(equality = false) ~loc env ~mark name
       | Ok () -> None
       | Error violation -> Some (Immediate violation)
   in
-  if err <> None then err else
+  match err with Some e -> Error e | None ->
   (* We need to check coherence of internal and exported variance  either
      * when the export type is abstract, as there is no manifest to get
        the minimal variance from
@@ -1055,7 +1064,7 @@ let type_declarations ?(equality = false) ~loc env ~mark name
   let abstr' = abstr || decl2.type_private = Private in
   let need_variance =
     abstr' || decl1.type_private = Private || decl1.type_kind = Type_open in
-  if not need_variance then None else
+  if not need_variance then Ok constraints else
   let opn = decl2.type_kind = Type_open && decl2.type_manifest = None in
   let constrained ty = not (Btype.is_Tvar ty) in
   if List.for_all2
@@ -1072,7 +1081,7 @@ let type_declarations ?(equality = false) ~loc env ~mark name
            the internal one may be wrong in the result of functors. *)
         imp abstr (imp p2 p1 && imp n2 n1 && imp j2 j1))
       decl2.type_params (List.combine decl1.type_variance decl2.type_variance)
-  then None else Some Variance
+  then Ok constraints else Error Variance
 
 (* Inclusion between extension constructors *)
 
@@ -1094,8 +1103,8 @@ let extension_constructors ~loc env ~mark id ext1 ext2 =
   let tl2 = ty2 :: ext2.ext_type_params in
   match Ctype.equal env true tl1 tl2 with
   | exception Ctype.Equality err ->
-      Some (Constructor_mismatch (id, ext1, ext2, Type err))
-  | () ->
+      Error (Constructor_mismatch (id, ext1, ext2, Type err))
+  | constraints1 ->
     let r =
       Variant_diffing.compare_constructors ~loc env
         ext1.ext_type_params ext2.ext_type_params
@@ -1103,8 +1112,8 @@ let extension_constructors ~loc env ~mark id ext1 ext2 =
         ext1.ext_args ext2.ext_args
     in
     match r with
-    | Some r -> Some (Constructor_mismatch (id, ext1, ext2, r))
-    | None ->
+    | Error r -> Error (Constructor_mismatch (id, ext1, ext2, r))
+    | Ok constraints2 ->
       match ext1.ext_private, ext2.ext_private with
-      | Private, Public -> Some Constructor_privacy
-      | _, _ -> None
+      | Private, Public -> Error Constructor_privacy
+      | _, _ -> Ok (Implicitmod_constraints.merge constraints1 constraints2)
