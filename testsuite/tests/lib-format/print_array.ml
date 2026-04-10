@@ -20,10 +20,10 @@ let pp_print_intiarray =
 
 let () =
 
-  say "empty";
+  say "empty array";
   test (asprintf "%a" pp_print_intarray [||] = "");
 
-  say "\nmisc";
+  say "\nvarious arrays";
   test (asprintf "%a" pp_print_intarray [| 0 |]       = "0");
   test (asprintf "%a" pp_print_intarray [| 0; 1; 2 |] = "0 1 2");
   test (asprintf "%a" pp_print_intarray [| 0; 0 |]    = "0 0");
@@ -32,10 +32,10 @@ let () =
 
 let () =
 
-  say "empty";
+  say "empty iarray";
   test (asprintf "%a" pp_print_intiarray [||] = "");
 
-  say "\nmisc";
+  say "\nvarious iarrays";
   test (asprintf "%a" pp_print_intiarray [| 0 |]       = "0");
   test
     (asprintf "%a" pp_print_intiarray ([| 0; 1; 2 |] : int iarray) = "0 1 2");
