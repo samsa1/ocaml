@@ -649,6 +649,7 @@ stdlib__Printexc.cmo : printexc.ml \
     stdlib.cmi \
     stdlib__Printf.cmi \
     stdlib__Obj.cmi \
+    stdlib__List.cmi \
     stdlib__Buffer.cmi \
     stdlib__Atomic.cmi \
     stdlib__Array.cmi \
@@ -657,6 +658,7 @@ stdlib__Printexc.cmx : printexc.ml \
     stdlib.cmx \
     stdlib__Printf.cmx \
     stdlib__Obj.cmx \
+    stdlib__List.cmx \
     stdlib__Buffer.cmx \
     stdlib__Atomic.cmx \
     stdlib__Array.cmx \

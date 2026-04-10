@@ -94,6 +94,12 @@ Working version
 
 ### Standard library:
 
+- #10798: Atomic helper function
+    update : ('a -> 'a) -> 'a t -> unit
+  (Gabriel Scherer, review by Simon Cruanes, Stephen Dolan,
+   Xavier Leroy, Guillaume Munch-Maccagnoni, Vesa Karvonen,
+   Noah Bogart, Léo Andrès and Olivier Nicole)
+
 - #13554: Add `List.append_map` and `List.rev_append_map`.
   (Sylvain Boilard and Hugo Heuzard, review by Nicolás Ojeda Bär, Daniel Bünzli,
    Damien Doligez and Jeremy Yallop)
