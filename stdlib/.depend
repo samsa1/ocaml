@@ -347,6 +347,7 @@ stdlib__Format.cmo : format.ml \
     stdlib__Queue.cmi \
     stdlib__List.cmi \
     stdlib__Int.cmi \
+    stdlib__Iarray.cmi \
     stdlib__Either.cmi \
     stdlib__Domain.cmi \
     camlinternalFormatBasics.cmi \
@@ -364,6 +365,7 @@ stdlib__Format.cmx : format.ml \
     stdlib__Queue.cmx \
     stdlib__List.cmx \
     stdlib__Int.cmx \
+    stdlib__Iarray.cmx \
     stdlib__Either.cmx \
     stdlib__Domain.cmx \
     camlinternalFormatBasics.cmx \
