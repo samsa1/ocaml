@@ -79,7 +79,6 @@ module Env_unscoped =
 
 exception Unify_trace    of unification trace
 exception Equality_trace of comparison  trace
-exception Moregen_trace  of comparison  trace
 
 exception Unify    of unification_error
 exception Equality of equality_error
@@ -92,7 +91,6 @@ exception Escape of type_expr escape
    functions as a parameter *)
 type _ trace_exn =
 | Unify    : unification trace_exn
-| Moregen  : comparison  trace_exn
 | Equality : comparison  trace_exn
 
 let raise_trace_for
@@ -102,7 +100,6 @@ let raise_trace_for
   match tr_exn with
   | Unify    -> raise (Unify_trace    tr)
   | Equality -> raise (Equality_trace tr)
-  | Moregen  -> raise (Moregen_trace  tr)
 
 (* Uses of this function are a bit suspicious, as we usually want to maintain
    trace information; sometimes it makes sense, however, since we're maintaining
@@ -4562,11 +4559,11 @@ let moregen_occur env level ty =
     try
       occur ty
     with Occur ->
-      raise_unexplained_for Moregen
+      raise_unexplained_for Equality
   end;
   (* also check for free univars *)
-  occur_univar_or_unscoped_for Moregen env ty;
-  update_level_for Moregen env level ty
+  occur_univar_or_unscoped_for Equality env ty;
+  update_level_for Equality env level ty
 
 let may_instantiate t1 = get_level t1 <> subject_level
 
@@ -4577,8 +4574,8 @@ let rec moregen type_pairs env t1 t2 =
     match (get_desc t1, get_desc t2) with
       (Tvar _, _) when may_instantiate t1 ->
         moregen_occur env (get_level t1) t2;
-        update_scope_for Moregen (get_scope t1) t2;
-        occur_for Moregen (Expression {env; in_subst = false}) t1 t2;
+        update_scope_for Equality (get_scope t1) t2;
+        occur_for Equality (Expression {env; in_subst = false}) t1 t2;
         link_type t1 t2
     | (Tconstr (p1, [], _), Tconstr (p2, [], _))
       when Env_unscoped.path_equiv env p1 p2 ->
@@ -4593,37 +4590,37 @@ let rec moregen type_pairs env t1 t2 =
           match (get_desc t1', get_desc t2') with
             (Tvar _, _) when may_instantiate t1' ->
               moregen_occur env (get_level t1') t2;
-              update_scope_for Moregen (get_scope t1') t2;
+              update_scope_for Equality (get_scope t1') t2;
               link_type t1' t2
           | (Tarrow (l1, t1, u1, _), Tarrow (l2, t2, u2, _)) ->
-              eq_labels Moregen ~in_pattern_mode:false l1 l2;
+              eq_labels Equality ~in_pattern_mode:false l1 l2;
               moregen type_pairs env t1 t2;
               moregen type_pairs env u1 u2
           | (Tfunctor (l1, id1, pack1, t1), Tfunctor (l2, id2, pack2, t2)) ->
-              eq_labels Moregen ~in_pattern_mode:false l1 l2;
+              eq_labels Equality ~in_pattern_mode:false l1 l2;
               moregen_package type_pairs env
                 (get_level t1') pack1 (get_level t2') pack2;
               let mty1 = modtype_of_package env Location.none pack1 in
               let mty2 = modtype_of_package env Location.none pack2 in
-              enter_functor_with_mtys_for Moregen env id1 mty1 t1' id2 mty2 t2'
+              enter_functor_with_mtys_for Equality env id1 mty1 t1' id2 mty2 t2'
                   (fun new_env -> moregen type_pairs new_env t1 t2)
           | Tarrow (l1, t1, u1, _), Tfunctor (l2, id2, pack2, u2) ->
-                eq_labels Moregen ~in_pattern_mode:false l1 l2;
+                eq_labels Equality ~in_pattern_mode:false l1 l2;
                 let t2 = newmono_package pack2 in
                 moregen type_pairs env t1 t2;
                 let mty = modtype_of_package env Location.none pack2 in
                 let env' = Env.add_module (Ident.of_unscoped id2)
                                           Mp_present mty env in
-                identifier_escape_for Moregen env' [id2] u2;
+                identifier_escape_for Equality env' [id2] u2;
                 moregen type_pairs env u1 u2
           | Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _) ->
-                eq_labels Moregen ~in_pattern_mode:false l1 l2;
+                eq_labels Equality ~in_pattern_mode:false l1 l2;
                 let t1 = newmono_package pack1 in
                 moregen type_pairs env t1 t2;
                 let mty = modtype_of_package env Location.none pack1 in
                 let env' = Env.add_module (Ident.of_unscoped id1)
                                           Mp_present mty env in
-                identifier_escape_for Moregen env' [id1] u1;
+                identifier_escape_for Equality env' [id1] u1;
                 moregen type_pairs env u1 u2
           | (Ttuple tl1, Ttuple tl2) ->
               moregen_labeled_list type_pairs env tl1 tl2
@@ -4633,8 +4630,10 @@ let rec moregen type_pairs env t1 t2 =
           | (Tpackage pack1, Tpackage pack2) ->
               moregen_package type_pairs env (get_level t1') pack1
                 (get_level t2') pack2
-          | (Tnil,  Tconstr _ ) -> raise_for Moregen (Obj (Abstract_row Second))
-          | (Tconstr _,  Tnil ) -> raise_for Moregen (Obj (Abstract_row First))
+          | (Tnil,  Tconstr _ ) ->
+            raise_for Equality (Obj (Abstract_row Second))
+          | (Tconstr _,  Tnil ) ->
+            raise_for Equality (Obj (Abstract_row First))
           | (Tvariant row1, Tvariant row2) ->
               moregen_row type_pairs env row1 row2
           | (Tobject (fi1, _nm1), Tobject (fi2, _nm2)) ->
@@ -4646,30 +4645,30 @@ let rec moregen type_pairs env t1 t2 =
           | (Tpoly (t1, []), Tpoly (t2, [])) ->
               moregen type_pairs env t1 t2
           | (Tpoly (t1, tl1), Tpoly (t2, tl2)) ->
-              enter_poly_for Moregen env t1 tl1 t2 tl2
+              enter_poly_for Equality env t1 tl1 t2 tl2
                 (moregen type_pairs env)
           | (Tunivar _, Tunivar _) ->
-              unify_univar_for Moregen t1' t2' !univar_pairs
+              unify_univar_for Equality t1' t2' !univar_pairs
           | (_, _) ->
-              raise_unexplained_for Moregen
+              raise_unexplained_for Equality
         end
-  with Moregen_trace trace ->
-    raise_trace_for Moregen (Diff {got = t1; expected = t2} :: trace)
+  with Equality_trace trace ->
+    raise_trace_for Equality (Diff {got = t1; expected = t2} :: trace)
 
 
 and moregen_list type_pairs env tl1 tl2 =
   if List.length tl1 <> List.length tl2 then
-    raise_unexplained_for Moregen;
+    raise_unexplained_for Equality;
   List.iter2 (moregen type_pairs env) tl1 tl2
 
 and moregen_labeled_list type_pairs env labeled_tl1
     labeled_tl2 =
   if 0 <> List.compare_lengths labeled_tl1 labeled_tl2 then
-    raise_unexplained_for Moregen;
+    raise_unexplained_for Equality;
   List.iter2
     (fun (label1, ty1) (label2, ty2) ->
       if not (Option.equal String.equal label1 label2) then
-        raise_unexplained_for Moregen;
+        raise_unexplained_for Equality;
       moregen type_pairs env ty1 ty2)
     labeled_tl1 labeled_tl2
 
@@ -4679,8 +4678,8 @@ and moregen_package type_pairs env lvl1 pack1 lvl2 pack2 =
       lvl1 pack1 lvl2 pack2
   with
   | Ok () -> ()
-  | Error fme -> raise_for Moregen (First_class_module fme)
-  | exception Not_found -> raise_unexplained_for Moregen
+  | Error fme -> raise_for Equality (First_class_module fme)
+  | exception Not_found -> raise_unexplained_for Equality
 
 and moregen_fields type_pairs env ty1 ty2 =
   let (fields1, rest1) = flatten_fields ty1
@@ -4688,7 +4687,7 @@ and moregen_fields type_pairs env ty1 ty2 =
   let (pairs, miss1, miss2) = associate_fields fields1 fields2 in
   begin
     match miss1 with
-    | (n, _, _) :: _ -> raise_for Moregen (Obj (Missing_field (Second, n)))
+    | (n, _, _) :: _ -> raise_for Equality (Obj (Missing_field (Second, n)))
     | [] -> ()
   end;
   moregen type_pairs env rest1
@@ -4696,8 +4695,8 @@ and moregen_fields type_pairs env ty1 ty2 =
   List.iter
     (fun (name, k1, t1, k2, t2) ->
        moregen_kind name k1 k2;
-       try moregen type_pairs env t1 t2 with Moregen_trace trace ->
-         raise_trace_for Moregen
+       try moregen type_pairs env t1 t2 with Equality_trace trace ->
+         raise_trace_for Equality
            (incompatible_fields ~name ~got:t1 ~expected:t2 :: trace)
     )
     pairs
@@ -4726,20 +4725,20 @@ and moregen_row type_pairs env row1 row2 =
     else r1, r2
   in
   begin
-    if r1 <> [] then raise_for Moregen (Variant (No_tags (Second, r1)))
+    if r1 <> [] then raise_for Equality (Variant (No_tags (Second, r1)))
   end;
   if row1_closed then begin
     match row2_closed, r2 with
-    | false, _ -> raise_for Moregen (Variant (Openness Second))
-    | _, _ :: _ -> raise_for Moregen (Variant (No_tags (First, r2)))
+    | false, _ -> raise_for Equality (Variant (Openness Second))
+    | _, _ :: _ -> raise_for Equality (Variant (No_tags (First, r2)))
     | _, [] -> ()
   end;
   let md1 = get_desc rm1 (* This lets us undo a following [link_type] *) in
   begin match md1, get_desc rm2 with
     Tunivar _, Tunivar _ ->
-      unify_univar_for Moregen rm1 rm2 !univar_pairs
+      unify_univar_for Equality rm1 rm2 !univar_pairs
   | Tunivar _, _ | _, Tunivar _ ->
-      raise_unexplained_for Moregen
+      raise_unexplained_for Equality
   | _ when static_row row1 -> ()
   | _ when may_inst ->
       let ext =
@@ -4748,12 +4747,12 @@ and moregen_row type_pairs env row1 row2 =
                        ~fixed:row2_fixed ~closed:row2_closed))
       in
       moregen_occur env (get_level rm1) ext;
-      update_scope_for Moregen (get_scope rm1) ext;
+      update_scope_for Equality (get_scope rm1) ext;
       (* This [link_type] has to be undone if the rest of the function fails *)
       link_type rm1 ext
   | Tconstr _, Tconstr _ ->
       moregen type_pairs env rm1 rm2
-  | _ -> raise_unexplained_for Moregen
+  | _ -> raise_unexplained_for Equality
   end;
   try
     List.iter
@@ -4764,8 +4763,8 @@ and moregen_row type_pairs env row1 row2 =
          | Rpresent(Some t1), Rpresent(Some t2) -> begin
              try
                moregen type_pairs env t1 t2
-             with Moregen_trace trace ->
-               raise_trace_for Moregen
+             with Equality_trace trace ->
+               raise_trace_for Equality
                  (Variant (Incompatible_types_for l) :: trace)
            end
          | Rpresent None, Rpresent None -> ()
@@ -4773,7 +4772,7 @@ and moregen_row type_pairs env row1 row2 =
          | Reither(c1, tl1, _), Reither(c2, tl2, m2) -> begin
              try
                if not (eq_row_field_ext f1 f2) then begin
-                 if c1 && not c2 then raise_unexplained_for Moregen;
+                 if c1 && not c2 then raise_unexplained_for Equality;
                  let f2' =
                    rf_either [] ~use_ext_of:f2 ~no_arg:c2 ~matched:m2 in
                  link_row_field_ext ~inside:f1 f2';
@@ -4784,10 +4783,10 @@ and moregen_row type_pairs env row1 row2 =
                      List.iter
                        (fun t1 -> moregen type_pairs env t1 t2)
                        tl1
-                   | [] -> if tl1 <> [] then raise_unexplained_for Moregen
+                   | [] -> if tl1 <> [] then raise_unexplained_for Equality
                end
-             with Moregen_trace trace ->
-               raise_trace_for Moregen
+             with Equality_trace trace ->
+               raise_trace_for Equality
                  (Variant (Incompatible_types_for l) :: trace)
            end
          (* Generalizing [Reither] *)
@@ -4797,8 +4796,8 @@ and moregen_row type_pairs env row1 row2 =
                List.iter
                  (fun t1 -> moregen type_pairs env t1 t2)
                  tl1
-             with Moregen_trace trace ->
-               raise_trace_for Moregen
+             with Equality_trace trace ->
+               raise_trace_for Equality
                  (Variant (Incompatible_types_for l) :: trace)
            end
          | Reither(true, [], _), Rpresent None when may_inst ->
@@ -4810,19 +4809,19 @@ and moregen_row type_pairs env row1 row2 =
          (* Mismatched constructor arguments *)
          | Rpresent (Some _), Rpresent None
          | Rpresent None, Rpresent (Some _) ->
-             raise_for Moregen (Variant (Incompatible_types_for l))
+             raise_for Equality (Variant (Incompatible_types_for l))
          (* Mismatched presence *)
          | Reither _, Rpresent _ ->
-             raise_for Moregen
+             raise_for Equality
                (Variant (Presence_not_guaranteed_for (First, l)))
          | Rpresent _, Reither _ ->
-             raise_for Moregen
+             raise_for Equality
                (Variant (Presence_not_guaranteed_for (Second, l)))
          (* Missing tags *)
          | Rabsent, (Rpresent _ | Reither _) ->
-             raise_for Moregen (Variant (No_tags (First, [l, f2])))
+             raise_for Equality (Variant (No_tags (First, [l, f2])))
          | (Rpresent _ | Reither _), Rabsent ->
-             raise_for Moregen (Variant (No_tags (Second, [l, f1]))))
+             raise_for Equality (Variant (No_tags (Second, [l, f1]))))
       pairs
   with exn ->
     (* Undo [link_type] if we failed *)
@@ -4868,7 +4867,7 @@ let moregeneral env pat_sch subj_sch =
       (* Duplicate generic variables *)
       let patt = generic_instance pat_sch in
       try Ok (moregen (TypePairs.create 13) env patt subj)
-      with Moregen_trace trace -> Error trace
+      with Equality_trace trace -> Error trace
     end with
     | Ok () -> ()
     | Error trace -> raise (Moregen (expand_to_moregen_error env trace))
@@ -5337,7 +5336,7 @@ let rec moregen_clty ~arrow_index trace type_pairs env cty1 cty2 =
     | Cty_arrow (l1, ty1, cty1'), Cty_arrow (l2, ty2, cty2') when l1 = l2 ->
         let arrow_index = arrow_index + 1 in
         begin
-          try moregen type_pairs env ty1 ty2 with Moregen_trace trace ->
+          try moregen type_pairs env ty1 ty2 with Equality_trace trace ->
             raise (Failure [
                 CM_Parameter_mismatch
                   (arrow_index, env, expand_to_moregen_error env trace)])
@@ -5354,7 +5353,7 @@ let rec moregen_clty ~arrow_index trace type_pairs env cty1 cty2 =
              | (_, _, ty') ->
                  match moregen type_pairs env ty' ty with
                  | () -> ()
-                 | exception Moregen_trace trace ->
+                 | exception Equality_trace trace ->
                      raise (Failure [
                        CM_Meth_type_mismatch
                          (lab,
@@ -5372,7 +5371,7 @@ let rec moregen_clty ~arrow_index trace type_pairs env cty1 cty2 =
              | (_, _, ty') ->
                  match moregen type_pairs env ty' ty with
                  | () -> ()
-                 | exception Moregen_trace trace ->
+                 | exception Equality_trace trace ->
                      raise (Failure [
                        CM_Val_type_mismatch
                          (lab,
