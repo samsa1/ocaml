@@ -119,6 +119,10 @@ Working version
   (Olivier Nicole, review by Gabriel Scherer and Nicolás Ojeda Bär, suggestion
    by Andreas Rossberg)
 
+- #14724: Add Format.pp_print_iarray
+  (Olivier Nicole, review by Gabriel Scherer and Daniel Bünzli, suggestion by
+   Jan Behrens)
+
 - #14553: Add Array.fold_{left,right}2
   (Clément Pottier, review by Nicolás Ojeda Bär and Vincent Laviron)
 

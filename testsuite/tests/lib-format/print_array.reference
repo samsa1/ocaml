@@ -1,7 +1,12 @@
-empty
+empty array
  0
-misc
+various arrays
  1 2 3
+end of tests
+empty iarray
+ 4
+various iarrays
+ 5 6 7
 end of tests
 
 All tests succeeded.
