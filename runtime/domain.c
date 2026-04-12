@@ -876,7 +876,6 @@ static void domain_create(uintnat initial_minor_heap_wsize,
   /* Set domain_self if we have successfully allocated the
    * caml_domain_state. Otherwise domain_self will be NULL and it's up
    * to the caller to deal with that. */
-
   domain_self = d;
   caml_state = domain_state;
 
@@ -888,6 +887,9 @@ static void domain_create(uintnat initial_minor_heap_wsize,
                         memory_order_release);
 
   domain_state->id = d->id;
+
+  s->unique_id = fresh_domain_unique_id();
+  domain_state->unique_id = s->unique_id;
 
   /* Tell memprof system about the new domain before either (a) new
    * domain can allocate anything or (b) parent domain can go away. */
@@ -952,11 +954,8 @@ static void domain_create(uintnat initial_minor_heap_wsize,
     goto alloc_main_stack_failure;
   }
 
-  /* No remaining failure cases: domain creation is going to succeed,
-   * so we can update globally-visible state without needing to unwind
-   * it. */
-  s->unique_id = fresh_domain_unique_id();
-  domain_state->unique_id = s->unique_id;
+  /* No remaining failure cases. */
+
   s->running = 1;
 
   domain_state->c_stack = NULL;
