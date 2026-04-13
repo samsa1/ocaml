@@ -189,6 +189,9 @@ Working version
 - #14695: Add hint about using type annotations to avoid scope escape errors
   (Stefan Muenzel, review by Jacques Garrigue and Florian Angeletti)
 
+- #14737: Uniformly check for missing fields first when comparing object types.
+  (Samuel Vivien, review by Gabriel Scherer)
+
 ### Internal/compiler-libs changes:
 
 - #14620: optimize utf8 normalization and (un)capitalization functions
