@@ -5099,11 +5099,11 @@ and eqtype_fields rename type_pairs subst env ty1 ty2 =
     Tobject(ty2,_) -> eqtype_fields rename type_pairs subst env ty1 ty2
   | _ ->
   let (pairs, miss1, miss2) = associate_fields fields1 fields2 in
-  eqtype rename type_pairs subst env rest1 rest2;
   match miss1, miss2 with
   | ((n, _, _)::_, _) -> raise_for Equality (Obj (Missing_field (Second, n)))
   | (_, (n, _, _)::_) -> raise_for Equality (Obj (Missing_field (First, n)))
   | [], [] ->
+      eqtype rename type_pairs subst env rest1 rest2;
       List.iter
         (function (name, k1, t1, k2, t2) ->
            eqtype_kind k1 k2;

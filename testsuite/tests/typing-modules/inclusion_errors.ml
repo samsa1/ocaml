@@ -1348,7 +1348,7 @@ Error: Signature mismatch:
        is not included in
          type t = < m : int >
        The type "s" is not equal to the type "< m : int >"
-       The first object type has an abstract row, it cannot be closed
+       The second object type has no method "n"
 |}];;
 
 type s = private <m : int; n : int; ..>
