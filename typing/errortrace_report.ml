@@ -276,6 +276,13 @@ let explain_object (type variety) : variety Errortrace.obj -> _ = function
       Some (doc_printf
               "@,Self type cannot be unified with a closed object type"
            )
+  | Errortrace.Kind_differ (f, k1, k2) -> Some(
+      doc_printf
+        "@,@[The method %a is %s and was expected to be %s@]"
+          Style.inline_code f
+          (match k1 with Fpublic -> "public" | _ -> "private")
+          (match k2 with Fpublic -> "public" | _ -> "private")
+    )
 
 let explain_incompatible_fields name (diff: Types.type_expr Errortrace.diff) =
   Variable_names.reserve diff.got;

@@ -213,6 +213,9 @@ Working version
   rectypes and module aliases.
   (Brandon Stride)
 
+- #14738: Clean code of moregen_kind and eqtype_kind as only one case was
+  possible. (Samuel Vivien, review by Florian Angeletti)
+
 ### Build system:
 
 ### Bug fixes:

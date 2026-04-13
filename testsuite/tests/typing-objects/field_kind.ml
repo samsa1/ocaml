@@ -119,15 +119,46 @@ let moregen_public_private = object (self)
 end
 
 [%%expect{|
-Uncaught exception: Ctype.Public_method_to_private_method
-
+Lines 5-7, characters 48-8:
+5 | ................................................struct
+6 |        let s () : <n : int> = assert false
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig val s : unit -> < n : int > end
+       is not included in
+         sig val s : unit -> M.t end
+       Values do not match:
+         val s : unit -> < n : int >
+       is not included in
+         val s : unit -> M.t
+       The type "unit -> < n : int >" is not compatible with the type
+         "unit -> M.t"
+       Type "< n : int >" is not compatible with type "M.t" = "<  >"
+       The method "n" is public and was expected to be private
 |}, Principal{|
 Line 4, characters 20-38:
 4 |      let module M = (val type_of self) in
                         ^^^^^^^^^^^^^^^^^^
 Warning 18 [not-principal]: this module unpacking is not principal.
-Uncaught exception: Ctype.Public_method_to_private_method
 
+Lines 5-7, characters 48-8:
+5 | ................................................struct
+6 |        let s () : <n : int> = assert false
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig val s : unit -> < n : int > end
+       is not included in
+         sig val s : unit -> M.t end
+       Values do not match:
+         val s : unit -> < n : int >
+       is not included in
+         val s : unit -> M.t
+       The type "unit -> < n : int >" is not compatible with the type
+         "unit -> M.t"
+       Type "< n : int >" is not compatible with type "M.t" = "<  >"
+       The method "n" is public and was expected to be private
 |}]
 
 let moregen_private_public = object (self)
@@ -142,42 +173,46 @@ let moregen_private_public = object (self)
 end
 
 [%%expect{|
-Lines 1-10, characters 29-3:
- 1 | .............................object (self)
- 2 |   method private n = 0
- 3 |   initializer
- 4 |      let module M = (val type_of self) in
- 5 |      let module N: sig val s: unit -> <n : int> end = struct
- 6 |        let s () : M.t = assert false
- 7 |      end
- 8 |      in
- 9 |      ()
-10 | end
-Warning 15 [implicit-public-methods]: the following private methods were made
-  public implicitly: "n".
-
-val moregen_private_public : < n : int > = <obj>
+Lines 5-7, characters 54-8:
+5 | ......................................................struct
+6 |        let s () : M.t = assert false
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig val s : unit -> M.t end
+       is not included in
+         sig val s : unit -> < n : int > end
+       Values do not match:
+         val s : unit -> M.t
+       is not included in
+         val s : unit -> < n : int >
+       The type "unit -> M.t" is not compatible with the type
+         "unit -> < n : int >"
+       Type "M.t" = "<  >" is not compatible with type "< n : int >"
+       The method "n" is private and was expected to be public
 |}, Principal{|
 Line 4, characters 20-38:
 4 |      let module M = (val type_of self) in
                         ^^^^^^^^^^^^^^^^^^
 Warning 18 [not-principal]: this module unpacking is not principal.
 
-Lines 1-10, characters 29-3:
- 1 | .............................object (self)
- 2 |   method private n = 0
- 3 |   initializer
- 4 |      let module M = (val type_of self) in
- 5 |      let module N: sig val s: unit -> <n : int> end = struct
- 6 |        let s () : M.t = assert false
- 7 |      end
- 8 |      in
- 9 |      ()
-10 | end
-Warning 15 [implicit-public-methods]: the following private methods were made
-  public implicitly: "n".
-
-val moregen_private_public : < n : int > = <obj>
+Lines 5-7, characters 54-8:
+5 | ......................................................struct
+6 |        let s () : M.t = assert false
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig val s : unit -> M.t end
+       is not included in
+         sig val s : unit -> < n : int > end
+       Values do not match:
+         val s : unit -> M.t
+       is not included in
+         val s : unit -> < n : int >
+       The type "unit -> M.t" is not compatible with the type
+         "unit -> < n : int >"
+       Type "M.t" = "<  >" is not compatible with type "< n : int >"
+       The method "n" is private and was expected to be public
 |}]
 
 let moregen_private_private = object (self)
@@ -243,15 +278,42 @@ let eqtype_public_private = object (self)
 end
 
 [%%expect{|
-Uncaught exception: Ctype.Unify_trace(0)
-
+Lines 5-7, characters 42-8:
+5 | ..........................................struct
+6 |              type t = <n: int; k:unit >
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = < k : unit; n : int > end
+       is not included in
+         sig type t = M.t end
+       Type declarations do not match:
+         type t = < k : unit; n : int >
+       is not included in
+         type t = M.t
+       The type "< k : unit; n : int >" is not equal to the type "M.t"
+       The method "n" is public and was expected to be private
 |}, Principal{|
 Line 4, characters 20-38:
 4 |      let module M = (val type_of self) in
                         ^^^^^^^^^^^^^^^^^^
 Warning 18 [not-principal]: this module unpacking is not principal.
-Uncaught exception: Ctype.Unify_trace(0)
 
+Lines 5-7, characters 42-8:
+5 | ..........................................struct
+6 |              type t = <n: int; k:unit >
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = < k : unit; n : int > end
+       is not included in
+         sig type t = M.t end
+       Type declarations do not match:
+         type t = < k : unit; n : int >
+       is not included in
+         type t = M.t
+       The type "< k : unit; n : int >" is not equal to the type "M.t"
+       The method "n" is public and was expected to be private
 |}]
 
 let eqtype_private_public = object (self)
@@ -266,15 +328,42 @@ let eqtype_private_public = object (self)
 end
 
 [%%expect{|
-Uncaught exception: Ctype.Unify_trace(0)
-
+Lines 5-7, characters 56-8:
+5 | ........................................................struct
+6 |              type t = M.t
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = M.t end
+       is not included in
+         sig type t = < k : unit; n : int > end
+       Type declarations do not match:
+         type t = M.t
+       is not included in
+         type t = < k : unit; n : int >
+       The type "M.t" is not equal to the type "< k : unit; n : int >"
+       The method "n" is private and was expected to be public
 |}, Principal{|
 Line 4, characters 20-38:
 4 |      let module M = (val type_of self) in
                         ^^^^^^^^^^^^^^^^^^
 Warning 18 [not-principal]: this module unpacking is not principal.
-Uncaught exception: Ctype.Unify_trace(0)
 
+Lines 5-7, characters 56-8:
+5 | ........................................................struct
+6 |              type t = M.t
+7 |      end
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = M.t end
+       is not included in
+         sig type t = < k : unit; n : int > end
+       Type declarations do not match:
+         type t = M.t
+       is not included in
+         type t = < k : unit; n : int >
+       The type "M.t" is not equal to the type "< k : unit; n : int >"
+       The method "n" is private and was expected to be public
 |}]
 
 let eqtype_private_private = object (self)
