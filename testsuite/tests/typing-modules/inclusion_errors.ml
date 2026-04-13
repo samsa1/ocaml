@@ -1327,6 +1327,55 @@ Error: Signature mismatch:
        Type "int" is not equal to type "float"
 |}];;
 
+type s = private <m : int; n : int; ..>
+
+module M
+  : sig type t = <m : int> end
+  = struct type t = s end
+
+[%%expect{|
+type s = private < m : int; n : int; .. >
+Line 5, characters 4-25:
+5 |   = struct type t = s end
+        ^^^^^^^^^^^^^^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = s end
+       is not included in
+         sig type t = < m : int > end
+       Type declarations do not match:
+         type t = s
+       is not included in
+         type t = < m : int >
+       The type "s" is not equal to the type "< m : int >"
+       The first object type has an abstract row, it cannot be closed
+|}];;
+
+type s = private <m : int; n : int; ..>
+module M
+  : sig val f : <m : int > -> unit end
+  = struct let f (_ : s) = () end
+
+[%%expect{|
+type s = private < m : int; n : int; .. >
+Line 4, characters 4-33:
+4 |   = struct let f (_ : s) = () end
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : s -> unit end
+       is not included in
+         sig val f : < m : int > -> unit end
+       Values do not match:
+         val f : s -> unit
+       is not included in
+         val f : < m : int > -> unit
+       The type "s -> unit" is not compatible with the type "< m : int > -> unit"
+       Type "s" = "< m : int; n : int; .. >" is not compatible with type
+         "< m : int >"
+       The second object type has no method "n"
+|}];;
+
 type w = private float
 type q = private (int * w)
 type u = private (int * q)
