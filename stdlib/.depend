@@ -349,6 +349,7 @@ stdlib__Format.cmo : format.ml \
     stdlib__Int.cmi \
     stdlib__Iarray.cmi \
     stdlib__Either.cmi \
+    stdlib__Dynarray.cmi \
     stdlib__Domain.cmi \
     camlinternalFormatBasics.cmi \
     camlinternalFormat.cmi \
@@ -367,6 +368,7 @@ stdlib__Format.cmx : format.ml \
     stdlib__Int.cmx \
     stdlib__Iarray.cmx \
     stdlib__Either.cmx \
+    stdlib__Dynarray.cmx \
     stdlib__Domain.cmx \
     camlinternalFormatBasics.cmx \
     camlinternalFormat.cmx \
@@ -378,6 +380,7 @@ stdlib__Format.cmi : format.mli \
     stdlib.cmi \
     stdlib__Seq.cmi \
     stdlib__Either.cmi \
+    stdlib__Dynarray.cmi \
     stdlib__Domain.cmi \
     stdlib__Buffer.cmi
 stdlib__Fun.cmo : fun.ml \

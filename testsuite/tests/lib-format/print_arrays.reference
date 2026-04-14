@@ -8,5 +8,10 @@ empty iarray
 various iarrays
  5 6 7
 end of tests
+empty dynarray
+ 8
+various dynarrays
+ 9 10 11
+end of tests
 
 All tests succeeded.
