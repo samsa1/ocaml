@@ -226,7 +226,7 @@ module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
 [%%expect{|
 implicit module SPair :
   (A : Show) (B : Show) => sig type t = A.t * B.t val print : t -> unit end
-Uncaught exception: File "typing/implicitmod_constraints.ml", line 78, characters 2-8: Assertion failed
+Uncaught exception: File "typing/implicitmod_constraints.ml", line 408, characters 2-8: Assertion failed
 
 |}]
 
@@ -629,4 +629,40 @@ Error: Inference of signature sig type t = int val eq : t -> t -> bool end
              sig type t = int val eq : t -> t -> bool end
             It can be filled by either  OrdToEq(OInt)  or  EInt2.
 
+|}]
+
+(* Test abstract functor *)
+
+module type Set = sig
+  type t
+  type elt
+end
+
+implicit module CmpInt : Set.OrderedType with type t = int = Int
+
+implicit module SetMake (X : Set.OrderedType) : Set with type elt = X.t = struct
+  type t = X.t list
+  type elt = X.t
+end
+
+[%%expect{|
+module type Set = sig type t type elt end
+implicit module CmpInt : sig type t = int val compare : t -> t -> int end
+implicit module SetMake :
+  (X : Set.OrderedType) => sig type t type elt = X.t end
+|}]
+
+module ISet1 : Set with type t = SetMake(CmpInt).t = SetMake(CmpInt)
+
+module ISet : Set with type t = SetMake(CmpInt).t = _
+
+[%%expect{|
+module ISet1 : sig type t = SetMake(CmpInt).t type elt end
+Line 3, characters 12-53:
+3 | module ISet : Set with type t = SetMake(CmpInt).t = _
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SetMake(CmpInt)"
+
+module ISet : sig type t = SetMake(CmpInt).t type elt end
 |}]

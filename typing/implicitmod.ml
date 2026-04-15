@@ -18,6 +18,8 @@ open Asttypes
 open Parsetree
 open Types
 
+module Constraints = Implicitmod_constraints
+
 module FuncOrder : sig
   type t
   val empty : t
@@ -142,34 +144,38 @@ let rec extract_arguments env args mty =
 
 type extracted_arg =
   | EA_Unit
-  | EA_Arg of Ident.t option * Env.t * Types.module_type
+  | EA_Arg of Ident.t * Env.t * Types.module_type
 
-let rec prepare_args env args =
+let rec prepare_args d env args =
   match args with
   | [] -> ([], env, Subst.identity)
   | Unit :: rest ->
-      let args, env, subst = prepare_args env rest in
+      let args, env, subst = prepare_args d env rest in
       (EA_Unit :: args, env, subst)
   | Named (_, id, arg_ty) :: rest ->
-      let args, env, subst = prepare_args env rest in
+      let args, env, subst = prepare_args d env rest in
       (* let arg_ty = open_module_type env arg_ty in *)
       let oid, env, subst = match id with
-        | None -> None, env, subst
+        | None ->
+          let id' = Ident.create_flex ~scope:(Ctype.get_current_level ())
+                ("?" ^ string_of_int d ^ "?_?")
+          in
+          id', env, subst
         | Some id ->
           let id' = Ident.create_flex ~scope:(Ctype.get_current_level ())
-                        ("??" ^ Ident.name id)
+                        ("?" ^ string_of_int d ^ "?" ^ Ident.name id)
           in
-          Some id',
+          id',
           Env.add_module ~noalias:true id' Mp_present IILocal arg_ty env,
           Subst.add_module id (Pident id') subst
       in
       (EA_Arg (oid, env, Subst.modtype Keep subst arg_ty) :: args, env, subst)
 
-let extract_function env depth mty =
+let extract_function search_depth env depth mty =
   let rec aux d args mty =
     if d = 0
     then
-      let (args, env, subst) = prepare_args env args in
+      let (args, env, subst) = prepare_args search_depth env args in
       Some (args, env, Subst.modtype Keep subst mty)
     else match args with
       | [] -> None
@@ -188,10 +194,11 @@ type implicit_inference_solution = {
   psol : Parsetree.module_expr;
   tsol : Typedtree.module_expr;
   path : Path.t;
-  constraints : Implicitmod_constraints.t;
+  constraints : Constraints.t;
 }
 
 type problem = {
+  id : Ident.t;
   modtype : Types.module_type;
   env : Env.t;
   signature : Types.module_type;
@@ -222,7 +229,7 @@ and current_status = {
   local_env : Env.t;
   ret_mty : Types.module_type;
   args_status : args_status;
-  constraints : Implicitmod_constraints.t;
+  constraints : Constraints.t;
 }
 
 exception ImplicitError of Location.t * implicit_inference
@@ -231,13 +238,13 @@ let map_recursive_arg f = function
   | Arg prob -> Arg (f prob)
   | Unit -> Unit
 
-let rec collect_all_constraints cstrs = function
+let rec collect_all_constraints env cstrs = function
   | Arg { desc = Solved sol } :: tl ->
-    collect_all_constraints
-      (Implicitmod_constraints.merge sol.constraints cstrs)
+    collect_all_constraints env
+      (Constraints.merge env sol.constraints cstrs)
       tl
   | Arg _ :: tl | Unit :: tl ->
-    collect_all_constraints cstrs tl
+    collect_all_constraints env cstrs tl
   | [] -> cstrs
 
 let print_it_with_holes fmt node =
@@ -297,9 +304,9 @@ let print_it_holes_info fmt node =
       incr nb;
     | Working { current = Some { args_status = Node ([], _) }} ->
       Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
-    | Working { current = Some { args_status = Node (args, _); constraints}} ->
+    | Working { current = Some { args_status = Node (args, _); local_env; constraints}} ->
       let local_cstrts =
-        Implicitmod_constraints.merge ctxt_cstrts constraints
+        Constraints.merge local_env ctxt_cstrts constraints
       in
       List.iter (aux_arg local_cstrts fmt) args
     | Working { solutions = _; current = None; next = _} ->
@@ -311,24 +318,21 @@ let print_it_holes_info fmt node =
           !nb;
       incr nb;
     | Arg arg -> aux ctxt_cstrts fmt arg
-  in aux Implicitmod_constraints.empty fmt node
+  in aux Constraints.empty fmt node
 
 let solution_is_still_valid problem ctxt_constraints {constraints; psol = _; path = _; _}
 =
-  let local_ctxt = Implicitmod_constraints.merge ctxt_constraints constraints in
-  not (Implicitmod_constraints.has_error problem.env local_ctxt)
+  let local_ctxt = Constraints.merge problem.env ctxt_constraints constraints in
+  not (Constraints.has_error problem.env local_ctxt)
 
-let prepare_argument oid env modtype : implicit_inference =
-  let mty =
-    match oid with
-    | None -> modtype
-    | Some id -> Mtype.strengthen ~aliasable:false env modtype (Pident id)
+let prepare_argument id env modtype : implicit_inference =
+  let mty = Mtype.strengthen ~aliasable:false env modtype (Pident id)
   in
   let nargs, sg = get_sig env 0 mty in
   let next = Env.find_structures sg env in
   let next = Misc.Stdlib.String.Map.to_seq next in
   {
-    problem = {modtype; signature = mty; nargs; env };
+    problem = {id; modtype; signature = mty; nargs; env };
     desc = Working { solutions = []; current = None; next }
   }
 
@@ -339,7 +343,7 @@ let prepare_extracted_argument = function
 let type_module = ref (fun _ _ -> assert false)
 let type_one_application_to_path = ref (fun ~loc:_ _ _ _ _ -> assert false)
 
-let build_solution ~loc {env; signature} name path args =
+let build_solution ~loc {id; env; signature} name path args =
   let snap = Btype.snapshot () in
   let rec build_mexp pme path tme = function
     | [] ->
@@ -354,7 +358,9 @@ let build_solution ~loc {env; signature} name path args =
             psol = pme;
             tsol = tme;
             path = Env.normalize_module_path (Some Location.none) env path;
-            constraints;
+            constraints =
+              Constraints.add_path_eq env Constraints.Module
+                (Pident id) path constraints;
           }
         | exception (Includemod.Error _ | Ctype.Unify _) ->
           Btype.backtrack snap;
@@ -396,7 +402,12 @@ let rec remove_duplicate_sols : implicit_inference_solution list -> _ = function
     remove_duplicate_sols (sol1 :: tl)
   | sols -> sols
 
-let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
+let rec build_path path = function
+  | [] -> Some path
+  | EA_Unit :: _ -> None
+  | EA_Arg (id, _, _) :: tl -> build_path Path.(Papply (path, Pident id)) tl
+
+let rec refine_solution d ~loc trace ctxt_constraints {problem; desc} =
   match desc with
   | Solved s -> {problem; desc = Solved s}
   | NoSolution -> {problem; desc = NoSolution}
@@ -413,7 +424,7 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
       match current with
       | None ->
         begin
-          match filter_identifiers ~loc trace ctxt_constraints problem next with
+          match filter_identifiers d ~loc trace ctxt_constraints problem next with
           | Some {name; path; args_status = Node (args, 0); _}, next ->
             let solutions =
               match build_solution ~loc problem name path args with
@@ -421,7 +432,7 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
               | None -> solutions
             in
             let desc = Working { solutions; current = None; next } in
-            refine_solution ~loc prev_trace ctxt_constraints {problem; desc}
+            refine_solution d ~loc prev_trace ctxt_constraints {problem; desc}
           | None, next when Seq.is_empty next ->
             begin match solutions with
               | [] -> {problem; desc = NoSolution}
@@ -437,13 +448,13 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
         begin
           let snap = Btype.snapshot () in
           let local_constraints =
-            Implicitmod_constraints.merge ctxt_constraints constraints
+            Constraints.merge local_env ctxt_constraints constraints
           in
-          if Implicitmod_constraints.has_error local_env local_constraints
+          if Constraints.has_error local_env local_constraints
           then begin
             Btype.backtrack snap;
             let desc = Working { solutions; current = None; next } in
-            refine_solution ~loc prev_trace ctxt_constraints {problem; desc}
+            refine_solution d ~loc prev_trace ctxt_constraints {problem; desc}
           end else begin
             let trace =
               match
@@ -453,8 +464,8 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
               | None -> assert false
             in
             let arguments =
-              refine_solution_list ~loc trace local_constraints
-                                    arguments nb_unsolved
+              refine_solution_list (d + 1) ~loc local_env trace
+                                    local_constraints arguments nb_unsolved
             in
             Btype.backtrack snap;
             begin match arguments with
@@ -465,7 +476,7 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
                   | None -> solutions
                 in
                 let desc = Working { solutions; current = None; next } in
-                refine_solution ~loc prev_trace ctxt_constraints {problem; desc}
+                refine_solution d ~loc prev_trace ctxt_constraints {problem; desc}
               | Some (args, nb_unsolved) ->
                 let current =
                   Some {name; path; local_env; ret_mty; constraints;
@@ -481,13 +492,13 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
         begin
           let snap = Btype.snapshot () in
           let local_constraints =
-            Implicitmod_constraints.merge ctxt_constraints constraints
+            Constraints.merge local_env ctxt_constraints constraints
           in
-          if Implicitmod_constraints.has_error local_env local_constraints
+          if Constraints.has_error local_env local_constraints
           then begin
             Btype.backtrack snap;
             let desc = Working { solutions; current = None; next } in
-            refine_solution ~loc prev_trace ctxt_constraints {problem; desc}
+            refine_solution d ~loc prev_trace ctxt_constraints {problem; desc}
           end else begin
             match
               FuncOrder.update_map problem.env trace name problem.signature
@@ -497,7 +508,7 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
               {problem; desc = Working {solutions; current; next}}
             | Some trace ->
               let opened_node, next =
-                open_node ~loc snap trace ctxt_constraints constraints problem
+                open_node d ~loc snap trace ctxt_constraints constraints problem
                   name path local_env ret_mty params next
               in
               begin match opened_node with
@@ -508,7 +519,7 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
                   | None -> solutions
                 in
                 let desc = Working { solutions; current = None; next } in
-                refine_solution ~loc prev_trace ctxt_constraints {problem; desc}
+                refine_solution d ~loc prev_trace ctxt_constraints {problem; desc}
               | None when Seq.is_empty next ->
                 begin match solutions with
                   | [] -> {problem; desc = NoSolution}
@@ -523,34 +534,34 @@ let rec refine_solution ~loc trace ctxt_constraints {problem; desc} =
             end
         end
     end
-and refine_solution_list ~loc trace ctxt_constraints arguments nb_unsolved =
+and refine_solution_list d ~loc env trace ctxt_constraints arguments nb_unsolved =
   (* match prepare_args_for_refine arguments with
   | () ->
     begin *)
       let local_constraints =
-        collect_all_constraints ctxt_constraints arguments
+        collect_all_constraints env ctxt_constraints arguments
       in
       let arguments =
-        List.map (map_recursive_arg (refine_solution ~loc trace local_constraints)) arguments
+        List.map (map_recursive_arg (refine_solution d ~loc trace local_constraints)) arguments
       in
       match compute_nb_unsolved 0 arguments with
       | nb_unsolved' ->
         if nb_unsolved' < nb_unsolved
-        then refine_solution_list ~loc trace ctxt_constraints arguments nb_unsolved'
+        then refine_solution_list d ~loc env trace ctxt_constraints arguments nb_unsolved'
         else Some (arguments, nb_unsolved')
       | exception Not_found -> None
     (* end
   | exception (Ctype.Unify _ | Includemod.Error _)  -> None *)
-and filter_identifiers ~loc trace ctxt_constraints problem next =
+and filter_identifiers d ~loc trace ctxt_constraints problem next =
   match Seq.uncons next with
   | None -> None, Seq.empty
   | Some ((name, path), rest) ->
     let mdecl =
       Env.find_strengthened_module ~aliasable:false path problem.env
     in
-    match extract_function problem.env problem.nargs mdecl with
+    match extract_function d problem.env problem.nargs mdecl with
     | None ->
-      filter_identifiers ~loc trace ctxt_constraints problem rest
+      filter_identifiers d ~loc trace ctxt_constraints problem rest
     | Some (arguments, env_result, result) ->
       let snap = Btype.snapshot () in
       match
@@ -559,12 +570,20 @@ and filter_identifiers ~loc trace ctxt_constraints problem next =
       with
       | exception (Includemod.Error _ | Ctype.Unify _) ->
         Btype.backtrack snap;
-        filter_identifiers ~loc trace ctxt_constraints problem rest
+        filter_identifiers d ~loc trace ctxt_constraints problem rest
       | constraints ->
-        if Implicitmod_constraints.(has_error env_result (merge ctxt_constraints constraints))
+        let constraints =
+          match build_path path (List.rev arguments) with
+          | None -> constraints
+          | Some path ->
+            Constraints.add_path_eq env_result Constraints.Module
+              (Pident problem.id) path
+              constraints
+        in
+        if Constraints.(has_error env_result (merge env_result ctxt_constraints constraints))
         then begin
           Btype.backtrack snap;
-          filter_identifiers ~loc trace ctxt_constraints problem rest
+          filter_identifiers d ~loc trace ctxt_constraints problem rest
         end else begin
           match
             FuncOrder.update_map problem.env trace name problem.signature
@@ -574,21 +593,21 @@ and filter_identifiers ~loc trace ctxt_constraints problem next =
             Some {name; path; local_env = env_result; ret_mty = result;
                   args_status = RecLimit arguments; constraints}, rest
           | Some trace ->
-              open_node ~loc snap trace ctxt_constraints constraints problem
+              open_node d ~loc snap trace ctxt_constraints constraints problem
                 name path env_result result arguments rest
         end
-and open_node ~loc snap trace ctxt_constraints constraints problem name path
+and open_node d ~loc snap trace ctxt_constraints constraints problem name path
     local_env ret_mty arguments rest =
   let args = List.rev_map prepare_extracted_argument arguments in
   let local_constraints =
-    Implicitmod_constraints.merge ctxt_constraints constraints
+    Constraints.merge local_env ctxt_constraints constraints
   in
   match
-    refine_solution_list ~loc trace local_constraints args (List.length args)
+    refine_solution_list (d + 1) ~loc local_env trace local_constraints args (List.length args)
   with
   | None ->
     Btype.backtrack snap;
-    filter_identifiers ~loc trace ctxt_constraints problem rest
+    filter_identifiers d ~loc trace ctxt_constraints problem rest
   | Some (args, nb_unsolved) ->
     Btype.backtrack snap;
     Some {name; path; local_env; ret_mty; constraints;
@@ -597,9 +616,9 @@ and open_node ~loc snap trace ctxt_constraints constraints problem name path
 
 let infer ~loc env mty =
   let scope = Ctype.get_current_level () in
-  let node = prepare_argument (Some (Ident.create_flex ~scope "?Y")) env mty in
+  let node = prepare_argument (Ident.create_flex ~scope "?Y") env mty in
   let node =
-    refine_solution ~loc FuncOrder.empty Implicitmod_constraints.empty node
+    refine_solution 0 ~loc FuncOrder.empty Constraints.empty node
   in
   match node.desc with
   | Solved {psol; _} -> psol

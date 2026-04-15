@@ -672,7 +672,7 @@ module Variant_diffing = struct
         begin match Ctype.equal env true [r1] [r2] with
         | exception Ctype.Equality err -> Error (Type err)
         | constraints ->
-          Result.map (Implicitmod_constraints.merge constraints)
+          Result.map (Implicitmod_constraints.merge env constraints)
             (compare_constructor_arguments ~loc env [r1] [r2] args1 args2)
         end
     | Some _, None -> Error (Explicit_return_type First)
@@ -987,7 +987,7 @@ let type_declarations ?(equality = false) ~loc env ~mark name
           match Ctype.equal env false [ty1] [ty2] with
           | exception Ctype.Equality err -> Error (Manifest err)
           | constraints2 ->
-            Ok (Implicitmod_constraints.merge constraints1 constraints2)
+            Ok (Implicitmod_constraints.merge env constraints1 constraints2)
   in
   match err with Error e -> Error e | Ok constraints ->
   let err = match (decl1.type_kind, decl2.type_kind) with
@@ -1116,4 +1116,4 @@ let extension_constructors ~loc env ~mark id ext1 ext2 =
     | Ok constraints2 ->
       match ext1.ext_private, ext2.ext_private with
       | Private, Public -> Error Constructor_privacy
-      | _, _ -> Ok (Implicitmod_constraints.merge constraints1 constraints2)
+      | _, _ -> Ok (Implicitmod_constraints.merge env constraints1 constraints2)

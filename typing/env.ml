@@ -3870,6 +3870,7 @@ module Unscoped = struct
   let get_pairs env = env.id_pairs
 
   let path_equiv env p1 p2 = Path.equiv env.id_pairs p1 p2
+  let path_incompatible env p1 p2 = Path.incompatible env.id_pairs p1 p2
 end
 
 let rec path_has_apply : Path.t -> bool = function
