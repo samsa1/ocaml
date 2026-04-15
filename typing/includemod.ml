@@ -485,7 +485,7 @@ module Sign_diff = struct
     constraints = Implicitmod_constraints.empty;
   }
 
-  let merge x y =
+  let merge env x y =
     {
       runtime_coercions = x.runtime_coercions @ y.runtime_coercions;
       shape_map = y.shape_map;
@@ -494,7 +494,7 @@ module Sign_diff = struct
       deep_modifications = x.deep_modifications || y.deep_modifications;
       errors = x.errors @ y.errors;
       untypables = x.untypables @ y.untypables;
-      constraints = Implicitmod_constraints.merge x.constraints y.constraints;
+      constraints = Implicitmod_constraints.merge env x.constraints y.constraints;
     }
 end
 
@@ -628,7 +628,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
             else Shape.abs var final_res_shape
           in
           Ok (Tcoerce_none,
-              Implicitmod_constraints.(merge cstrs_arg
+              Implicitmod_constraints.(merge env cstrs_arg
                                         (generalize param1 cstrs_res)),
               final_shape)
       | Ok (cc_arg, cstrs_arg), Ok (cc_res, cstrs_res, final_res_shape) ->
@@ -638,7 +638,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
             else Shape.abs var final_res_shape
           in
           Ok (Tcoerce_functor(cc_arg, cc_res),
-              Implicitmod_constraints.(merge cstrs_arg
+              Implicitmod_constraints.(merge env cstrs_arg
                             (generalize param1 cstrs_res)),
               final_shape)
       | _, Error {Error.symptom = Error.Functor Error.Params res; _} ->
@@ -979,7 +979,7 @@ and signature_components ~core ~direction ~loc old_env env subst
             orig_shape shape_map rem
         else Sign_diff.{ empty with untypables=rem }
        in
-       Sign_diff.merge first rest
+       Sign_diff.merge env first rest
 
 and module_declarations ~loc env ~direction subst id1 md1 md2 orig_shape =
   Builtin_attributes.check_alerts_inclusion

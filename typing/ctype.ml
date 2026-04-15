@@ -4762,9 +4762,9 @@ let rec eqtype ctxt env t1 t2 =
                 when Env_unscoped.path_equiv env p1 p2 ->
               eqtype_list_same_length ctxt env tl1 tl2
           | (Tconstr (p, tl, _), _) when not (Path.rigid p) ->
-              ctxt.constraints := Implicitmod_constraints.add p tl t2' !(ctxt.constraints);
+              ctxt.constraints := Implicitmod_constraints.add_path_type_eq env p tl t2' !(ctxt.constraints);
           | (_, Tconstr (p, tl, _)) when not (Path.rigid p) ->
-              ctxt.constraints := Implicitmod_constraints.add p tl t1' !(ctxt.constraints);
+              ctxt.constraints := Implicitmod_constraints.add_path_type_eq env p tl t1' !(ctxt.constraints);
           | (Tpackage pack1, Tpackage pack2) ->
               eqtype_package ctxt env
                 (get_level t1') pack1 (get_level t2') pack2
@@ -5074,7 +5074,7 @@ let incompatible env ty1 ty2 =
     let ty2' = expand_head_rigid env ty2 in
     match get_desc ty1', get_desc ty2' with
     | Tconstr (p1, _, _), Tconstr (p2, _, _) ->
-      Path.rigid p1 && Path.rigid p2 && not (Env_unscoped.path_equiv env p1 p2)
+      Env_unscoped.path_incompatible env p1 p2
     | _ -> false
 
 

@@ -67,6 +67,7 @@ val exists_free: Ident.t list -> t -> bool
 val scope: t -> int
 
 val subst: (Ident.t * t) list -> t -> t
+val subst_map: t Ident.Map.t -> t -> t
 val check_for_unbound_unscoped_idents:
   Ident.Unscoped.Set.t -> t -> Ident.Unscoped.t option
 val contains_unscoped_ident: t -> bool
@@ -84,12 +85,15 @@ val print: t Format_doc.printer
 
 val heads: t -> Ident.t list
 
+val first: t -> Ident.t
 val last: t -> string
 
 val is_constructor_typath: t -> bool
 
 val rigid: t -> bool
 val get_flexs: t -> Ident.t list
+val merge : t -> t -> (t * t) list option
+val incompatible : (Ident.Unscoped.t * Ident.Unscoped.t) list -> t -> t -> bool
 
 module Map : Map.S with type key = t
 module Set : Set.S with type elt = t

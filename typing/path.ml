@@ -111,6 +111,24 @@ let subst id_map p =
     let p' = aux p in
     if !changed then p' else p
 
+let subst_map id_map p =
+  if Ident.Map.is_empty id_map then
+    p
+  else
+    let changed = ref false in
+    let rec aux = function
+    | Pident id ->
+      begin match Ident.Map.find id id_map with
+        | p -> changed := true; p
+        | exception Not_found -> Pident id
+      end
+    | Pdot(p, s) -> Pdot(aux p, s)
+    | Pextra_ty(p, e) -> Pextra_ty(aux p, e)
+    | Papply(p1, p2) -> Papply(aux p1, aux p2)
+    in
+    let p' = aux p in
+    if !changed then p' else p
+
 let check_for_unbound_unscoped_idents idl p =
   let exception Escape of Ident.Unscoped.t in
   let rec aux = function
@@ -181,7 +199,12 @@ let heads p =
         heads p1 (heads p2 acc)
   in heads p []
 
-let rec last = function
+let rec first = function
+  | Pident id -> id
+  | Pdot(p, _) | Pextra_ty (p, _)
+  | Papply(p, _) -> first p
+
+  let rec last = function
   | Pident id -> Ident.name id
   | Pdot(_, s) | Pextra_ty (_, Pcstr_ty s) -> s
   | Papply(_, p) | Pextra_ty (p, Pext_ty) -> last p
@@ -197,6 +220,12 @@ let rec rigid p =
   | Papply(p1, p2) -> rigid p1 && rigid p2
   | Pdot (p, _) | Pextra_ty (p, _) -> rigid p
 
+let rec first_is_rigid p =
+  match p with
+  | Pident id -> Ident.rigid id
+  | Papply(p, _) | Pdot (p, _)
+  | Pextra_ty (p, _) -> first_is_rigid p
+
 let get_flexs p =
   let rec aux acc = function
   | Pident id when not (Ident.rigid id) -> id :: acc
@@ -204,6 +233,55 @@ let get_flexs p =
   | Papply(p1, p2) -> aux (aux acc p2) p1
   | Pdot (p, _) | Pextra_ty (p, _) -> aux acc p
   in aux [] p
+
+let rec merge acc p1 p2 =
+  match p1, p2 with
+  | Pident id1, Pident id2 ->
+      if Ident.same id1 id2 then
+        Some acc
+      else
+        None
+  | Papply (fun1, arg1), Papply (fun2, arg2) ->
+    Option.bind
+      (merge acc fun1 fun2)
+      (fun acc -> Some ((arg1, arg2) :: acc))
+  | Pdot (p1, s1), Pdot (p2, s2) ->
+    if s1 = s2 then merge acc p1 p2 else None
+  | Pextra_ty (p1, t1), Pextra_ty (p2, t2) ->
+    let same_extra = match t1, t2 with
+      | (Pcstr_ty s1, Pcstr_ty s2) -> s1 = s2
+      | (Pext_ty, Pext_ty) -> true
+      | ((Pcstr_ty _ | Pext_ty), _) -> false
+    in
+    if same_extra then
+      merge acc p1 p2
+    else
+      None
+  | _ -> None
+
+let merge p1 p2 = merge [] p1 p2
+
+let rec incompatible idl p1 p2 =
+  if first_is_rigid p1 && first_is_rigid p2 then
+    incompatible_head_rigids idl p1 p2
+  else
+    false
+and incompatible_head_rigids idl p1 p2 =
+  match p1, p2 with
+  | Papply (fun1, arg1), Papply (fun2, arg2) ->
+    incompatible_head_rigids idl fun1 fun2 || incompatible idl arg1 arg2
+  | Pident id1, Pident id2 ->
+    assert (Ident.rigid id1 && Ident.rigid id2);
+    not (Ident.equiv idl id1 id2)
+  | Pdot (p1, s1), Pdot (p2, s2) ->
+    s1 <> s2 || incompatible_head_rigids idl p1 p2
+  | Pextra_ty (p1, t1), Pextra_ty (p2, t2) ->
+    let incompatible_extra = match t1, t2 with
+      | (Pcstr_ty s1, Pcstr_ty s2) -> s1 <> s2
+      | (Pext_ty, Pext_ty) -> false
+      | ((Pcstr_ty _ | Pext_ty), _) -> true
+    in incompatible_extra || incompatible_head_rigids idl p1 p2
+  | _, _ -> true
 
 module T = struct
   type nonrec t = t
