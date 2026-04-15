@@ -850,8 +850,12 @@ let run_expect_twice input_file log env =
   end else (result1, env1)
 
 let run_expect log env =
-  let input_file = Actions_helpers.testfile env in
-  run_expect_twice input_file log env
+  if Environments.is_variable_defined Ocaml_variables.libraries env then
+    let reason = "include is not supported with expect tests" in
+    (Test_result.fail_with_reason reason, env)
+  else
+    let input_file = Actions_helpers.testfile env in
+    run_expect_twice input_file log env
 
 let run_expect =
   Actions.make ~name:"run-expect" ~description:"Run expect test" run_expect
