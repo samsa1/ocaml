@@ -174,10 +174,11 @@ static int cygwin_file_exists(const char * name)
   return ret == 0 && S_ISREG(st.st_mode);
 }
 
-static caml_stat_string cygwin_search_exe_in_path(struct ext_table * path,
+static caml_stat_string cygwin_search_exe_in_path(const struct ext_table * path,
                                                   const char * name)
 {
-  char * dir, * fullname;
+  const char * dir;
+  char * fullname;
   for (const char *p = name; *p != 0; p++) {
     if (*p == '/' || *p == '\\') goto not_found;
   }
