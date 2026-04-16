@@ -221,6 +221,10 @@ Working version
   rectypes and module aliases.
   (Brandon Stride)
 
+- #14738: Improved error message for mismatched privacy level on method types
+  when mixing self types, local modules and first class modules.
+  (Samuel Vivien, review by Florian Angeletti, Jacques Garrigue)
+
 ### Build system:
 
 ### Bug fixes:

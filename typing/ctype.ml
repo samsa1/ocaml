@@ -113,9 +113,6 @@ let raise_unexplained_for tr_exn =
 let raise_for tr_exn e =
   raise_trace_for tr_exn [e]
 
-(* Thrown from [moregen_kind] *)
-exception Public_method_to_private_method
-
 let escape kind = {kind; context = None}
 let escape_exn kind = Escape (escape kind)
 let scope_escape_exn ty = escape_exn (Equation ty)
@@ -4691,20 +4688,21 @@ and moregen_fields type_pairs env ty1 ty2 =
     (build_fields (get_level ty2) miss2 rest2);
   List.iter
     (fun (name, k1, t1, k2, t2) ->
-       (* The below call should never throw [Public_method_to_private_method] *)
-       moregen_kind k1 k2;
+       moregen_kind name k1 k2;
        try moregen type_pairs env t1 t2 with Moregen_trace trace ->
          raise_trace_for Moregen
            (incompatible_fields ~name ~got:t1 ~expected:t2 :: trace)
     )
     pairs
 
-and moregen_kind k1 k2 =
-  match field_kind_repr k1, field_kind_repr k2 with
-    (Fprivate, (Fprivate | Fpublic)) -> link_kind ~inside:k1 k2
-  | (Fpublic, Fpublic)               -> ()
-  | (Fpublic, Fprivate)              -> raise Public_method_to_private_method
-  | (Fabsent, _) | (_, Fabsent)      -> assert false
+and moregen_kind name k1 k2 =
+  let k1 = field_kind_repr k1 in
+  let k2 = field_kind_repr k2 in
+  match k1, k2 with
+  | (Fpublic, Fpublic)
+  | (Fprivate, Fprivate)               -> ()
+  | _ ->
+    raise_for Moregen (Obj (Kind_differ (name, k1, k2)))
 
 and moregen_row type_pairs env row1 row2 =
   let Row {fields = row1_fields; more = rm1; closed = row1_closed} =
@@ -5106,7 +5104,7 @@ and eqtype_fields rename type_pairs subst env ty1 ty2 =
       eqtype rename type_pairs subst env rest1 rest2;
       List.iter
         (function (name, k1, t1, k2, t2) ->
-           eqtype_kind k1 k2;
+           eqtype_kind name k1 k2;
            try
              eqtype rename type_pairs subst env t1 t2;
            with Equality_trace trace ->
@@ -5114,15 +5112,14 @@ and eqtype_fields rename type_pairs subst env ty1 ty2 =
                (incompatible_fields ~name ~got:t1 ~expected:t2 :: trace))
         pairs
 
-and eqtype_kind k1 k2 =
+and eqtype_kind name k1 k2 =
   let k1 = field_kind_repr k1 in
   let k2 = field_kind_repr k2 in
   match k1, k2 with
   | (Fprivate, Fprivate)
   | (Fpublic, Fpublic)   -> ()
-  | _                    -> raise_unexplained_for Unify
-                            (* It's probably not possible to hit this case with
-                               real OCaml code *)
+  | _                    ->
+    raise_for Equality (Obj (Kind_differ (name, k1, k2)))
 
 and eqtype_row rename type_pairs subst env row1 row2 =
   (* Try expansion, needed when called from Includecore.type_manifest *)
