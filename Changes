@@ -8,6 +8,11 @@ Working version
 - #13377, RFC 44: Primitive aliases
   (Nailen Matschke, review by Jeremy Yallop, Leo White, and Florian Angeletti)
 
+- #14274, #14710: read nested `with` constraints in package type
+  `(module T with type x = ... with type y = ...)` as syntactic sugar for list
+  of constraints (`with type x =... and type s = ...`).
+  (Florian Angeletti, report by Brendan Zabarauskas, review by Gabriel Scherer)
+
 ### Runtime system:
 
 - #14486, #14530: Add FreeBSD frame pointers support for AMD64 and ARM64.
