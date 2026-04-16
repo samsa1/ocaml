@@ -364,6 +364,7 @@ let none = newty (Ttuple [])                (* Clearly ill-formed type *)
 
 module Pattern_env : sig
   type envop
+  type state
   type t = private
     { mutable env : Env.t;
       mutable op_list : envop list;
@@ -376,11 +377,13 @@ module Pattern_env : sig
   val with_mty: t -> (Ident.Unscoped.t * Ident.Unscoped.t) list ->
       Ident.Unscoped.t -> module_type -> (unit -> 'a) -> 'a
   val set_env: t -> Env.t -> unit
+  val reset: t -> state -> unit
+  val save: t -> state
 end = struct
   type envop =
     | Enter_type of Ident.t * type_declaration
     | Local_constraint of Path.t * type_declaration
-
+  type state = Env.t * envop list
   type t =
     { mutable env : Env.t;
       mutable op_list : envop list;
@@ -432,6 +435,10 @@ end = struct
 
   let set_env penv env =
     penv.env <- env
+  let save penv = penv.env, penv.op_list
+  let reset penv (env,op_list) =
+    penv.env <- env;
+    penv.op_list <- op_list
 end
 
 (**** unification mode ****)

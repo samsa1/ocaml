@@ -2566,14 +2566,21 @@ type abort_reason = Adds_constraints | Empty
     In the GADT mode, [env] may be extended by unification,
     and therefore it needs to be saved along with a [snapshot]. *)
 type unification_state =
- { snapshot: snapshot;
-   env: Env.t; }
+  { snapshot: snapshot;
+    pattern_env: Pattern_env.state;
+ }
 let save_state penv =
   { snapshot = Btype.snapshot ();
-    env = !!penv; }
+    pattern_env = Pattern_env.save penv; }
 let set_state s penv =
   Btype.backtrack s.snapshot;
-  Pattern_env.set_env penv s.env
+  Pattern_env.reset penv s.pattern_env
+
+(** Type variables allocated when searching for counter-examples
+    should be discarded at the end of the search *)
+  let with_counterexample_pool f =
+    let r, _ = Btype.with_new_pool ~level:(get_current_level ()) f in
+    r
 
 (** Find the first alternative in the tree of or-patterns for which
     [f] does not raise an error. If all fail, the last error is
@@ -2581,7 +2588,9 @@ let set_state s penv =
 let rec find_valid_alternative f pat =
   match pat.pat_desc with
   | Tpat_or(p1,p2,_) ->
-      (try find_valid_alternative f p1 with
+      (try
+         find_valid_alternative f p1
+       with
        | Empty_branch | Error _ -> find_valid_alternative f p2
       )
   | _ -> f pat
@@ -2698,7 +2707,11 @@ let rec check_counter_example_pat
       let state = save_state penv in
       let split_or tp =
         let type_alternative pat =
-          set_state state penv; check_rec pat expected_ty k in
+          set_state state penv;
+          (* Type nodes should be discarded as soon as possible *)
+          with_counterexample_pool (fun () ->
+              check_rec pat expected_ty k
+            ) in
         find_valid_alternative type_alternative tp
       in
       if must_split then split_or tp else
@@ -2748,6 +2761,7 @@ let check_counter_example_pat ~counter_example_args penv tp expected_ty =
        type_pat_state tp expected_ty)
     (fun x -> x)
 
+
 (* this function is passed to Partial.parmatch
    to type check gadt nonexhaustiveness *)
 let partial_pred ~lev ~splitting_mode ?(explode=0) env expected_ty p =
@@ -2761,7 +2775,9 @@ let partial_pred ~lev ~splitting_mode ?(explode=0) env expected_ty p =
       } in
   try
     let typed_p =
-      check_counter_example_pat ~counter_example_args penv p expected_ty
+      with_counterexample_pool (fun () ->
+          check_counter_example_pat ~counter_example_args penv p expected_ty
+        )
     in
     set_state state penv;
     (* types are invalidated but we don't need them here *)
