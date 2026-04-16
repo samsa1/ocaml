@@ -213,8 +213,9 @@ Working version
   rectypes and module aliases.
   (Brandon Stride)
 
-- #14738: Clean code of moregen_kind and eqtype_kind as only one case was
-  possible. (Samuel Vivien, review by Florian Angeletti)
+- #14738: Improved error message for mismatched privacy level on method types
+  when mixing self types, local modules and first class modules.
+  (Samuel Vivien, review by Florian Angeletti, Jacques Garrigue)
 
 ### Build system:
 

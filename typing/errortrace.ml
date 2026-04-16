@@ -160,6 +160,7 @@ let swap_elt (type variety) : ('a, variety) elt -> ('a, variety) elt = function
     Incompatible_fields { name; diff = swap_diff diff}
   | Obj (Missing_field(pos,s)) -> Obj (Missing_field(swap_position pos,s))
   | Obj (Abstract_row pos) -> Obj (Abstract_row (swap_position pos))
+  | Obj (Kind_differ (name, k1, k2)) -> Obj (Kind_differ (name, k2, k1))
   | Variant (Fixed_row(pos,k,f)) ->
     Variant (Fixed_row(swap_position pos,k,f))
   | Variant (No_tags(pos,f)) ->
