@@ -64,9 +64,7 @@ end = struct
   let type_declaration env td =
     match td.type_manifest with
     | None -> mini
-    | Some ty ->
-      if td.type_arity = 0 then type_expr env 0 ty
-      else assert false (* TODO *)
+    | Some ty -> type_expr env 100 ty
 
   let rec signature_item env item =
     match item with

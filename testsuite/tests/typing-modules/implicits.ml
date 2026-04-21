@@ -71,17 +71,10 @@ module SIntL : sig type t = int list val print : t -> unit end
 Line 3, characters 14-52:
 3 | module SIntLL : Show with type t = int list list = _
                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Inference of signature sig
-                                type t = int list list
-                                val print : t -> unit
-                              end
-       failed because inference could not make
-       any more progress.
-       Final state was :
-       SList (?1).
-?1 could be filled with a new recursive call to SList
-       with no termination guaranty.
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SList(SList(SInt))"
 
+module SIntLL : sig type t = int list list val print : t -> unit end
 |}]
 
 (* No solution *)
@@ -340,6 +333,58 @@ Line 1, characters 22-33:
                           ^^^^^^^^^^^
 Error: Inference of signature SSol3
        failed as no solution was found.
+|}]
+
+(* Test containing inference of a functor *)
+
+module type MShow = sig
+  module M : Show
+end
+
+implicit module ApplyF (F : Show => Show) = struct
+  module M = F(SInt)
+end
+
+[%%expect{|
+module type MShow = sig module M : Show end
+implicit module ApplyF :
+  (F : Show => Show) =>
+    sig module M : sig type t = F(SInt).t val print : t -> unit end end
+|}]
+
+module InferFunctor1_Sol : MShow with type M.t = int list = ApplyF(SList)
+
+module InferFunctor1 : MShow with type M.t = int list = _
+
+[%%expect{|
+module InferFunctor1_Sol :
+  sig module M : sig type t = int list val print : t -> unit end end
+Line 3, characters 21-57:
+3 | module InferFunctor1 : MShow with type M.t = int list = _
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "ApplyF(SList)"
+
+module InferFunctor1 :
+  sig module M : sig type t = int list val print : t -> unit end end
+|}]
+
+module InferFunctor2_Sol : MShow with type M.t = bool * int =
+  ApplyF(SPair(SBool))
+
+module InferFunctor2 : MShow with type M.t = bool * int = _
+
+[%%expect{|
+module InferFunctor2_Sol :
+  sig module M : sig type t = bool * int val print : t -> unit end end
+Line 4, characters 21-59:
+4 | module InferFunctor2 : MShow with type M.t = bool * int = _
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "ApplyF(SPair(SBoolbis))"
+
+module InferFunctor2 :
+  sig module M : sig type t = bool * int val print : t -> unit end end
 |}]
 
 (* We remove functors from env to prevent collision later *)

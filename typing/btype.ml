@@ -723,6 +723,17 @@ let rec extract_label_aux hd l = function
 
 let extract_label l ls = extract_label_aux [] l ls
 
+(* Two labels are considered compatible under certain conditions.
+  - they are the same
+  - in classic mode, only optional labels are relevant
+  - in pattern mode, we act as if we were in classic mode. If not, interactions
+    with GADTs from files compiled in classic mode would be unsound.
+*)
+let compatible_labels ~in_pattern_mode l1 l2 =
+  l1 = l2
+  || (!Clflags.classic || in_pattern_mode)
+      && not (is_optional l1 || is_optional l2)
+
                               (*******************************)
                               (*  Operations on class types  *)
                               (*******************************)

@@ -2857,18 +2857,6 @@ let is_instantiable env p =
     decl.type_manifest = None
   with Not_found -> false
 
-
-(* Two labels are considered compatible under certain conditions.
-  - they are the same
-  - in classic mode, only optional labels are relevant
-  - in pattern mode, we act as if we were in classic mode. If not, interactions
-    with GADTs from files compiled in classic mode would be unsound.
-*)
-let compatible_labels ~in_pattern_mode l1 l2 =
-  l1 = l2
-  || (!Clflags.classic || in_pattern_mode)
-      && not (is_optional l1 || is_optional l2)
-
 let eq_labels error_mode ~in_pattern_mode l1 l2 =
   if not (compatible_labels ~in_pattern_mode l1 l2) then
     raise_for error_mode (Function_label_mismatch {got=l1; expected=l2})
@@ -5063,7 +5051,7 @@ and eqtype_row_moregen ctxt env row1 row2 =
     (* Undo [link_type] if we failed *)
     set_type_desc rm1 md1; raise exn
 
-let incompatible env ty1 ty2 =
+(* let incompatible env ty1 ty2 =
   match get_desc ty1, get_desc ty2 with
   | (Tvar _, _) | (_, Tvar _) -> false
   | (Tconstr (p1, [], _), Tconstr (p2, [], _))
@@ -5075,10 +5063,13 @@ let incompatible env ty1 ty2 =
     match get_desc ty1', get_desc ty2' with
     | Tconstr (p1, _, _), Tconstr (p2, _, _) ->
       Env_unscoped.path_incompatible env p1 p2
-    | _ -> false
+    | Tconstr (p, _, _), _ | _, Tconstr (p, _, _)
+        when Ident.rigid (Path.first p) ->
+      true
+    | _ -> false *)
 
 
-let () = Implicitmod_constraints.incompatible := incompatible
+let () = Implicitmod_constraints.expand_head_rigid := expand_head_rigid
 
 (* Must empty univar_pairs first *)
 let moregen type_pairs env patt subj =
