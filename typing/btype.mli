@@ -282,6 +282,8 @@ val extract_label :
    whether (label, value) was at the head of the list,
    list without the extracted (label, value) *)
 
+val compatible_labels : in_pattern_mode:bool -> arg_label -> arg_label -> bool
+
 (**** Utilities for class types ****)
 
 (* Get the class signature within a class type *)

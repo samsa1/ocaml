@@ -629,7 +629,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
           in
           Ok (Tcoerce_none,
               Implicitmod_constraints.(merge env cstrs_arg
-                                        (generalize param1 cstrs_res)),
+                                        (generalize env param1 cstrs_res)),
               final_shape)
       | Ok (cc_arg, cstrs_arg), Ok (cc_res, cstrs_res, final_res_shape) ->
           let final_shape =
@@ -639,7 +639,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
           in
           Ok (Tcoerce_functor(cc_arg, cc_res),
               Implicitmod_constraints.(merge env cstrs_arg
-                            (generalize param1 cstrs_res)),
+                            (generalize env param1 cstrs_res)),
               final_shape)
       | _, Error {Error.symptom = Error.Functor Error.Params res; _} ->
           let got = Error.cons_arg param1 res.got in
