@@ -288,11 +288,13 @@ let print_it_holes_info fmt node =
     | Working { solutions = sol1 :: sol2 :: _; _ } ->
       Format_doc.fprintf fmt
         "@[<1>@[<2>?%d awaited an argument of signature @ %a@] @ \
-          It can be filled by either @ %a @ or @ %a.@]\n"
+          It can be filled by either @ %a @ or @ %a.@]\n%a%a"
           !nb
           Printtyp.Doc.modtype problem.modtype
           Pprintast.Doc.module_expr sol1.psol
-          Pprintast.Doc.module_expr sol2.psol;
+          Pprintast.Doc.module_expr sol2.psol
+          Constraints.print (Constraints.merge problem.env ctxt_cstrts sol1.constraints)
+          Constraints.print (Constraints.merge problem.env ctxt_cstrts sol2.constraints);
       incr nb;
     | Working { current = Some {name; args_status = RecLimit _; _} } ->
       Format_doc.fprintf fmt
