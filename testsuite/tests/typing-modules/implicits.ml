@@ -71,10 +71,17 @@ module SIntL : sig type t = int list val print : t -> unit end
 Line 3, characters 14-52:
 3 | module SIntLL : Show with type t = int list list = _
                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 76 [implicit-module-expression]: module expression left implict.
-  Infered module expression: "SList(SList(SInt))"
+Error: Inference of signature sig
+                                type t = int list list
+                                val print : t -> unit
+                              end
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       SList (SList (?1)).
+?1 awaited an argument of signature  Show
+                            It can be filled by either  SInt  or  SBool.
 
-module SIntLL : sig type t = int list list val print : t -> unit end
 |}]
 
 (* No solution *)
@@ -219,14 +226,8 @@ module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
 [%%expect{|
 implicit module SPair :
   (A : Show) (B : Show) => sig type t = A.t * B.t val print : t -> unit end
-Line 11, characters 17-65:
-11 | module SIntXPair : (X : Show) -> Show with type t = int * X.t = _
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 76 [implicit-module-expression]: module expression left implict.
-  Infered module expression: "SPair(SInt)"
+Uncaught exception: File "typing/implicitmod_constraints.ml", line 1053, characters 4-10: Assertion failed
 
-module SIntXPair :
-  (X : Show) -> sig type t = int * X.t val print : t -> unit end
 |}]
 
 (* Inference between functor arguments *)
@@ -359,14 +360,8 @@ module InferFunctor1 : MShow with type M.t = int list = _
 [%%expect{|
 module InferFunctor1_Sol :
   sig module M : sig type t = int list val print : t -> unit end end
-Line 3, characters 21-57:
-3 | module InferFunctor1 : MShow with type M.t = int list = _
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 76 [implicit-module-expression]: module expression left implict.
-  Infered module expression: "ApplyF(SList)"
+Uncaught exception: File "typing/implicitmod_constraints.ml", line 1053, characters 4-10: Assertion failed
 
-module InferFunctor1 :
-  sig module M : sig type t = int list val print : t -> unit end end
 |}]
 
 module InferFunctor2_Sol : MShow with type M.t = bool * int =
@@ -377,14 +372,8 @@ module InferFunctor2 : MShow with type M.t = bool * int = _
 [%%expect{|
 module InferFunctor2_Sol :
   sig module M : sig type t = bool * int val print : t -> unit end end
-Line 4, characters 21-59:
-4 | module InferFunctor2 : MShow with type M.t = bool * int = _
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 76 [implicit-module-expression]: module expression left implict.
-  Infered module expression: "ApplyF(SPair(SBoolbis))"
+Uncaught exception: File "typing/implicitmod_constraints.ml", line 1053, characters 4-10: Assertion failed
 
-module InferFunctor2 :
-  sig module M : sig type t = bool * int val print : t -> unit end end
 |}]
 
 (* We remove functors from env to prevent collision later *)
@@ -741,7 +730,13 @@ Line 15, characters 11-20:
 15 |   module S : Sol = _
                 ^^^^^^^^^
 Error: Inference of signature Sol
-       failed as no solution was found.
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       M (Loop (?1)).
+?1 could be filled with a new recursive call to Loop
+       with no termination guaranty.
+
 |}]
 
 module RejectUnification = struct
@@ -782,13 +777,5 @@ Error: Inference of signature sig
                                 type t3
                                 type t4 = t3
                               end
-       failed because inference could not make
-       any more progress.
-       Final state was :
-       M (Loop (?1)) (Loop (?2)).
-?1 could be filled with a new recursive call to Loop
-       with no termination guaranty.
-?2 could be filled with a new recursive call to Loop
-       with no termination guaranty.
-
+       failed as no solution was found.
 |}]
