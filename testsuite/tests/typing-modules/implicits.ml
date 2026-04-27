@@ -717,3 +717,29 @@ Warning 76 [implicit-module-expression]: module expression left implict.
 
 module ISet : sig type t = SetMake(CmpInt).t type elt end
 |}]
+
+(** Test basic absurdity with parametrized type *)
+
+module ParametrizedType = struct
+
+  (* Creates an unknown parametrized type *)
+  module type T = sig type _ t end
+  implicit module Loop (X : T) = X
+
+  module type Sol = sig val sol : unit -> int -> bool end
+
+  implicit module M (X : T) = struct
+  let sol () : int X.t -> int X.t = assert false
+  end
+  (* No solution because [int X.t = int] + [int X.t = bool] is not feasible. *)
+  module S : Sol = _
+
+end
+
+[%%expect{|
+Line 15, characters 11-20:
+15 |   module S : Sol = _
+                ^^^^^^^^^
+Error: Inference of signature Sol
+       failed as no solution was found.
+|}]

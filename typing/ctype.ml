@@ -5051,7 +5051,7 @@ and eqtype_row_moregen ctxt env row1 row2 =
     (* Undo [link_type] if we failed *)
     set_type_desc rm1 md1; raise exn
 
-(* let incompatible env ty1 ty2 =
+let rec incompatible env ty1 ty2 =
   match get_desc ty1, get_desc ty2 with
   | (Tvar _, _) | (_, Tvar _) -> false
   | (Tconstr (p1, [], _), Tconstr (p2, [], _))
@@ -5061,13 +5061,36 @@ and eqtype_row_moregen ctxt env row1 row2 =
     let ty1' = expand_head_rigid env ty1 in
     let ty2' = expand_head_rigid env ty2 in
     match get_desc ty1', get_desc ty2' with
+    | Tvar _, _ | _, Tvar _ -> false
     | Tconstr (p1, _, _), Tconstr (p2, _, _) ->
       Env_unscoped.path_incompatible env p1 p2
-    | Tconstr (p, _, _), _ | _, Tconstr (p, _, _)
-        when Ident.rigid (Path.first p) ->
-      true
-    | _ -> false *)
+    | Tconstr (p, _, _), _ | _, Tconstr (p, _, _) ->
+      Ident.rigid (Path.first p)
+    | Tarrow (l1, t1, u1, _), Tarrow (l2, t2, u2, _) ->
+      not (Btype.compatible_labels ~in_pattern_mode:false l1 l2)
+      || incompatible env t1 t2 || incompatible env u1 u2
+    | Tfunctor (l1, _, _, _), Tfunctor (l2, _, _, _)
+    | Tfunctor (l1, _, _, _), Tarrow (l2, _, _, _)
+    | Tarrow (l1, _, _, _), Tfunctor (l2, _, _, _) ->
+      not (Btype.compatible_labels ~in_pattern_mode:false l1 l2)
+    | Ttuple tl1, Ttuple tl2 ->
+      List.length tl1 <> List.length tl2
+      || List.exists2
+            (fun (label1, t1) (label2, t2) ->
+                label1 <> label2 || incompatible env t1 t2) tl1 tl2
+    | Tnil, Tnil -> false
+    | Tpoly (t1, _), Tpoly (t2, _) -> incompatible env t1 t2
+    | Tunivar _, Tunivar _ -> false
+    | Tpackage _, Tpackage _ | Tvariant _, Tvariant _
+    | Tobject _, Tobject _ | Tfield _, Tfield _ -> false
+    | Tlink _, _ | _, Tlink _ | Texpand _, _ | _, Texpand _
+    | Tsubst _, _ | _, Tsubst _ -> assert false
+    | Tarrow _, _ | _, Tarrow _ | Tfunctor _, _ | _, Tfunctor _
+    | Tpackage _, _ | _, Tpackage _ | Ttuple _, _ | _, Ttuple _
+    | Tnil, _ | _, Tnil | Tfield _, _ | _, Tfield _ | Tpoly _, _ | _, Tpoly _
+    | Tobject _, _ | _, Tobject _ | Tvariant _, _ | _, Tvariant _ -> true
 
+let () = Implicitmod_constraints.incompatible := incompatible
 
 let () = Implicitmod_constraints.expand_head_rigid := expand_head_rigid
 

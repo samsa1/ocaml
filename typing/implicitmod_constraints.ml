@@ -600,45 +600,61 @@ let is_empty = function
   | Constraints eqs -> is_empty eqs
   | HasContradiction -> false
 
-(* let has_error_type_constraints env eqs =
-  let rec has_contra p ty = function
+(* let merge env eqs1 eqs2 =
+  let res = merge env eqs1 eqs2 in
+  if not (is_empty eqs1) && not (is_empty eqs2) then
+    Format.eprintf "Merge : %a\n%a\n ==> %a\n"
+      (Format_doc.compat print) eqs1
+      (Format_doc.compat print) eqs2
+      (Format_doc.compat print) res;
+  res *)
+
+let incompatible = ref (fun _ _ _ -> assert false)
+
+let has_error_type_constraints env eqs =
+  let rec has_contra p1 tyl1 ty1 = function
     | [] -> false
-    | ([], p2, [], ty2) :: tl ->
+    | PathEqType { params = []; path_flex = p2; tyl = []; ty2 } :: tl ->
       begin
         match
           normalize_type_path env (Path.subst_map eqs.solved_flex p2.path)
         with
         | PM_Path p2 ->
-          if Path.same p p2 then
-            !incompatible env ty ty2
-          else false
-        | PM_Manifest ty_p2 -> !incompatible env ty_p2 ty2
-      end || has_contra p ty tl
-    | _ :: tl -> has_contra p ty tl
+          Path.same p1 p2 && !incompatible env ty1 ty2
+        | PM_Manifest ty_p2 ->
+          !incompatible env ty_p2 ty2
+      end || has_contra p1 tyl1 ty1 tl
+    | PathEqType { params = []; path_flex = p2; tyl = tyl2; ty2 } :: tl ->
+      if Path.same p1 p2.path
+          && List.for_all2 (fun ty1 ty2 -> not (!incompatible env ty1 ty2)) tyl1 tyl2
+      then begin
+        !incompatible env ty1 ty2 || has_contra p1 tyl1 ty1 tl
+      end
+      else has_contra p1 tyl1 ty1 tl
+    | _ :: tl -> has_contra p1 tyl1 ty1 tl
   in
   let rec has_error_one = function
     | [] -> false
-    | ([], p, [], ty) :: tl ->
+    | PathEqType { params = []; path_flex; tyl = []; ty2 = ty } :: tl ->
       begin
         match
-          normalize_type_path env (Path.subst_map eqs.solved_flex p.path)
+          normalize_type_path env (Path.subst_map eqs.solved_flex path_flex.path)
         with
         | PM_Path p ->
-          !incompatible env (Btype.newgenty (Tconstr (p, [], ref Types.Mnil))) ty || has_contra p ty tl
-        | PM_Manifest ty' -> !incompatible env ty ty'
+          !incompatible env (Btype.newgenty (Tconstr (p, [], ref Types.Mnil))) ty || has_contra p [] ty tl
+        | PM_Manifest ty' ->
+          !incompatible env ty ty'
       end || has_error_one tl
+    | PathEqType { params = []; path_flex; tyl; ty2 } :: tl ->
+      has_contra path_flex.path tyl ty2 tl || has_error_one tl
     | _ :: tl -> has_error_one tl
   in
-  Ident.Map.exists (fun _ l -> has_error_one l) eqs.type_constraints *)
+  Ident.Map.exists (fun _ l -> has_error_one l) eqs.type_constraints
 
-let has_error _env = function
+let has_error env = function
   | HasContradiction -> true
-  | Constraints _eqs -> false
-    (* let b = has_error_type_constraints env eqs in
-    Format.eprintf "has_error?%b in\n%a\n\n"
-      b
-      (Format_doc.compat print) (Constraints eqs);
-    b *)
+  | Constraints eqs ->
+    has_error_type_constraints env eqs
 
 let same_freeness id {pp_params; pp_rigid; pp_flex} =
   List.exists (fun (id', _) -> Ident.same id id') pp_params
