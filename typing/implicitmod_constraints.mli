@@ -39,3 +39,4 @@ val generalize : Env.t -> Types.functor_parameter -> t -> t
 val iter2 : ('a -> 'b -> t) -> t -> 'a list -> 'b list -> t *)
 
 val expand_head_rigid : (Env.t -> Types.type_expr -> Types.type_expr) ref
+val incompatible : (Env.t -> Types.type_expr -> Types.type_expr -> bool) ref
