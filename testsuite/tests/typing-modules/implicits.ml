@@ -743,3 +743,52 @@ Line 15, characters 11-20:
 Error: Inference of signature Sol
        failed as no solution was found.
 |}]
+
+module RejectUnification = struct
+  module type T = sig module T : sig type hole end end
+  implicit module Loop (X : T) = X
+
+  module F (X : sig type hole end) : sig type t end = struct
+    type t = unit
+  end
+
+  implicit module M (X : T) (Y : T) = struct
+    type t1 = X.T.hole
+    type t2 = Y.T.hole
+
+    type t3 = F(X.T).t
+    type t4 = F(Y.T).t
+  end
+
+  module S : sig
+    type t1 = int
+    type t2 = bool
+    type t3
+    type t4 = t3
+  end = _
+end
+
+[%%expect{|
+Lines 17-22, characters 11-9:
+17 | ...........: sig
+18 |     type t1 = int
+19 |     type t2 = bool
+20 |     type t3
+21 |     type t4 = t3
+22 |   end = _
+Error: Inference of signature sig
+                                type t1 = int
+                                type t2 = bool
+                                type t3
+                                type t4 = t3
+                              end
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       M (Loop (?1)) (Loop (?2)).
+?1 could be filled with a new recursive call to Loop
+       with no termination guaranty.
+?2 could be filled with a new recursive call to Loop
+       with no termination guaranty.
+
+|}]
