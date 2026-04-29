@@ -308,6 +308,11 @@ let print_it_holes_info fmt node =
       let local_cstrts =
         Constraints.merge local_env ctxt_cstrts constraints
       in
+      let () =
+        Format.eprintf "%a"
+          (Format_doc.compat Constraints.print)
+          local_cstrts
+      in
       List.iter (aux_arg local_cstrts fmt) args
     | Working { solutions = _; current = None; next = _} ->
       Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
@@ -354,6 +359,7 @@ let build_solution ~loc {id; env; signature} name path args =
         with
         | constraints ->
           Btype.backtrack snap;
+          let constraints = Constraints.of_tmp env constraints in
           Some {
             psol = pme;
             tsol = tme;
@@ -572,6 +578,7 @@ and filter_identifiers d ~loc trace ctxt_constraints problem next =
         Btype.backtrack snap;
         filter_identifiers d ~loc trace ctxt_constraints problem rest
       | constraints ->
+        let constraints = Constraints.of_tmp env_result constraints in
         let constraints =
           match build_path path (List.rev arguments) with
           | None -> constraints

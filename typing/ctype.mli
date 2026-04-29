@@ -417,7 +417,7 @@ val arrow_spine
   -> (arg_label * arrow_arg) list * arrow_ret
 
 val occur_in: Env.t -> type_expr -> type_expr -> bool
-val moregeneral: Env.t -> type_expr -> type_expr -> Implicitmod_constraints.t
+val moregeneral: Env.t -> type_expr -> type_expr -> Implicitmod_constraints.tmp
         (* Check if the first type scheme is more general than the second. *)
 val is_moregeneral: Env.t -> type_expr -> type_expr -> bool
 val rigidify: type_expr -> type_expr list
@@ -465,7 +465,7 @@ type class_match_failure =
 val match_class_types:
     ?trace:bool -> Env.t -> class_type -> class_type -> class_match_failure list
         (* Check if the first class type is more general than the second. *)
-val equal: Env.t -> bool -> type_expr list -> type_expr list -> Implicitmod_constraints.t
+val equal: Env.t -> bool -> type_expr list -> type_expr list -> Implicitmod_constraints.tmp
         (* [equal env [x1...xn] tau [y1...yn] sigma]
            checks whether the parameterized types
            [/\x1.../\xn.tau] and [/\y1.../\yn.sigma] are equivalent. *)
@@ -473,7 +473,7 @@ val eq_package_path : Env.t -> Path.t -> Path.t -> bool
 val is_equal : Env.t -> bool -> type_expr list -> type_expr list -> bool
 val equal_private :
         Env.t -> type_expr list -> type_expr ->
-        type_expr list -> type_expr -> Implicitmod_constraints.t
+        type_expr list -> type_expr -> Implicitmod_constraints.tmp
 (* [equal_private env t1 params1 t2 params2] checks that [t1::params1]
    equals [t2::params2] but it is allowed to expand [t1] if it is a
    private abbreviations. *)

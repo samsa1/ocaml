@@ -731,14 +731,19 @@ module ParametrizedType = struct
   implicit module M (X : T) = struct
   let sol () : int X.t -> int X.t = assert false
   end
-  (* No solution because [int X.t = int] + [int X.t = bool] is not feasible. *)
+
+  (* Should have the constraints :
+    - int ?X.t = int
+    - int ?X.t = bool
+    Which is absurd.
+  *)
   module S : Sol = _
 
 end
 
 [%%expect{|
-Line 15, characters 11-20:
-15 |   module S : Sol = _
+Line 20, characters 11-20:
+20 |   module S : Sol = _
                 ^^^^^^^^^
 Error: Inference of signature Sol
        failed as no solution was found.
@@ -760,6 +765,12 @@ module RejectUnification = struct
     type t4 = F(Y.T).t
   end
 
+  (* Should have the constraints :
+    - ?X.T.hole = int
+    - ?Y.T.hole = bool
+    - ?X.T = ?Y.T
+    Which is absurd.
+  *)
   module S : sig
     type t1 = int
     type t2 = bool
@@ -769,26 +780,235 @@ module RejectUnification = struct
 end
 
 [%%expect{|
-Lines 17-22, characters 11-9:
-17 | ...........: sig
-18 |     type t1 = int
-19 |     type t2 = bool
-20 |     type t3
-21 |     type t4 = t3
-22 |   end = _
+Lines 23-28, characters 11-9:
+23 | ...........: sig
+24 |     type t1 = int
+25 |     type t2 = bool
+26 |     type t3
+27 |     type t4 = t3
+28 |   end = _
 Error: Inference of signature sig
                                 type t1 = int
                                 type t2 = bool
                                 type t3
                                 type t4 = t3
                               end
+       failed as no solution was found.
+|}]
+
+module AcceptParametrizedType = struct
+  module type T = sig type t end
+  implicit module Loop (X : T) = X
+
+  module type TP = sig type _ t end
+  implicit module LoopP (X : TP) = X
+
+  implicit module Sol (A : T) (B : T) (C : TP) = struct
+    type t1 = A.t C.t
+    type t2 = B.t C.t
+  end
+
+  module type S = sig
+    type t1 = int list
+    type t2 = bool list
+  end
+
+  module M : S = Sol (Int) (Bool) (List)
+
+  (* Should have the constraints :
+    - A.t C.t = int list
+    - B.t C.t = bool list
+    Which is solvable.
+  *)
+  module Test : S = _
+end
+
+[%%expect{|
+Line 25, characters 14-21:
+25 |   module Test : S = _
+                   ^^^^^^^
+Error: Inference of signature S
        failed because inference could not make
        any more progress.
        Final state was :
-       M (Loop (?1)) (Loop (?2)).
-?1 could be filled with a new recursive call to Loop
+       Sol (?1) (?2) (LoopP (?3)).
+?1 awaited an argument of signature  T
+                                    It can be filled by either  EInt  or
+                                    CmpInt.
+?2 awaited an argument of signature
+                                              T
+                                             It can be filled by either
+                                             EInt  or  CmpInt.
+?3 could be filled with a new recursive call to LoopP
        with no termination guaranty.
-?2 could be filled with a new recursive call to Loop
+
+|}]
+
+module RejectUnification = struct
+  module type T = sig type t end
+  implicit module Loop (X : T => T) = X
+
+  module F (X : T => T) : sig type t end = struct
+    type t = unit
+  end
+
+  module List (X : T) = struct type t = X.t list end
+
+  implicit module M (X : T => T) = struct
+    type t1 = X(Int).t
+
+    type t3 = F(X).t
+    type t4 = F(List).t
+  end
+
+  (* Should have the constraints :
+    - ?X(Int).t = bool
+    - ?X = List
+    Which is absurd.
+  *)
+  module S : sig
+    type t1 = bool
+    type t3
+    type t4 = t3
+  end = _
+end
+
+[%%expect{|
+Lines 23-27, characters 11-9:
+23 | ...........: sig
+24 |     type t1 = bool
+25 |     type t3
+26 |     type t4 = t3
+27 |   end = _
+Error: Inference of signature sig type t1 = bool type t3 type t4 = t3 end
+       failed as no solution was found.
+|}]
+
+module InstanceParametrizedConstraint = struct
+
+  module type T = sig type t end
+  implicit module Loop (LoopX : T => T) = LoopX
+
+  implicit module M (MX : T => T) (Y : T) = struct
+    type t2 = MX(Int).t
+    type t1 = MX(Y).t
+  end
+
+  module type Sol = (Y : T) => sig
+    type t2 = bool
+    type t1 = Y.t
+  end
+
+  (* Should have the constraints :
+    - ?MX(Int).t = bool
+    - [Y] ?MX(Y).t = Y.t
+    Which is absurd.
+  *)
+  module S : Sol = _
+end
+
+[%%expect{|
+Line 21, characters 11-20:
+21 |   module S : Sol = _
+                ^^^^^^^^^
+Error: Inference of signature Sol
+       failed as no solution was found.
+|}]
+
+module InstanceParametrizedConstraintRev = struct
+
+  module type T = sig type t end
+  implicit module Loop (LoopX : T => T) = LoopX
+
+  implicit module M (MX : T => T) (Y : T) = struct
+    type t1 = MX(Y).t
+    type t2 = MX(Int).t
+  end
+
+  module type Sol = (Y : T) => sig
+    type t1 = Y.t
+    type t2 = bool
+  end
+
+  (* Should have the constraints :
+    - [Y] ?MX(Y).t = Y.t
+    - ?MX(Int).t = bool
+    Which is absurd.
+  *)
+  module S : Sol = _
+end
+
+[%%expect{|
+Line 21, characters 11-20:
+21 |   module S : Sol = _
+                ^^^^^^^^^
+Error: Inference of signature Sol
+       failed as no solution was found.
+|}]
+
+module CombineParametrizedConstraint = struct
+
+  module type T = sig type t end
+  implicit module Loop (LoopX : T => T) = LoopX
+
+  implicit module M (MX : T => T) (Y : T) = struct
+    type t1 = MX(Y).t
+    type t2 = MX(Y).t
+  end
+
+  module type Sol = (Y : T) => sig
+    type t1 = Y.t
+    type t2 = bool
+  end
+
+  (* Should have the constraints :
+    - [Y] ?MX(Y).t = Y.t
+    - [Y] ?MX(Y).t = bool
+    Which is absurd.
+  *)
+  module S : Sol = _
+end
+
+[%%expect{|
+Line 21, characters 11-20:
+21 |   module S : Sol = _
+                ^^^^^^^^^
+Error: Inference of signature Sol
+       failed as no solution was found.
+|}]
+
+module CombineParametrizedConstraint = struct
+
+  module type T = sig type t end
+  implicit module Loop (LoopX : T => T) = LoopX
+
+  implicit module M (MX : T => T) (Y : T) = struct
+    type t1 = MX(Y).t
+    type t2 = MX(Int).t
+  end
+
+  module type Sol = (Y : T) => sig
+    type t1
+    type t2 = t1
+  end
+
+  (* Should have the constraints :
+    - [Y] ?MX(Y).t = ?MX(Int).t
+    Which is not absurds but means that ?MX drops its argument.
+  *)
+  module S : Sol = _
+end
+
+[%%expect{|
+Line 20, characters 11-20:
+20 |   module S : Sol = _
+                ^^^^^^^^^
+Error: Inference of signature Sol
+       failed because inference could not make
+       any more progress.
+       Final state was :
+       M (Loop (?1)).
+?1 could be filled with a new recursive call to Loop
        with no termination guaranty.
 
 |}]

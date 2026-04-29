@@ -283,7 +283,7 @@ module Core_inclusion = struct
     let decl1 = Subst.cltype_declaration Subst.identity decl1 in
     let decl2 = Subst.cltype_declaration subst decl2 in
     match Includeclass.class_type_declarations ~loc env decl1 decl2 with
-      []     -> Ok (Tcoerce_none, Implicitmod_constraints.empty)        (* TODO *)
+      []     -> Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp)        (* TODO *)
     | reason ->
         Error Error.(Core(Class_type_declarations(diff decl1 decl2 reason)))
 
@@ -291,7 +291,7 @@ module Core_inclusion = struct
     let decl1 = Subst.class_declaration Subst.identity decl1 in
     let decl2 = Subst.class_declaration subst decl2 in
     match Includeclass.class_declarations env decl1 decl2 with
-      []     -> Ok (Tcoerce_none, Implicitmod_constraints.empty)        (* TODO *)
+      []     -> Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp)        (* TODO *)
     | reason ->
         Error Error.(Core(Class_declarations(diff decl1 decl2 reason)))
 end
@@ -473,7 +473,7 @@ module Sign_diff = struct
     deep_modifications:bool;
     errors: (signature_item * Error.sigitem_symptom) list;
     untypables: ((Types.signature_item as 'it) * 'it * int) list;
-    constraints: Implicitmod_constraints.t;
+    constraints: Implicitmod_constraints.tmp;
   }
 
   let empty = {
@@ -482,10 +482,10 @@ module Sign_diff = struct
     deep_modifications = false;
     errors = [];
     untypables = [];
-    constraints = Implicitmod_constraints.empty;
+    constraints = Implicitmod_constraints.empty_tmp;
   }
 
-  let merge env x y =
+  let merge x y =
     {
       runtime_coercions = x.runtime_coercions @ y.runtime_coercions;
       shape_map = y.shape_map;
@@ -494,7 +494,7 @@ module Sign_diff = struct
       deep_modifications = x.deep_modifications || y.deep_modifications;
       errors = x.errors @ y.errors;
       untypables = x.untypables @ y.untypables;
-      constraints = Implicitmod_constraints.merge env x.constraints y.constraints;
+      constraints = Implicitmod_constraints.merge_tmp x.constraints y.constraints;
     }
 end
 
@@ -506,7 +506,7 @@ end
    [d1 C d2] if there is an environment [E] such that [E |- d1 <: d2]. *)
 type 'a core_incl =
   loc:Location.t -> Env.t -> direction:Directionality.t -> Subst.t -> Ident.t ->
-  'a -> 'a -> (module_coercion * Implicitmod_constraints.t, Error.sigitem_symptom) result
+  'a -> 'a -> (module_coercion * Implicitmod_constraints.tmp, Error.sigitem_symptom) result
 
 type core_relation = {
   value_descriptions: Types.value_description core_incl;
@@ -534,7 +534,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   match mty1, mty2 with
   | (Mty_alias p1, Mty_alias p2) ->
       if (equal_module_paths env p1 subst p2) then
-          Ok (Tcoerce_none, Implicitmod_constraints.empty, orig_shape)
+          Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp, orig_shape)
       else
         Error Error.(Mt_core Incompatible_aliases)
   | (Mty_alias p1, _) -> begin
@@ -558,7 +558,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
       let p1 = Env.normalize_modtype_path env p1 in
       let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
       if Path.same p1 p2 then
-        Ok (Tcoerce_none, Implicitmod_constraints.empty, orig_shape)
+        Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp, orig_shape)
       else
         begin match expand_modtype_path env p1, expand_modtype_path env p2 with
         | Some mty1, Some mty2 ->
@@ -628,7 +628,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
             else Shape.abs var final_res_shape
           in
           Ok (Tcoerce_none,
-              Implicitmod_constraints.(merge env cstrs_arg
+              Implicitmod_constraints.(merge_tmp cstrs_arg
                                         (generalize env param1 cstrs_res)),
               final_shape)
       | Ok (cc_arg, cstrs_arg), Ok (cc_res, cstrs_res, final_res_shape) ->
@@ -638,7 +638,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
             else Shape.abs var final_res_shape
           in
           Ok (Tcoerce_functor(cc_arg, cc_res),
-              Implicitmod_constraints.(merge env cstrs_arg
+              Implicitmod_constraints.(merge_tmp cstrs_arg
                             (generalize env param1 cstrs_res)),
               final_shape)
       | _, Error {Error.symptom = Error.Functor Error.Params res; _} ->
@@ -666,7 +666,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
 and functor_param ~core ~direction ~loc env subst param1 param2 =
   match param1, param2 with
   | Unit, Unit ->
-      Ok (Tcoerce_none, Implicitmod_constraints.empty), env, subst
+      Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp), env, subst
   | Named (b1, name1, arg1), Named (b2, name2, arg2)
     when b1 = Asttypes.Pure || b2 = Asttypes.Impure ->
       let arg2' = Subst.modtype Keep subst arg2 in
@@ -704,7 +704,7 @@ and strengthened_modtypes ~core ~direction ~loc ~aliasable env
     subst mty1 path1 mty2 shape =
   match mty1, mty2 with
   | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
-      Ok (Tcoerce_none, Implicitmod_constraints.empty, shape)
+      Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp, shape)
   | _, _ ->
       let mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
       modtypes ~core ~direction ~loc env subst mty1 mty2 shape
@@ -713,7 +713,7 @@ and strengthened_module_decl ~core ~loc ~aliasable ~direction env
     subst md1 path1 md2 shape =
   match md1.md_type, md2.md_type with
   | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
-      Ok (Tcoerce_none, Implicitmod_constraints.empty, shape)
+      Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp, shape)
   | _, _ ->
       let md1 = Mtype.strengthen_decl ~aliasable env md1 path1 in
       modtypes ~core ~direction ~loc env subst md1.md_type md2.md_type shape
@@ -979,7 +979,7 @@ and signature_components ~core ~direction ~loc old_env env subst
             orig_shape shape_map rem
         else Sign_diff.{ empty with untypables=rem }
        in
-       Sign_diff.merge env first rest
+       Sign_diff.merge first rest
 
 and module_declarations ~loc env ~direction subst id1 md1 md2 orig_shape =
   Builtin_attributes.check_alerts_inclusion
@@ -1006,8 +1006,8 @@ and modtype_infos ~core ~loc env ~direction subst id info1 info2 =
   let info2 = Subst.modtype_declaration Keep subst info2 in
   let r =
     match (info1.mtd_type, info2.mtd_type) with
-      (None, None) -> Ok (Tcoerce_none, Implicitmod_constraints.empty)
-    | (Some _, None) -> Ok (Tcoerce_none, Implicitmod_constraints.empty)
+      (None, None) -> Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp)
+    | (Some _, None) -> Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp)
     | (Some mty1, Some mty2) ->
         check_modtype_equiv ~core ~direction ~loc env mty1 mty2
     | (None, Some mty2) ->
@@ -1062,16 +1062,16 @@ let core_inclusion = Core_inclusion.{
 let core_consistency =
   let type_declarations ~loc:_ env ~direction:_ _ _ d1 d2 =
     match Includecore.type_declarations_consistency env d1 d2 with
-    | None -> Ok (Tcoerce_none, Implicitmod_constraints.empty)            (* TODO *)
+    | None -> Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp)            (* TODO *)
     | Some err ->  Error Error.(Core(Type_declarations (diff d1 d2 err)))
   in
   let value_descriptions ~loc:_ env ~direction:_ _ _ vd1 vd2 =
     match Includecore.value_descriptions_consistency env vd1 vd2 with
-    | x -> Ok (x, Implicitmod_constraints.empty)                          (* TODO *)
+    | x -> Ok (x, Implicitmod_constraints.empty_tmp)                          (* TODO *)
     | exception Includecore.Dont_match err ->
         Error Error.(Core (Value_descriptions (diff vd1 vd2 err)))
   in
-  let accept ~loc:_ _env ~direction:_ _subst _id _d1 _d2 = Ok (Tcoerce_none, Implicitmod_constraints.empty) (* TODO *) in
+  let accept ~loc:_ _env ~direction:_ _subst _id _d1 _d2 = Ok (Tcoerce_none, Implicitmod_constraints.empty_tmp) (* TODO *) in
   {
     type_declarations;
     value_descriptions;
