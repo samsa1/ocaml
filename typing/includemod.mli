@@ -147,7 +147,7 @@ val is_runtime_component: Types.signature_item -> bool
 
 val modtypes_collect_constraint:
   loc:Location.t -> Env.t -> mark:bool ->
-  module_type -> module_type -> Implicitmod_constraints.t
+  module_type -> module_type -> Implicitmod_constraints.tmp
 
 val modtypes:
   loc:Location.t -> Env.t -> mark:bool ->
