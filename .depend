@@ -588,6 +588,7 @@ typing/btype.cmo : \
     utils/misc.cmi \
     utils/local_store.cmi \
     typing/ident.cmi \
+    utils/clflags.cmi \
     parsing/asttypes.cmi \
     typing/btype.cmi
 typing/btype.cmx : \
@@ -596,6 +597,7 @@ typing/btype.cmx : \
     utils/misc.cmx \
     utils/local_store.cmx \
     typing/ident.cmx \
+    utils/clflags.cmx \
     parsing/asttypes.cmx \
     typing/btype.cmi
 typing/btype.cmi : \
@@ -929,6 +931,7 @@ typing/implicitmod.cmo : \
     typing/types.cmi \
     typing/typedtree.cmi \
     typing/subst.cmi \
+    utils/profile.cmi \
     typing/printtyp.cmi \
     parsing/pprintast.cmi \
     typing/path.cmi \
@@ -950,6 +953,7 @@ typing/implicitmod.cmx : \
     typing/types.cmx \
     typing/typedtree.cmx \
     typing/subst.cmx \
+    utils/profile.cmx \
     typing/printtyp.cmx \
     parsing/pprintast.cmx \
     typing/path.cmx \
@@ -978,14 +982,22 @@ typing/implicitmod.cmi : \
 typing/implicitmod_constraints.cmo : \
     typing/types.cmi \
     typing/path.cmi \
+    utils/misc.cmi \
+    parsing/location.cmi \
     typing/ident.cmi \
     utils/format_doc.cmi \
+    typing/env.cmi \
+    typing/btype.cmi \
     typing/implicitmod_constraints.cmi
 typing/implicitmod_constraints.cmx : \
     typing/types.cmx \
     typing/path.cmx \
+    utils/misc.cmx \
+    parsing/location.cmx \
     typing/ident.cmx \
     utils/format_doc.cmx \
+    typing/env.cmx \
+    typing/btype.cmx \
     typing/implicitmod_constraints.cmi
 typing/implicitmod_constraints.cmi : \
     typing/types.cmi \

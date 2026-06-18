@@ -249,6 +249,8 @@ let default_unbox_closures_factor = 10
 let unbox_closures_factor =
   ref default_unbox_closures_factor      (* -unbox-closures-factor *)
 let remove_unused_arguments = ref false (* -remove-unused-arguments *)
+let no_imp_filter1 = ref false (* -no-imp-filter1 *)
+let no_imp_filter2 = ref false (* -no-imp-filter2 *)
 
 type inlining_arguments = {
   inline_call_cost : int option;

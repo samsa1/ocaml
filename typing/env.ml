@@ -550,12 +550,14 @@ module ImplicitTbl =
         | Sig_modtype (id, _, _) | Sig_class (id, _, _, _)
         | Sig_class_type (id, _, _, _) -> Ident.name id
       in
-      try
-        (List.fold_left (fun set bind ->
-            let set2 = NameMap.find (get_name bind) mapping in
-            if set2.size < set.size then set2 else set
-          ) all sg).names
-      with Not_found -> NameMap.empty
+      if !Clflags.no_imp_filter1 then all.names
+      else
+        try
+          (List.fold_left (fun set bind ->
+              let set2 = NameMap.find (get_name bind) mapping in
+              if set2.size < set.size then set2 else set
+            ) all sg).names
+        with Not_found -> NameMap.empty
 
     let remove_from_set name set =
       if NameMap.mem name set.names then

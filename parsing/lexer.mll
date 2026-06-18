@@ -44,7 +44,7 @@ exception Error of error * Location.t
 
 let all_keywords =
   let v5_3 = Some (5,3) in
-  let v5_2 = Some (5,2) in
+  let v5_6 = Some (5,6) in
   let v1_0 = Some (1,0) in
   let v1_6 = Some (1,6) in
   let v4_2 = Some (4,2) in
@@ -71,7 +71,7 @@ let all_keywords =
     "functor", FUNCTOR, always;
     "if", IF, always;
     "in", IN, always;
-    "implicit", IMPLICIT, v5_2;
+    "implicit", IMPLICIT, v5_6;
     "include", INCLUDE, always;
     "inherit", INHERIT, v1_0;
     "initializer", INITIALIZER, v1_0;

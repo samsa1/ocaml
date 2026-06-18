@@ -39,18 +39,21 @@ end
 module Measure_diff = struct
   let timestamp = let r = ref (-1) in fun () -> incr r; !r
   type t = {
+    calls : int;
     timestamp : int;
     duration : float;
     allocated_words : float;
     top_heap_words_increase : int;
   }
   let zero () = {
+    calls = 0;
     timestamp = timestamp ();
     duration = 0.;
     allocated_words = 0.;
     top_heap_words_increase = 0;
   }
   let accumulate t (m1 : Measure.t) (m2 : Measure.t) = {
+    calls = t.calls + 1;
     timestamp = t.timestamp;
     duration = t.duration +. (m2.time -. m1.time);
     allocated_words =
@@ -113,6 +116,13 @@ let time_display v : display =
   let worth_displaying ~max:_ =
     float_of_string (to_string_without_unit v ~width:0) <> 0. in
   { to_string; worth_displaying }
+
+let calls_display v : display =
+  (* Because indentation is meaningful, and because the durations are
+     the first element of each row, we can't pad them with spaces. *)
+  let to_string ~max:_ ~width =
+    Printf.sprintf "%*d" width (int_of_float (v +. 0.5)) in
+  { to_string; worth_displaying = fun ~max:_ -> true }
 
 let memory_word_display =
   (* To make memory numbers easily comparable across rows, we choose a single
@@ -177,6 +187,7 @@ let compute_other_category (E table : hierarchy) (total : Measure_diff.t) =
   Hashtbl.iter (fun _pass ((p2 : Measure_diff.t), _) ->
     let p1 = !r in
     r := {
+      calls = 0;
       timestamp = p1.timestamp;
       duration = p1.duration -. p2.duration;
       allocated_words = p1.allocated_words -. p2.allocated_words;
@@ -187,7 +198,7 @@ let compute_other_category (E table : hierarchy) (total : Measure_diff.t) =
   !r
 
 type row = R of string * (float * display) list * row list
-type column = [ `Time | `Alloc | `Top_heap | `Abs_top_heap ]
+type column = [ `Time | `Alloc | `Top_heap | `Abs_top_heap | `Calls ]
 
 let rec rows_of_hierarchy ~nesting make_row name measure_diff hierarchy env =
   let rows =
@@ -239,6 +250,8 @@ let rows_of_hierarchy hierarchy measure_diff initial_measure columns =
       List.map (function
         | `Time ->
           make p.duration ~f:time_display
+        | `Calls ->
+          make (float_of_int p.calls) ~f:calls_display
         | `Alloc ->
           make p.allocated_words ~f:memory_word_display
         | `Top_heap ->
@@ -316,6 +329,7 @@ let print ppf columns =
 let column_mapping = [
   "time", `Time;
   "alloc", `Alloc;
+  "calls", `Calls;
   "top-heap", `Top_heap;
   "absolute-top-heap", `Abs_top_heap;
 ]

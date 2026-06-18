@@ -1514,6 +1514,35 @@ module_expr:
     { $1 }
 ;
 
+simple_module_expr:
+  | STRUCT attrs = attributes s = structure END
+      { mkmod ~loc:$sloc ~attrs (Pmod_structure s) }
+  | STRUCT attributes structure error
+      { unclosed "struct" $loc($1) "end" $loc($4) }
+  | SIG error
+      { expecting $loc($1) "struct" }
+  | FUNCTOR attrs = attributes args = functor_args MINUSGREATER me = module_expr
+      { let p = if contains_pure attrs then Pure else Impure in
+        wrap_mod_attrs ~loc:$sloc attrs (mk_functor p args me) }
+  | FUNCTOR attrs = attributes args = functor_args_named EQUALGREATER
+    me = module_expr
+    { wrap_mod_attrs ~loc:$sloc attrs (mk_functor Pure args me) }
+  | me = simple_module_expr attr = attribute
+      { Mod.attr me attr }
+  | mkmod(
+      (* A module identifier. *)
+      x = mkrhs(mod_longident)
+        { Pmod_ident x }
+    | (* In a functor application, the actual argument must be parenthesized. *)
+      me1 = simple_module_expr me2 = paren_module_expr
+        { Pmod_apply(me1, me2) }
+    | (* Functor applied to unit. *)
+      me = simple_module_expr LPAREN RPAREN
+        { Pmod_apply_unit me }
+    )
+    { $1 }
+;
+
 %inline module_expr_opt:
   | me = module_expr
     { Some me }
@@ -2774,6 +2803,13 @@ labeled_simple_expr:
         (Optional label, mkexpvar ~loc label) }
   | OPTLABEL simple_expr %prec below_HASH
       { (Optional $1, $2) }
+  | LBRACE me = simple_module_expr RBRACE
+      { (Nolabel, mkexp ~loc:$sloc (Pexp_pack (me, None))) }
+  | LBRACE UNDERSCORE COLON mty = module_type RBRACE
+      { (Nolabel,
+         mkexp ~loc:$sloc
+          (Pexp_pack (mkmod ~loc:$sloc (Pmod_constraint(None, mty)), None)))
+      }
 ;
 %inline lident_list:
   xs = mkrhs(LIDENT)+
@@ -2921,6 +2957,12 @@ fun_param_as_list:
           (fun x -> { pparam_loc = loc; pparam_desc = Pparam_newtype x })
           ty_params
       }
+  | LBRACE name = mkrhs(module_name) COLON ptyp = package_type_ RBRACE
+      { let a, b, c =
+          Nolabel, None, mkpat ~loc:$sloc (Ppat_unpack (name, Some ptyp))
+        in
+        [ { pparam_loc = make_loc $sloc; pparam_desc = Pparam_val (a, b, c) } ]
+      }
   | simple_param_pattern
       { let a, b, c = $1 in
         [ { pparam_loc = make_loc $sloc; pparam_desc = Pparam_val (a, b, c) } ]
@@ -3008,14 +3050,14 @@ reversed_labeled_tuple_body:
   xs = rev(reversed_labeled_tuple_body)
     { xs }
 ;
-record_update_expr:
-| simple_expr nonempty_llist(labeled_simple_expr)
-    { mkexp ~loc:$sloc (Pexp_apply ($1, $2)) }
-| simple_expr
-    { $1 }
-;
+// record_update_expr:
+// | simple_expr nonempty_llist(labeled_simple_expr)
+//     { mkexp ~loc:$sloc (Pexp_apply ($1, $2)) }
+// | simple_expr
+//     { $1 }
+// ;
 record_expr_content:
-  eo = ioption(terminated(record_update_expr, WITH))
+  eo = ioption(terminated(simple_expr, WITH))
   fields = separated_or_terminated_nonempty_list(SEMI, record_expr_field)
     { eo, fields }
 ;
@@ -3842,6 +3884,18 @@ function_type:
         MODULE attrs = ext_attributes id = mkrhs(UIDENT) COLON
         ptyp = package_type_
       RPAREN
+      MINUSGREATER
+      codomain = function_type
+        { let ptyp = {ptyp with ppt_attrs = snd attrs @ ptyp.ppt_attrs } in
+          Ptyp_functor(label, id, ptyp, codomain) }
+    )
+    { $1 }
+  | mktyp(
+      label = arg_label_no_opt
+      LBRACE
+        attrs = ext_attributes id = mkrhs(UIDENT) COLON
+        ptyp = package_type_
+      RBRACE
       MINUSGREATER
       codomain = function_type
         { let ptyp = {ptyp with ppt_attrs = snd attrs @ ptyp.ppt_attrs } in

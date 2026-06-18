@@ -365,6 +365,12 @@ let read_one_param ppf position name v =
   | "remove-unused-arguments" ->
       set "remove-unused-arguments" [ remove_unused_arguments ] v
 
+  | "no-imp-filter1" ->
+    set "no-imp-filter1" [ no_imp_filter1 ] v
+
+  | "no-imp-filter2" ->
+    set "no-imp-filter2" [ no_imp_filter2 ] v
+
   | "inlining-report" ->
       if !native_code then
         set "inlining-report" [ inlining_report ] v
