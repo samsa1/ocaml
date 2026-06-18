@@ -523,6 +523,227 @@ let item_subst id1 item2 subst =
   | Sig_modtype (id2,_,_) -> Subst.add_modtype id2 (Path.Pident id1) subst
   | Sig_value _ | Sig_typext _ | Sig_class _ | Sig_class_type _ -> subst
 
+let equate_one_functor_param subst env arg2' name1 name2  =
+  match name1, name2 with
+  | Some id1, Some id2 ->
+  (* two matching abstract parameters: we add one identifier to the
+     environment and record the equality between the two identifiers
+     in the substitution *)
+      Env.add_module id1 Mp_present IILocal arg2' env,
+      Subst.add_module id2 (Path.Pident id1) subst
+  | None, Some id2 ->
+      let id1 = Ident.rename id2 in
+      Env.add_module id1 Mp_present IILocal arg2' env,
+      Subst.add_module id2 (Path.Pident id1) subst
+  | Some id1, None ->
+      Env.add_module id1 Mp_present IILocal arg2' env, subst
+  | None, None ->
+      env, subst
+
+let rec approx_modtypes ~direction env subst mty1 mty2 =
+  match mty1, mty2 with
+  | (Mty_alias p1, Mty_alias p2) ->
+      equal_module_paths env p1 subst p2
+  | (Mty_alias p1, _) -> begin
+      match
+        Env.normalize_module_path (Some Location.none) env p1
+      with
+      | exception Env.Error (Env.Missing_module _) ->
+          false
+      | p1 ->
+          begin match expand_module_alias ~strengthen:false env p1 with
+          | Error _ -> false
+          | Ok mty1 ->
+              approx_strengthened_modtypes ~direction
+                ~aliasable:true env subst mty1 p1 mty2
+          end
+    end  
+  | (Mty_ident p1, Mty_ident p2) ->
+      let p1 = Env.normalize_modtype_path env p1 in
+      let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
+      Path.same p1 p2 || begin
+        match expand_modtype_path env p1, expand_modtype_path env p2 with
+        | Some mty1, Some mty2 ->
+            approx_modtypes ~direction env subst mty1 mty2
+        | None, _  | _, None -> false
+      end
+  | (Mty_ident p1, _) ->
+      let p1 = Env.normalize_modtype_path env p1 in
+      begin match expand_modtype_path env p1 with
+      | Some p1 ->
+          approx_modtypes ~direction env subst p1 mty2
+      | None -> false
+      end
+  | (_, Mty_ident p2) ->
+      let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
+      begin match expand_modtype_path env p2 with
+      | Some p2 ->
+          approx_modtypes ~direction env subst mty1 p2
+      | None -> false
+      end
+  | (Mty_signature sig1, Mty_signature sig2) ->
+      approx_signatures ~direction env subst sig1 sig2
+
+  | Mty_functor (param1, res1), Mty_functor (param2, res2) ->
+      begin match
+          let direction = Directionality.negate direction in
+          approx_functor_param ~direction env subst param1 param2
+        with
+      | Some (env, subst) ->
+        approx_modtypes ~direction env subst res1 res2
+      | None -> false
+      end
+  | Mty_functor _, _
+  | _, Mty_functor _ -> false
+  | _, Mty_alias _ -> false
+
+and approx_functor_param ~direction env subst param1 param2 =
+  match param1, param2 with
+  | Unit, Unit -> Some (env, subst)
+  | Named (b1, name1, arg1), Named (b2, name2, arg2)
+    when b1 = Asttypes.Pure || b2 = Asttypes.Impure ->
+      let arg2' = Subst.modtype Keep subst arg2 in
+      if
+        approx_modtypes ~direction env Subst.identity arg2' arg1
+      then
+        let env, subst = equate_one_functor_param subst env arg2' name1 name2 in
+        Some (env, subst)
+      else
+        None
+  | _, _ -> None
+
+and approx_strengthened_modtypes ~direction ~aliasable env
+    subst mty1 path1 mty2 =
+  match mty1, mty2 with
+  | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
+      true
+  | _, _ ->
+      let mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
+      approx_modtypes ~direction env subst mty1 mty2
+
+and approx_signatures ~direction env subst sig1 sig2 =
+  (* Environment used to check inclusion of components *)
+  let new_env =
+    Env.add_signature sig1 (Env.in_signature true env) in
+  (* Build a table of the components of sig1, along with their positions.
+     The table is indexed by kind and name of component *)
+  let rec build_component_table nb_exported pos tbl = function
+      [] -> nb_exported, pos, tbl
+    | item :: rem ->
+        let pos, nextpos =
+          if is_runtime_component item then pos, pos + 1
+          else -1, pos
+        in
+        match item_visibility item with
+        | Hidden ->
+            (* do not pair private items. *)
+            build_component_table nb_exported nextpos tbl rem
+        | Exported ->
+            let (id, _loc, name) = item_ident_name item in
+            build_component_table (nb_exported + 1) nextpos
+              (FieldMap.add name (id, item, pos) tbl) rem
+  in
+  let _, _, comps1 =
+    build_component_table 0 0 FieldMap.empty sig1
+  in
+  (* Pair each component of sig2 with a component of sig1,
+     identifying the names along the way.
+     Return a coercion list indicating, for all run-time components
+     of sig2, the position of the matching run-time components of sig1
+     and the coercion to be applied to it. *)
+  let rec pair_components subst paired = function
+      [] ->
+        approx_signature_components ~direction env new_env subst
+            (List.rev paired)
+    | item2 :: rem ->
+        let (_id2, _loc, name2) = item_ident_name item2 in
+        let name2 =
+          match item2, name2 with
+            Sig_type (_, {type_manifest=None}, _, _), {name=s; kind=Field_type}
+            when Btype.is_row_name s ->
+              (* Do not report in case of failure,
+                 as the main type will generate an error *)
+              { kind=Field_type; name=String.sub s 0 (String.length s - 4) }
+          | _ -> name2
+        in
+        begin match FieldMap.find name2 comps1 with
+        | (id1, item1, pos1) ->
+          let new_subst = item_subst id1 item2 subst in
+          pair_components new_subst
+            ((item1, item2, pos1) :: paired) rem
+        | exception Not_found -> false
+        end in
+  (* Do the pairing and checking, and return the final coercion *)
+  pair_components subst [] sig2
+
+and approx_signature_components ~direction old_env env subst paired =
+  match paired with
+  | [] -> true
+  | (sigi1, sigi2, _pos) :: rem ->
+    match sigi1, sigi2 with
+    | Sig_value(_id1, _valdecl1, _), Sig_value(_id2, _valdecl2, _) ->
+        (* Can recover if ill-typed, so we can continue on *)
+        approx_signature_components ~direction old_env env subst rem
+    | Sig_type(id1, tydec1, _, _), Sig_type(_id2, tydec2, _, _) ->
+      Result.is_ok @@
+        Core_inclusion.type_declarations ~loc:Location.none ~direction env
+          subst id1 tydec1 tydec2
+    | Sig_module(_id1, _, _, _, _), Sig_module(_id2, _, _, _, _)
+      (* -> begin
+          let orig_shape =
+            Shape.(proj orig_shape (Item.module_ id1))
+          in
+          let item =
+            module_declarations ~core ~direction ~loc env subst id1
+              mty1 mty2 orig_shape
+          in
+          let item, shape_map =
+            match item with
+            | Ok (cc, cstrs, shape) ->
+                if shape != orig_shape then shape_modified := true;
+                let mod_shape = Shape.set_uid_if_none shape mty1.md_uid in
+                Ok (cc, cstrs), Shape.Map.add_module shape_map id1 mod_shape
+            | Error diff ->
+                Error (Error.Module_type diff),
+                (* We add the original shape to the map, even though
+                    there is a type error.
+                    It could still be useful for merlin. *)
+                Shape.Map.add_module shape_map id1 orig_shape
+          in
+          let present_at_runtime, item =
+            match pres1, pres2, mty1.md_type with
+            | Mp_present, Mp_present, _ -> true, item
+            | _, Mp_absent, _ -> false, item
+            | Mp_absent, Mp_present, Mty_alias p1 ->
+              true,
+              Result.map (fun (i, c) -> Tcoerce_alias (env, p1, i), c) item
+            | Mp_absent, Mp_present, _ -> assert false
+          in
+          let item = mark_error_as_unrecoverable item in
+          let paired_uids = (mty1.md_uid, mty2.md_uid) in
+          item, paired_uids, shape_map, present_at_runtime
+        end *)
+    | Sig_typext(_id1, _, _, _), Sig_typext(_id2, _, _, _)
+    | Sig_modtype(_id1, _, _), Sig_modtype(_id2, _, _)
+    | Sig_class(_id1, _, _, _), Sig_class(_id2, _, _, _)
+    | Sig_class_type(_id1, _, _, _), Sig_class_type(_id2, _, _, _) ->
+        true (* Cannot recover if incompatible *)
+    | _ ->
+        assert false
+
+(* and module_declarations ~loc env ~direction subst id1 md1 md2 orig_shape =
+  Builtin_attributes.check_alerts_inclusion
+    ~def:md1.md_loc
+    ~use:md2.md_loc
+    loc
+    md1.md_attributes md2.md_attributes
+    (Ident.name id1);
+  let p1 = Path.Pident id1 in
+  if Directionality.mark_as_used direction then
+    Env.mark_module_used md1.md_uid;
+  strengthened_modtypes ~direction ~loc ~aliasable:true env subst
+    md1.md_type p1 md2.md_type orig_shape *)
+
 let rec modtypes ~core ~direction ~loc env subst mty1 mty2 shape =
   match try_modtypes ~core ~direction ~loc env subst mty1 mty2 shape with
   | Ok _ as ok -> ok
@@ -682,23 +903,6 @@ and functor_param ~core ~direction ~loc env subst param1 param2 =
       cc_arg, env, subst
   | _, _ ->
       Error (Error.Incompatible_params (param1, param2)), env, subst
-
-and equate_one_functor_param subst env arg2' name1 name2  =
-  match name1, name2 with
-  | Some id1, Some id2 ->
-  (* two matching abstract parameters: we add one identifier to the
-     environment and record the equality between the two identifiers
-     in the substitution *)
-      Env.add_module id1 Mp_present IILocal arg2' env,
-      Subst.add_module id2 (Path.Pident id1) subst
-  | None, Some id2 ->
-      let id1 = Ident.rename id2 in
-      Env.add_module id1 Mp_present IILocal arg2' env,
-      Subst.add_module id2 (Path.Pident id1) subst
-  | Some id1, None ->
-      Env.add_module id1 Mp_present IILocal arg2' env, subst
-  | None, None ->
-      env, subst
 
 and strengthened_modtypes ~core ~direction ~loc ~aliasable env
     subst mty1 path1 mty2 shape =
@@ -1398,7 +1602,12 @@ let modtypes_collect_constraint ~loc env ~mark mty1 mty2 =
     constraints
   | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
 
-  let modtypes ~loc env ~mark mty1 mty2 =
+let approx_modtypes env mty1 mty2 =
+  let direction = Directionality.unknown ~mark:false in
+  Profile.record_call ~accumulate:true "approx_modtypes" @@ fun () ->
+    approx_modtypes ~direction env Subst.identity mty1 mty2
+
+let modtypes ~loc env ~mark mty1 mty2 =
   let direction = Directionality.unknown ~mark in
   match
     modtypes ~core:core_inclusion ~direction ~loc env Subst.identity
