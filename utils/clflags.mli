@@ -68,7 +68,7 @@ val o3_arguments : inlining_arguments
     The default is set if no round is provided. *)
 val use_inlining_arguments_set : ?round:int -> inlining_arguments -> unit
 
-type profile_column = [ `Time | `Alloc | `Top_heap | `Abs_top_heap ]
+type profile_column = [ `Time | `Calls | `Alloc | `Top_heap | `Abs_top_heap ]
 
 val objfiles : string list ref
 val ccobjs : string list ref
@@ -222,6 +222,8 @@ val parsetree_ghost_loc_invariant : bool ref
 val default_inline_max_depth : int
 val inline_max_depth : Int_arg_helper.parsed ref
 val remove_unused_arguments : bool ref
+val no_imp_filter1 : bool ref
+val no_imp_filter2 : bool ref
 val dump_flambda_verbose : bool ref
 val classic_inlining : bool ref
 val afl_instrument : bool ref

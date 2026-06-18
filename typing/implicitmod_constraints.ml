@@ -802,11 +802,15 @@ let rec update_path_name env path acc eqs id =
     begin match info.mi_desc with
       | Alias id -> update_path_name env path acc eqs id
       | BaseType (n, []) ->
-        PathEq (Type n, path, p) :: acc, eqs
+        let acc =
+          if Path.same path p then acc else PathEq (Type n, path, p) :: acc
+        in acc, eqs
       | BaseType (_, _ :: _) ->
         assert false (* Should not happen (I hope) *)
       | _ ->
-        PathEq (Module, path, p) :: acc, eqs
+        let acc =
+          if Path.same path p then acc else PathEq (Module, path, p) :: acc
+        in acc, eqs
     end
 
 let update_path_name env path acc eqs id =
@@ -824,7 +828,10 @@ let rec add_all_path_eqs eq_kind ?prev acc = function
     | None ->
       add_all_path_eqs eq_kind ~prev:p acc tl
     | Some p2 ->
-      add_all_path_eqs eq_kind ~prev:p (PathEq (eq_kind, p, p2) :: acc) tl
+      let acc =
+        if Path.same p p2 then acc else PathEq (eq_kind, p, p2) :: acc
+      in
+      add_all_path_eqs eq_kind ~prev:p acc tl
 
 let rec merge_ids ?path env acc eqs id1 id2 =
   if id1 = id2 then id1, acc, eqs else
@@ -1017,7 +1024,6 @@ and merge_paths_normalized env ~env_params params eq_kind p1 p2 eqs =
             Env.find_type_expansion p2 env_params
           with
           | (([], ty1, _), ([], ty2, _)) ->
-            let () = assert false in
             add_type_type_eq env ~env_params:env_params params ty1 ty2 (Constraints eqs)
           | _ -> assert false (* TODO *)
           | exception Not_found -> HasContradiction
@@ -1286,10 +1292,6 @@ and add_type_type_eq env ~env_params params ty1 ty2 eqs =
     | Tobject _, Tobject _ | Tfield _, Tfield _
     | Tpoly _, Tpoly _ | Tunivar _, Tunivar _
     | Tfunctor _, Tfunctor _ | Tfunctor _, Tarrow _ | Tarrow _, Tfunctor _ ->
-      Format.eprintf "ForgotAdd : %a %a = %a\n"
-        (Format.pp_print_list Ident.print) (List.map Pair.fst params)
-        Rawprinttyp.type_expr ty1
-        Rawprinttyp.type_expr ty2;
       eqs
     | Tlink _, _ | _, Tlink _ | Texpand _, _ | _, Texpand _
     | Tsubst _, _ | _, Tsubst _ -> assert false
@@ -1544,3 +1546,13 @@ let of_tmp env l =
 let is_empty l = l = []
 
 let add_path_type_eq _env p tyl ty l = ([], p, tyl, ty) :: l
+
+let merge =
+  Profile.record ~accumulate:true "merge" merge
+
+let of_tmp =
+  Profile.record ~accumulate:true "of_tmp" of_tmp
+
+let has_error =
+  Profile.record ~accumulate:true "has_error" has_error
+

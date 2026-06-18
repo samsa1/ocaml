@@ -20,6 +20,18 @@ open Types
 
 module Constraints = Implicitmod_constraints
 
+module Includemod = struct
+  include Includemod
+  let modtypes_collect_constraint ~loc ~mark env_result
+          result problem_signature =
+      Profile.record_call ~accumulate:true "collect_constraint" @@
+        fun () -> modtypes_collect_constraint ~loc ~mark
+                      env_result result problem_signature
+
+  let approx_modtypes env ~constraints mty1 mty2 =
+    !Clflags.no_imp_filter2 || approx_modtypes env ~constraints mty1 mty2
+end
+
 module FuncOrder : sig
   type t
   val empty : t
@@ -102,6 +114,8 @@ end = struct
     if is_smaller m name v
     then Some (Misc.Stdlib.String.Map.add name v m)
     else None
+
+  let update_map = Profile.record ~accumulate:true "update_map" update_map
 end
 
 let rec open_signature_item env = function
@@ -181,6 +195,9 @@ let extract_function search_depth env depth mty =
   in
   let (args, mty) = extract_arguments env [] mty in
   aux depth args mty
+
+let extract_function =
+  Profile.record ~accumulate:true "extract function" extract_function
 
 let rec get_sig env depth mty =
     match Env.scrape_alias env mty with
@@ -341,6 +358,9 @@ let prepare_argument id env modtype : implicit_inference =
     desc = Working { solutions = []; current = None; next }
   }
 
+let prepare_argument =
+  Profile.record ~accumulate:true "prepare_argument" prepare_argument
+
 let prepare_extracted_argument = function
   | EA_Arg (oid, env, mty) -> Arg (prepare_argument oid env mty)
   | EA_Unit -> Unit
@@ -401,11 +421,17 @@ let build_solution ~loc {id; env; signature} name path args =
   in
   build_mexp functor_mexp path (fst (!type_module env functor_mexp)) args
 
+let build_solution ~loc prob name path args =
+  Profile.record_call ~accumulate:true "build solution" @@
+    fun () -> build_solution ~loc prob name path args
+
+exception NoSol
+
 let rec compute_nb_unsolved acc = function
   | [] -> acc
   | Arg {desc = Solved _} :: tl -> compute_nb_unsolved acc tl
   | (Arg {desc = Working _} | Unit) :: tl -> compute_nb_unsolved (acc + 1) tl
-  | Arg {desc = NoSolution} :: _ -> raise Not_found
+  | Arg {desc = NoSolution} :: _ -> raise NoSol
 
 let rec remove_duplicate_sols : implicit_inference_solution list -> _ = function
   | sol1 :: sol2 :: tl when Path.same sol1.path sol2.path ->
@@ -559,7 +585,8 @@ and refine_solution_list d ~loc env trace ctxt_constraints arguments nb_unsolved
         if nb_unsolved' < nb_unsolved
         then refine_solution_list d ~loc env trace ctxt_constraints arguments nb_unsolved'
         else Some (arguments, nb_unsolved')
-      | exception Not_found -> None
+      | exception NoSol ->
+        None
     (* end
   | exception (Ctype.Unify _ | Includemod.Error _)  -> None *)
 and filter_identifiers d ~loc trace ctxt_constraints problem next =
@@ -638,6 +665,10 @@ let infer ~loc env mty =
   | Solved {psol; _} -> psol
   | _ ->
     raise (ImplicitError (loc, node))
+
+let infer ~loc env mty =
+  Profile.record_call ~accumulate:true "implicit"
+    (fun () -> infer ~loc env mty)
 
 (* Error report *)
 open Printtyp.Doc
