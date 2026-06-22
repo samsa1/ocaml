@@ -4650,6 +4650,7 @@ type comparison_context = {
   type_pairs : TypePairs.t;
   subst : (type_expr * type_expr) list ref;
   constraints : Implicitmod_constraints.tmp ref;
+  constraints_in : Implicitmod_constraints.t;
 }
 
 let expand_head_rigid env ty =
@@ -4725,7 +4726,7 @@ let rec eqtype ctxt env t1 t2 =
               let mty1 = modtype_of_package env Location.none pack1 in
               let mty2 = modtype_of_package env Location.none pack2 in
               enter_functor_with_mtys_for Equality env id1 mty1 t1' id2 mty2 t2'
-                  (fun new_env -> eqtype ctxt new_env t1 t2)
+                  (fun new_env -> eqtype {ctxt with constraints_in = Implicitmod_constraints.empty} new_env t1 t2)
           | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _)) ->
               eq_labels Equality ~in_pattern_mode:false l1 l2;
               let t1 = newmono_package pack1 in
@@ -4750,8 +4751,12 @@ let rec eqtype ctxt env t1 t2 =
                 when Env_unscoped.path_equiv env p1 p2 ->
               eqtype_list_same_length ctxt env tl1 tl2
           | (Tconstr (p, tl, _), _) when not (Path.rigid p) ->
+              if Implicitmod_constraints.(has_error env (add_type_eq env t1' t2' ctxt.constraints_in))
+              then raise_unexplained_for Equality;
               ctxt.constraints := Implicitmod_constraints.add_path_type_eq env p tl t2' !(ctxt.constraints);
           | (_, Tconstr (p, tl, _)) when not (Path.rigid p) ->
+              if Implicitmod_constraints.(has_error env (add_type_eq env t1' t2' ctxt.constraints_in))
+              then raise_unexplained_for Equality;
               ctxt.constraints := Implicitmod_constraints.add_path_type_eq env p tl t1' !(ctxt.constraints);
           | (Tpackage pack1, Tpackage pack2) ->
               eqtype_package ctxt env
@@ -5057,7 +5062,8 @@ let () = Implicitmod_constraints.expand_head_rigid := expand_head_rigid
 let moregen type_pairs env patt subj =
   let constraints = ref Implicitmod_constraints.empty_tmp in
   with_univar_pairs [] (fun () ->
-    eqtype {kind = Moregen; type_pairs; subst = ref []; constraints}
+    eqtype {kind = Moregen; type_pairs; subst = ref []; constraints;
+              constraints_in = Implicitmod_constraints.empty}
            env patt subj);
   !constraints
 
@@ -5110,28 +5116,29 @@ let is_moregeneral env pat_sch subj_sch =
   | exception Moregen _ -> false
 
 (* Must empty univar_pairs first *)
-let eqtype_list_same_length rename type_pairs subst env tl1 tl2 =
+let eqtype_list_same_length ~constraints rename type_pairs subst env tl1 tl2 =
+  let constraints_in = constraints in
   let kind = Equality rename in
   let constraints = ref Implicitmod_constraints.empty_tmp in
   with_univar_pairs [] (fun () ->
     let snap = Btype.snapshot () in
     Misc.try_finally
       ~always:(fun () -> backtrack snap)
-      (fun () -> eqtype_list_same_length {kind; type_pairs; subst; constraints} env tl1 tl2)
+      (fun () -> eqtype_list_same_length {kind; type_pairs; subst; constraints; constraints_in} env tl1 tl2)
   );
   !constraints
 
 let eqtype rename type_pairs subst env t1 t2 =
-  eqtype_list_same_length rename type_pairs subst env [t1] [t2]
+  eqtype_list_same_length rename ~constraints:Implicitmod_constraints.empty type_pairs subst env [t1] [t2]
 
 (* Two modes: with or without renaming of variables *)
-let equal env rename tyl1 tyl2 =
+let equal env ?(constraints = Implicitmod_constraints.empty) rename tyl1 tyl2 =
   if List.length tyl1 <> List.length tyl2 then
     raise_unexplained_for Equality;
   if List.for_all2 eq_type tyl1 tyl2 then Implicitmod_constraints.empty_tmp else
   let subst = ref [] in
   try
-    eqtype_list_same_length rename (TypePairs.create 11) subst env tyl1 tyl2
+    eqtype_list_same_length ~constraints rename (TypePairs.create 11) subst env tyl1 tyl2
   with Equality_trace trace ->
     raise (Equality (expand_to_equality_error env trace !subst))
 

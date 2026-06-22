@@ -28,6 +28,7 @@ val type_expr_printer : Types.type_expr Format_doc.printer ref
 val print : t Format_doc.printer
 
 val add_path_eq : Env.t -> path_eq_kind -> Path.t -> Path.t -> t -> t
+val add_type_eq : Env.t -> Types.type_expr -> Types.type_expr -> t -> t
 val merge : Env.t -> t -> t -> t
 
 (* val generalize : Env.t -> Types.functor_parameter -> t -> t *)

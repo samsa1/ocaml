@@ -114,7 +114,9 @@ val value_descriptions:
 val type_declarations:
   ?equality:bool ->
   loc:Location.t ->
-  Env.t -> mark:bool -> string ->
+  Env.t ->
+  constraints:Implicitmod_constraints.t ->
+  mark:bool -> string ->
   type_declaration -> Path.t -> type_declaration ->
   (Implicitmod_constraints.tmp, type_mismatch) result
 

@@ -260,11 +260,22 @@ module Core_inclusion = struct
     let decl2 = Subst.type_declaration subst decl2 in
     match
       Includecore.type_declarations ~loc env ~mark
+        ~constraints:Implicitmod_constraints.empty
         (Ident.name id) decl1 (Path.Pident id) decl2
     with
     | Ok constraints -> Ok (Tcoerce_none, constraints)
     | Error err ->
         Error Error.(Core(Type_declarations (diff decl1 decl2 err)))
+
+  let approx_type_declarations env ~direction ~constraints subst id decl1 decl2 =
+    let mark = Directionality.mark_as_used direction in
+    if mark then
+      Env.mark_type_used decl1.type_uid;
+    let decl1 = Subst.type_declaration Subst.identity decl1 in
+    let decl2 = Subst.type_declaration subst decl2 in
+    Result.is_ok @@
+      Includecore.type_declarations ~loc:Location.none env ~mark ~constraints
+        (Ident.name id) decl1 (Path.Pident id) decl2
 
   (* Inclusion between extension constructors *)
 
@@ -540,7 +551,7 @@ let equate_one_functor_param subst env arg2' name1 name2  =
   | None, None ->
       env, subst
 
-let rec approx_modtypes ~direction env subst mty1 mty2 =
+let rec approx_modtypes ~direction env ~constraints subst mty1 mty2 =
   match mty1, mty2 with
   | (Mty_alias p1, Mty_alias p2) ->
       equal_module_paths env p1 subst p2
@@ -555,7 +566,7 @@ let rec approx_modtypes ~direction env subst mty1 mty2 =
           | Error _ -> false
           | Ok mty1 ->
               approx_strengthened_modtypes ~direction
-                ~aliasable:true env subst mty1 p1 mty2
+                ~aliasable:true env ~constraints subst mty1 p1 mty2
           end
     end  
   | (Mty_ident p1, Mty_ident p2) ->
@@ -564,47 +575,47 @@ let rec approx_modtypes ~direction env subst mty1 mty2 =
       Path.same p1 p2 || begin
         match expand_modtype_path env p1, expand_modtype_path env p2 with
         | Some mty1, Some mty2 ->
-            approx_modtypes ~direction env subst mty1 mty2
+            approx_modtypes ~direction env ~constraints subst mty1 mty2
         | None, _  | _, None -> false
       end
   | (Mty_ident p1, _) ->
       let p1 = Env.normalize_modtype_path env p1 in
       begin match expand_modtype_path env p1 with
       | Some p1 ->
-          approx_modtypes ~direction env subst p1 mty2
+          approx_modtypes ~direction env ~constraints subst p1 mty2
       | None -> false
       end
   | (_, Mty_ident p2) ->
       let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
       begin match expand_modtype_path env p2 with
       | Some p2 ->
-          approx_modtypes ~direction env subst mty1 p2
+          approx_modtypes ~direction env ~constraints subst mty1 p2
       | None -> false
       end
   | (Mty_signature sig1, Mty_signature sig2) ->
-      approx_signatures ~direction env subst sig1 sig2
+      approx_signatures ~direction env ~constraints subst sig1 sig2
 
   | Mty_functor (param1, res1), Mty_functor (param2, res2) ->
       begin match
           let direction = Directionality.negate direction in
-          approx_functor_param ~direction env subst param1 param2
+          approx_functor_param ~direction env ~constraints subst param1 param2
         with
       | Some (env, subst) ->
-        approx_modtypes ~direction env subst res1 res2
+        approx_modtypes ~direction env ~constraints:Implicitmod_constraints.empty subst res1 res2
       | None -> false
       end
   | Mty_functor _, _
   | _, Mty_functor _ -> false
   | _, Mty_alias _ -> false
 
-and approx_functor_param ~direction env subst param1 param2 =
+and approx_functor_param ~direction env ~constraints subst param1 param2 =
   match param1, param2 with
   | Unit, Unit -> Some (env, subst)
   | Named (b1, name1, arg1), Named (b2, name2, arg2)
     when b1 = Asttypes.Pure || b2 = Asttypes.Impure ->
       let arg2' = Subst.modtype Keep subst arg2 in
       if
-        approx_modtypes ~direction env Subst.identity arg2' arg1
+        approx_modtypes ~direction env ~constraints Subst.identity arg2' arg1
       then
         let env, subst = equate_one_functor_param subst env arg2' name1 name2 in
         Some (env, subst)
@@ -613,38 +624,34 @@ and approx_functor_param ~direction env subst param1 param2 =
   | _, _ -> None
 
 and approx_strengthened_modtypes ~direction ~aliasable env
-    subst mty1 path1 mty2 =
+    ~constraints subst mty1 path1 mty2 =
   match mty1, mty2 with
   | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
       true
   | _, _ ->
       let mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
-      approx_modtypes ~direction env subst mty1 mty2
+      approx_modtypes ~direction env ~constraints subst mty1 mty2
 
-and approx_signatures ~direction env subst sig1 sig2 =
+and approx_signatures ~direction env ~constraints subst sig1 sig2 =
   (* Environment used to check inclusion of components *)
   let new_env =
     Env.add_signature sig1 (Env.in_signature true env) in
   (* Build a table of the components of sig1, along with their positions.
      The table is indexed by kind and name of component *)
-  let rec build_component_table nb_exported pos tbl = function
-      [] -> nb_exported, pos, tbl
+  let rec build_component_table tbl = function
+      [] -> tbl
     | item :: rem ->
-        let pos, nextpos =
-          if is_runtime_component item then pos, pos + 1
-          else -1, pos
-        in
         match item_visibility item with
         | Hidden ->
             (* do not pair private items. *)
-            build_component_table nb_exported nextpos tbl rem
+            build_component_table tbl rem
         | Exported ->
             let (id, _loc, name) = item_ident_name item in
-            build_component_table (nb_exported + 1) nextpos
-              (FieldMap.add name (id, item, pos) tbl) rem
+            build_component_table
+              (FieldMap.add name (id, item) tbl) rem
   in
-  let _, _, comps1 =
-    build_component_table 0 0 FieldMap.empty sig1
+  let comps1 =
+    build_component_table FieldMap.empty sig1
   in
   (* Pair each component of sig2 with a component of sig1,
      identifying the names along the way.
@@ -653,7 +660,7 @@ and approx_signatures ~direction env subst sig1 sig2 =
      and the coercion to be applied to it. *)
   let rec pair_components subst paired = function
       [] ->
-        approx_signature_components ~direction env new_env subst
+        approx_signature_components ~direction env new_env ~constraints subst
             (List.rev paired)
     | item2 :: rem ->
         let (_id2, _loc, name2) = item_ident_name item2 in
@@ -667,27 +674,27 @@ and approx_signatures ~direction env subst sig1 sig2 =
           | _ -> name2
         in
         begin match FieldMap.find name2 comps1 with
-        | (id1, item1, pos1) ->
+        | (id1, item1) ->
           let new_subst = item_subst id1 item2 subst in
           pair_components new_subst
-            ((item1, item2, pos1) :: paired) rem
+            ((item1, item2) :: paired) rem
         | exception Not_found -> false
         end in
   (* Do the pairing and checking, and return the final coercion *)
   pair_components subst [] sig2
 
-and approx_signature_components ~direction old_env env subst paired =
+and approx_signature_components ~direction old_env env ~constraints
+    subst paired =
   match paired with
   | [] -> true
-  | (sigi1, sigi2, _pos) :: rem ->
+  | (sigi1, sigi2) :: rem ->
     match sigi1, sigi2 with
     | Sig_value(_id1, _valdecl1, _), Sig_value(_id2, _valdecl2, _) ->
-        (* Can recover if ill-typed, so we can continue on *)
-        approx_signature_components ~direction old_env env subst rem
+      (* Can recover if ill-typed, so we can continue on *)
+      approx_signature_components ~direction old_env env ~constraints subst rem
     | Sig_type(id1, tydec1, _, _), Sig_type(_id2, tydec2, _, _) ->
-      Result.is_ok @@
-        Core_inclusion.type_declarations ~loc:Location.none ~direction env
-          subst id1 tydec1 tydec2
+      Core_inclusion.approx_type_declarations ~direction env ~constraints
+        subst id1 tydec1 tydec2
     | Sig_module(_id1, _, _, _, _), Sig_module(_id2, _, _, _, _)
       (* -> begin
           let orig_shape =
@@ -1602,10 +1609,10 @@ let modtypes_collect_constraint ~loc env ~mark mty1 mty2 =
     constraints
   | Error reason -> raise (Error (env, Error.(In_Module_type reason)))
 
-let approx_modtypes env mty1 mty2 =
+let approx_modtypes env ~constraints mty1 mty2 =
   let direction = Directionality.unknown ~mark:false in
   Profile.record_call ~accumulate:true "approx_modtypes" @@ fun () ->
-    approx_modtypes ~direction env Subst.identity mty1 mty2
+    approx_modtypes ~direction env ~constraints Subst.identity mty1 mty2
 
 let modtypes ~loc env ~mark mty1 mty2 =
   let direction = Directionality.unknown ~mark in

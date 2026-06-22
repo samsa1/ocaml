@@ -352,7 +352,7 @@ let build_solution ~loc {id; env; signature} name path args =
   let snap = Btype.snapshot () in
   let rec build_mexp pme path tme = function
     | [] ->
-      if not (Includemod.approx_modtypes env tme.Typedtree.mod_type signature)
+      if not (Includemod.approx_modtypes env Constraints.empty tme.Typedtree.mod_type signature)
       then begin
         Btype.backtrack snap;
         None
@@ -573,7 +573,7 @@ and filter_identifiers d ~loc trace ctxt_constraints problem next =
     | None ->
       filter_identifiers d ~loc trace ctxt_constraints problem rest
     | Some (_, env_result, result)
-        when not (Includemod.approx_modtypes env_result result problem.signature) ->
+        when not (Includemod.approx_modtypes env_result ctxt_constraints result problem.signature) ->
       filter_identifiers d ~loc trace ctxt_constraints problem rest
     | Some (arguments, env_result, result) ->
       let snap = Btype.snapshot () in

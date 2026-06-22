@@ -691,6 +691,7 @@ let check_coherence env loc dpath decl =
                           assert false
                     in
                     match Includecore.type_declarations ~loc ~equality:true env
+                      ~constraints:Implicitmod_constraints.empty
                       ~mark:true
                       (Path.last path)
                       decl'
