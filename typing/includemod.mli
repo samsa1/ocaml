@@ -145,7 +145,8 @@ val is_runtime_component: Types.signature_item -> bool
 
 (* Typechecking *)
 
-val approx_modtypes : Env.t -> module_type -> module_type -> bool
+val approx_modtypes :
+  Env.t -> constraints:Implicitmod_constraints.t -> module_type -> module_type -> bool
 
 val modtypes_collect_constraint:
   loc:Location.t -> Env.t -> mark:bool ->

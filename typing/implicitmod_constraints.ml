@@ -1443,6 +1443,9 @@ let add_path_type_eq env params p tyl ty eqs =
   | [], Tconstr (p2, [], _) -> merge_paths env params (Type 0) p p2 eqs
   | _ -> add_path_type_eq env params p tyl ty eqs
 
+let add_type_eq env t1 t2 eqs =
+  add_type_type_eq env ~env_params:env [] t1 t2 eqs
+
 type tmp = (params * Path.t * Types.type_expr list * Types.type_expr) list
 
 let empty_tmp = []

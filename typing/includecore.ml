@@ -901,7 +901,7 @@ let private_object env fields1 params1 fields2 params2 =
       None
   end
 
-let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
+let type_manifest env ~constraints ty1 params1 ty2 params2 priv2 kind2 =
   let ty1' = Ctype.expand_head_nolink env ty1
   and ty2' = Ctype.expand_head_nolink env ty2 in
   match get_desc ty1', get_desc ty2' with
@@ -939,7 +939,7 @@ let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
         if is_private_abbrev_2 then
           Ctype.equal_private env params1 ty1 params2 ty2
         else
-          Ctype.equal env true (params1 @ [ty1]) (params2 @ [ty2])
+          Ctype.equal env ~constraints true (params1 @ [ty1]) (params2 @ [ty2])
       with
       | exception Ctype.Equality err ->
           Error (Manifest err)
@@ -957,7 +957,7 @@ let type_declarations_consistency env decl1 decl2 =
     | Some err -> Some (Privacy err)
     | None -> None
 
-let type_declarations ?(equality = false) ~loc env ~mark name
+let type_declarations ?(equality = false) ~loc env ~constraints ~mark name
       decl1 path decl2 =
   Builtin_attributes.check_alerts_inclusion
     ~def:decl1.type_loc
@@ -975,7 +975,8 @@ let type_declarations ?(equality = false) ~loc env ~mark name
           | constraints -> Ok constraints
         end
     | (Some ty1, Some ty2) ->
-         type_manifest env ty1 decl1.type_params ty2 decl2.type_params
+         type_manifest env ~constraints
+           ty1 decl1.type_params ty2 decl2.type_params
            decl2.type_private decl2.type_kind
     | (None, Some ty2) ->
         let ty1 =
