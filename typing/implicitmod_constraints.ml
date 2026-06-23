@@ -743,17 +743,33 @@ let rec best_path_of_list = function
 
 type new_eq =
   | PathEq of path_eq_kind * Path.t * Path.t
+  | PathIdEq of path_eq_kind * ModId.t * Path.t
   | TypeEq of Types.type_expr * Types.type_expr
 
-let rec update_path_name path acc eqs id =
+let normalize_path env kind p =
+  match kind with
+  | Module -> Env.normalize_module_path (Some Location.none) env p
+  | Type _n -> normalize_type_path env p
+
+let rec kind_of_desc data = function
+  | BaseType (n, _) -> Type n
+  | Alias id -> kind_of_desc data (ModId.find id data).mi_desc
+  | Mod | Projections _ | App _ -> Module
+  | ExtraProjs _ -> assert false (* TODO *)
+
+let rec update_path_name env path acc eqs id =
   let info = ModId.find id eqs.data in
-  match info.mi_path with
+  let kind = kind_of_desc eqs.data info.mi_desc in
+  let path = normalize_path env kind path in
+  if not (Ident.rigid (Path.first path)) then
+    PathIdEq (kind, id, path) :: acc, eqs
+  else match info.mi_path with
   | None ->
     let eqs = { eqs with
         data = ModId.update id {info with mi_path = Some path} eqs.data
     } in
     begin match info.mi_desc with
-      | Alias id -> update_path_name path acc eqs id
+      | Alias id -> update_path_name env path acc eqs id
       | Mod -> acc, eqs
       | BaseType (n, cstrs) ->
         assert (Ident.rigid (Path.first path));
@@ -769,22 +785,22 @@ let rec update_path_name path acc eqs id =
       | Projections projs ->
         SMap.fold
           (fun s id (acc, eqs) ->
-            update_path_name (Path.Pdot (path, s)) acc eqs id)
+            update_path_name env (Path.Pdot (path, s)) acc eqs id)
           projs (acc, eqs)
       | ExtraProjs projs ->
         EtyMap.fold
           (fun ety id (acc, eqs) ->
-            update_path_name (Path.Pextra_ty (path, ety)) acc eqs id)
+            update_path_name env (Path.Pextra_ty (path, ety)) acc eqs id)
           projs (acc, eqs)
       | App { static_apps } ->
         Path.Map.fold
           (fun parg id (acc, eqs) ->
-            update_path_name (Path.Papply (path, parg)) acc eqs id)
+            update_path_name env (Path.Papply (path, parg)) acc eqs id)
           static_apps (acc, eqs)
     end
   | Some p ->
     begin match info.mi_desc with
-      | Alias id -> update_path_name path acc eqs id
+      | Alias id -> update_path_name env path acc eqs id
       | BaseType (n, []) ->
         PathEq (Type n, path, p) :: acc, eqs
       | BaseType (_, _ :: _) ->
@@ -793,11 +809,11 @@ let rec update_path_name path acc eqs id =
         PathEq (Module, path, p) :: acc, eqs
     end
 
-let update_path_name path acc eqs id =
+let update_path_name env path acc eqs id =
   match eqs with
   | HasContradiction -> [], HasContradiction
   | Constraints eqs ->
-    let acc, eqs = update_path_name path acc eqs id in
+    let acc, eqs = update_path_name env path acc eqs id in
     acc, Constraints eqs
 
 let rec add_all_path_eqs eq_kind ?prev acc = function
@@ -810,21 +826,31 @@ let rec add_all_path_eqs eq_kind ?prev acc = function
     | Some p2 ->
       add_all_path_eqs eq_kind ~prev:p (PathEq (eq_kind, p, p2) :: acc) tl
 
-let rec merge_ids ?path acc eqs id1 id2 =
+let rec merge_ids ?path env acc eqs id1 id2 =
   if id1 = id2 then id1, acc, eqs else
   match eqs with
   | HasContradiction -> id1, [], HasContradiction
   | Constraints { data } ->
   let info1 = ModId.find id1 data
   and info2 = ModId.find id2 data in
+  let update_acc, path = match path with
+    | None -> (fun _ acc -> acc), None
+    | Some path ->
+      let kind = kind_of_desc data info1.mi_desc in
+      let path = normalize_path env kind path in
+      if Ident.rigid (Path.first path) then
+        (fun _ acc -> acc), Some path
+      else
+        (fun id acc -> PathIdEq (kind, id, path) :: acc), None
+  in
   let mi_path =
     best_path_of_list [path; info1.mi_path; info2.mi_path]
   in
   let id, acc, eqs =
     match info1.mi_desc, info2.mi_desc with
-    | Alias id1, Alias id2 -> merge_ids ?path acc eqs id1 id2
-    | Alias id1, _ -> merge_ids ?path acc eqs id1 id2
-    | _, Alias id2 -> merge_ids ?path acc eqs id1 id2
+    | Alias id1, Alias id2 -> merge_ids ?path env acc eqs id1 id2
+    | Alias id1, _ -> merge_ids ?path env acc eqs id1 id2
+    | _, Alias id2 -> merge_ids ?path env acc eqs id1 id2
     | Mod, _ ->
       id2, add_all_path_eqs Module acc [path; info1.mi_path; info2.mi_path], eqs
     | _, Mod ->
@@ -836,7 +862,7 @@ let rec merge_ids ?path acc eqs id1 id2 =
       let static_apps =
         Path.Map.merge
           (fun parg i1 i2 ->
-            merge_ids' (Option.map (fun p -> Path.Papply (p, parg)) mi_path) acc eqs_ref i1 i2)
+            merge_ids' (Option.map (fun p -> Path.Papply (p, parg)) mi_path) env acc eqs_ref i1 i2)
           app1.static_apps app2.static_apps
       in
       let eqs =
@@ -851,7 +877,7 @@ let rec merge_ids ?path acc eqs id1 id2 =
       let eqs_ref = ref eqs and acc = ref acc in
       let projs =
         SMap.merge
-          (fun s i1 i2 -> merge_ids' (Option.map (fun p -> Path.Pdot (p, s)) mi_path) acc eqs_ref i1 i2)
+          (fun s i1 i2 -> merge_ids' (Option.map (fun p -> Path.Pdot (p, s)) mi_path) env acc eqs_ref i1 i2)
           projs1 projs2
       in
       let eqs =
@@ -865,7 +891,7 @@ let rec merge_ids ?path acc eqs id1 id2 =
       let projs =
         EtyMap.merge
           (fun ety i1 i2 ->
-            merge_ids' (Option.map (fun p -> Path.Pextra_ty (p, ety)) mi_path) acc eqs_ref i1 i2)
+            merge_ids' (Option.map (fun p -> Path.Pextra_ty (p, ety)) mi_path) env acc eqs_ref i1 i2)
           projs1 projs2
       in
       let eqs =
@@ -912,14 +938,14 @@ let rec merge_ids ?path acc eqs id1 id2 =
     if id2 = id then eqs else
       update_eqs id2 { mi_path; mi_desc = Alias id; } eqs
   in
-  id, acc, eqs
-and merge_ids' path acc eqs id1 id2 =
+  id, update_acc id acc, eqs
+and merge_ids' path env acc eqs id1 id2 =
   match id1, id2 with
   | Some id1, Some id2 ->
-    let id, acc', eqs' = merge_ids !acc !eqs id1 id2 in
+    let id, acc', eqs' = merge_ids env !acc !eqs id1 id2 in
     let acc', eqs' =
       match path with
-      | Some path -> update_path_name path acc' eqs' id
+      | Some path -> update_path_name env path acc' eqs' id
       | None -> acc', eqs'
     in
     eqs := eqs';
@@ -929,7 +955,7 @@ and merge_ids' path acc eqs id1 id2 =
     begin
       match path with
       | Some path ->
-        let acc', eqs' = update_path_name path !acc !eqs id in
+        let acc', eqs' = update_path_name env path !acc !eqs id in
         eqs := eqs';
         acc := acc';
         Some id
@@ -937,16 +963,26 @@ and merge_ids' path acc eqs id1 id2 =
     end
   | None, None -> assert false (* Should not happen *)
 
-let normalize_path env kind p =
-  match kind with
-  | Module -> Env.normalize_module_path (Some Location.none) env p
-  | Type _n -> normalize_type_path env p
-
 let rec merge_path_ids env eqs id1 id2 =
-  let _, acc, eqs = merge_ids [] eqs id1 id2 in
+  let _, acc, eqs = merge_ids env [] eqs id1 id2 in
   List.fold_left
     (fun eqs -> function
       | TypeEq (ty1, ty2) -> add_type_type_eq env ~env_params:env [] ty1 ty2 eqs
+      | PathIdEq (eq_kind, id1, p2) ->
+          assert (not (Ident.rigid (Path.first p2)));
+          begin match eqs with
+          | HasContradiction -> HasContradiction
+          | Constraints eqs ->
+            let id2, eqs, final_arg2, new_instances2 =
+              get_path_target eqs p2 eq_kind []
+            in
+            let eqs = apply_new_instances env new_instances2 (Constraints eqs) in
+            match final_arg2 with
+            | None -> merge_path_ids env eqs id1 id2
+            | Some _ ->
+              (* Should not happen because we have no parameters *)
+              assert false
+          end
       | PathEq (k, p1, p2) -> merge_paths env ~env_params:env [] k p1 p2 eqs)
     eqs acc
 and merge_paths env ?env_params params eq_kind p1 p2 eqs =
@@ -1030,11 +1066,28 @@ and merge_paths_normalized env ~env_params params eq_kind p1 p2 eqs =
 and merge_path_with_rigid env params eq_kind id1 final_arg1 p2 eqs =
   match final_arg1 with
   | None ->
-    let acc, eqs = update_path_name p2 [] eqs id1 in
+    let acc, eqs = update_path_name env p2 [] eqs id1 in
     List.fold_left
       (fun eqs -> function
-        | TypeEq (ty1, ty2) -> add_type_type_eq env ~env_params:env [] ty1 ty2 eqs
-        | PathEq (k, p1, p2) -> merge_paths env ~env_params:env [] k p1 p2 eqs)
+        | TypeEq (ty1, ty2) ->
+          add_type_type_eq env ~env_params:env [] ty1 ty2 eqs
+        | PathIdEq (eq_kind, id1, p2) ->
+          assert (not (Ident.rigid (Path.first p2)));
+          begin match eqs with
+          | HasContradiction -> HasContradiction
+          | Constraints eqs ->
+            let id2, eqs, final_arg2, new_instances2 =
+              get_path_target eqs p2 eq_kind []
+            in
+            let eqs = apply_new_instances env new_instances2 (Constraints eqs) in
+            match final_arg2 with
+            | None -> merge_path_ids env eqs id1 id2
+            | Some _ ->
+              (* Should not happen because we have no parameters *)
+              assert false
+          end
+        | PathEq (k, p1, p2) ->
+          merge_paths env ~env_params:env [] k p1 p2 eqs)
       eqs acc
   | Some (parg, ops) ->
     add_quantified_app env eq_kind params id1 parg ops (CE_PathR p2) eqs
