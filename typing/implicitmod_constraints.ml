@@ -307,7 +307,7 @@ let print fmt eqs =
   | HasContradiction -> Format_doc.fprintf fmt "Absurd"
 
 let print fmt eqs =
-  if false then Format_doc.fprintf fmt "%a\n" print eqs else ()
+  if true then Format_doc.fprintf fmt "%a\n" print eqs else ()
 
 let rec add_ops_to_path p = function
   | [] -> p
@@ -566,7 +566,38 @@ let instantiate_to_arg parg quantified_apps =
       )
     [] quantified_apps
 
-let rec build_path_target ?path data ops target_kind params =
+type new_eq =
+  | PathEq of path_eq_kind * Path.t * Path.t
+  | PathIdEq of path_eq_kind * ModId.t * Path.t
+  | TypeEq of Types.type_expr * Types.type_expr
+
+let normalize_path env kind p =
+  match kind with
+  | Module -> Env.normalize_module_path (Some Location.none) env p
+  | Type _n -> normalize_type_path env p
+
+let rec kind_of_desc data = function
+  | BaseType (n, _) -> Type n
+  | Alias id -> kind_of_desc data (ModId.find id data).mi_desc
+  | Mod | Projections _ | App _ -> Module
+  | ExtraProjs _ -> assert false (* TODO *)
+
+let rec build_path_target ?path env data ops target_kind params =
+  let path, acc' =
+    match path with
+    | None -> None, (fun _ acc -> acc)
+    | Some path ->
+      let kind = match ops with
+        | [] -> target_kind
+        | (Pop_apply _ | Pop_dot _) :: _ -> Module
+        | Pop_extra_ty _ :: _ -> assert false (* TODO *)
+      in
+      let path = normalize_path env kind path in
+      if not (Ident.rigid (Path.first path)) then
+        None, (fun id acc -> PathIdEq (kind, id, path) :: acc)
+      else
+        Some path, (fun _ acc -> acc)
+  in
   match ops with
   | [] ->
     let mi_desc =
@@ -576,7 +607,7 @@ let rec build_path_target ?path data ops target_kind params =
     in
     let mod_id, data = ModId.add { mi_path = path; mi_desc; } data
     in
-    mod_id, mod_id, data, None
+    mod_id, mod_id, data, None, acc' mod_id []
   | Pop_apply parg :: ops ->
     if Path.exists_free (List.map fst params) parg then
       let mod_id, data =
@@ -585,11 +616,11 @@ let rec build_path_target ?path data ops target_kind params =
           mi_desc = App { static_apps = Path.Map.empty; quantified_apps = [] };
         } data
       in
-      mod_id, mod_id, data, Some (parg, ops)
+      mod_id, mod_id, data, Some (parg, ops), acc' mod_id []
     else
-      let applied_id, id, data, final_arg =
-      let path = Option.map (fun p -> Path.Papply (p, parg)) path in
-        build_path_target ?path data ops target_kind params
+      let applied_id, id, data, final_arg, acc =
+        let path = Option.map (fun p -> Path.Papply (p, parg)) path in
+        build_path_target ?path env data ops target_kind params
       in
       let static_apps = Path.Map.singleton parg applied_id in
       let app_id, data =
@@ -598,60 +629,60 @@ let rec build_path_target ?path data ops target_kind params =
           mi_desc = App {static_apps; quantified_apps = []};
         } data
       in
-      app_id, id, data, final_arg
+      app_id, id, data, final_arg, acc' app_id acc
   | Pop_dot s :: ops ->
-    let proj_id, id, data, final_arg =
+    let proj_id, id, data, final_arg, acc =
       let path = Option.map (fun p -> Path.Pdot (p, s)) path in
-      build_path_target ?path data ops target_kind params
+      build_path_target ?path env data ops target_kind params
     in
     let projs = SMap.singleton s proj_id in
     let projs_id, data =
       ModId.add { mi_path = path; mi_desc = Projections projs; } data
     in
-    projs_id, id, data, final_arg
+    projs_id, id, data, final_arg, acc' projs_id acc
   | Pop_extra_ty ety :: ops ->
-    let proj_id, id, data, final_arg =
+    let proj_id, id, data, final_arg, acc =
       let path = Option.map (fun p -> Path.Pextra_ty (p, ety)) path in
-      build_path_target ?path data ops target_kind params
+      build_path_target ?path env data ops target_kind params
     in
     let projs = EtyMap.singleton ety proj_id in
     let projs_id, data =
       ModId.add { mi_path = path; mi_desc = ExtraProjs projs; } data
     in
-    projs_id, id, data, final_arg
+    projs_id, id, data, final_arg, acc' projs_id acc
 
-let rec get_path_target data mod_id ops target_kind params =
+let rec get_path_target env data mod_id ops target_kind params =
   let info = ModId.find mod_id data in
   (* assert (info.mi_path = None); *)
   match ops, info.mi_desc with
-  | _, Alias id -> get_path_target data id ops target_kind params
-  | [], _ -> mod_id, data, None, None
+  | _, Alias id -> get_path_target env data id ops target_kind params
+  | [], _ -> mod_id, data, None, None, []
   | Pop_dot s :: ops, Projections projs ->
     begin match SMap.find s projs with
     | proj_id ->
-      get_path_target data proj_id ops target_kind params
+      get_path_target env data proj_id ops target_kind params
     | exception Not_found ->
       let path = Option.map (fun p -> Path.Pdot (p, s)) info.mi_path in
-      let proj_id, id, data, final_arg =
-        build_path_target ?path data ops target_kind params
+      let proj_id, id, data, final_arg, acc =
+        build_path_target ?path env data ops target_kind params
       in
       let projs = SMap.add s proj_id projs in
       let data =
         ModId.update mod_id { info with mi_desc = Projections projs } data
       in
-      id, data, final_arg, None
+      id, data, final_arg, None, acc
     end
   | Pop_apply parg :: ops, App { static_apps; quantified_apps } ->
     if Path.exists_free (List.map fst params) parg then
-      mod_id, data, Some (parg, ops), None
+      mod_id, data, Some (parg, ops), None, []
     else begin
       match Path.Map.find parg static_apps with
       | ret_id ->
-        get_path_target data ret_id ops target_kind params
+        get_path_target env data ret_id ops target_kind params
       | exception Not_found ->
         let path = Option.map (fun p -> Path.Papply (p, parg)) info.mi_path in
-        let ret_id, id, data, final_arg =
-          build_path_target ?path data ops target_kind params
+        let ret_id, id, data, final_arg, acc =
+          build_path_target ?path env data ops target_kind params
         in
         let new_instances, quantified_apps =
           instantiate_to_arg parg quantified_apps
@@ -661,31 +692,31 @@ let rec get_path_target data mod_id ops target_kind params =
           ModId.update mod_id
             { info with mi_desc = App {static_apps; quantified_apps } } data
         in
-        id, data, final_arg, Some (ret_id, new_instances)
+        id, data, final_arg, Some (ret_id, new_instances), acc
     end
   | Pop_extra_ty ety :: ops, ExtraProjs projs ->
     begin match EtyMap.find ety projs with
     | proj_id ->
-      get_path_target data proj_id ops target_kind params
+      get_path_target env data proj_id ops target_kind params
     | exception Not_found ->
       let path = Option.map (fun p -> Path.Pextra_ty (p, ety)) info.mi_path in
-      let proj_id, id, data, final_arg =
-        build_path_target ?path data ops target_kind params
+      let proj_id, id, data, final_arg, acc =
+        build_path_target ?path env data ops target_kind params
       in
       let projs = EtyMap.add ety proj_id projs in
       let data =
         ModId.update mod_id { info with mi_desc = ExtraProjs projs } data
       in
-      id, data, final_arg, None
+      id, data, final_arg, None, acc
     end
   | _ :: _, Mod ->
-    let next_id, id, data, final_arg =
-      build_path_target ?path:info.mi_path data ops target_kind params
+    let next_id, id, data, final_arg, acc =
+      build_path_target ?path:info.mi_path env data ops target_kind params
     in
     let data =
       ModId.update mod_id { info with mi_desc = Alias next_id } data
     in
-    id, data, final_arg, None
+    id, data, final_arg, None, acc
   | Pop_dot _ :: _, BaseType _ -> assert false
   | Pop_dot _ :: _, App _ -> assert false
   | Pop_dot _ :: _, ExtraProjs _ -> assert false
@@ -697,23 +728,23 @@ let rec get_path_target data mod_id ops target_kind params =
   | Pop_extra_ty _ :: _, Projections _ -> assert false
   (* | _ :: _, _ -> assert false *)
 
-let get_path_target_from_id eqs mod_id ops target_kind params =
-  let target_id, data, final_arg, maybe_new_instances =
-    get_path_target eqs.data mod_id ops target_kind params
+let get_path_target_from_id env eqs mod_id ops target_kind params =
+  let target_id, data, final_arg, maybe_new_instances, acc =
+    get_path_target env eqs.data mod_id ops target_kind params
   in
-  target_id, { eqs with data }, final_arg, maybe_new_instances
+  target_id, { eqs with data }, final_arg, maybe_new_instances, acc
 
-let get_path_target eqs p target_kind params =
+let get_path_target env eqs p target_kind params =
   let id, ops = decompose_path p in
   match Ident.Map.find id eqs.flex_heads with
   | mod_id ->
-    get_path_target_from_id eqs mod_id ops target_kind params
+    get_path_target_from_id env eqs mod_id ops target_kind params
   | exception Not_found ->
-    let next_id, target_id, data, final_arg =
-      build_path_target eqs.data ops target_kind params
+    let next_id, target_id, data, final_arg, acc =
+      build_path_target env eqs.data ops target_kind params
     in
     let flex_heads = Ident.Map.add id next_id eqs.flex_heads in
-    target_id, { data; flex_heads }, final_arg, None
+    target_id, { data; flex_heads }, final_arg, None, acc
 
 let update_eqs id desc = function
   | HasContradiction -> HasContradiction
@@ -740,22 +771,6 @@ let rec best_path_of_list = function
           aux best_p score tl
     in
     aux p (path_score p) tl
-
-type new_eq =
-  | PathEq of path_eq_kind * Path.t * Path.t
-  | PathIdEq of path_eq_kind * ModId.t * Path.t
-  | TypeEq of Types.type_expr * Types.type_expr
-
-let normalize_path env kind p =
-  match kind with
-  | Module -> Env.normalize_module_path (Some Location.none) env p
-  | Type _n -> normalize_type_path env p
-
-let rec kind_of_desc data = function
-  | BaseType (n, _) -> Type n
-  | Alias id -> kind_of_desc data (ModId.find id data).mi_desc
-  | Mod | Projections _ | App _ -> Module
-  | ExtraProjs _ -> assert false (* TODO *)
 
 let rec update_path_name env path acc eqs id =
   let info = ModId.find id eqs.data in
@@ -972,6 +987,8 @@ and merge_ids' path env acc eqs id1 id2 =
 
 let rec merge_path_ids env eqs id1 id2 =
   let _, acc, eqs = merge_ids env [] eqs id1 id2 in
+  handle_accumulated_equations env acc eqs
+and handle_accumulated_equations env acc eqs =
   List.fold_left
     (fun eqs -> function
       | TypeEq (ty1, ty2) -> add_type_type_eq env ~env_params:env [] ty1 ty2 eqs
@@ -980,10 +997,13 @@ let rec merge_path_ids env eqs id1 id2 =
           begin match eqs with
           | HasContradiction -> HasContradiction
           | Constraints eqs ->
-            let id2, eqs, final_arg2, new_instances2 =
-              get_path_target eqs p2 eq_kind []
+            let id2, eqs, final_arg2, new_instances2, acc =
+              get_path_target env eqs p2 eq_kind []
             in
-            let eqs = apply_new_instances env new_instances2 (Constraints eqs) in
+            let eqs = Constraints eqs
+              |> apply_new_instances env new_instances2
+              |> handle_accumulated_equations env acc
+            in
             match final_arg2 with
             | None -> merge_path_ids env eqs id1 id2
             | Some _ ->
@@ -1030,14 +1050,18 @@ and merge_paths_normalized env ~env_params params eq_kind p1 p2 eqs =
     end
   | false, false ->
     begin
-      let id1, eqs, final_arg1, new_instances1 =
-        get_path_target eqs p1 eq_kind params
+      let id1, eqs, final_arg1, new_instances1, acc1 =
+        get_path_target env eqs p1 eq_kind params
       in
-      let id2, eqs, final_arg2, new_instances2 =
-        get_path_target eqs p2 eq_kind params
+      let id2, eqs, final_arg2, new_instances2, acc2 =
+        get_path_target env eqs p2 eq_kind params
       in
-      let eqs = apply_new_instances env new_instances1 (Constraints eqs) in
-      let eqs = apply_new_instances env new_instances2 eqs in
+      let eqs = Constraints eqs
+        |> apply_new_instances env new_instances1
+        |> apply_new_instances env new_instances2
+        |> handle_accumulated_equations env acc1
+        |> handle_accumulated_equations env acc2
+      in
       match final_arg1, final_arg2 with
       | None, None -> merge_path_ids env eqs id1 id2
       | _, _ ->
@@ -1058,43 +1082,28 @@ and merge_paths_normalized env ~env_params params eq_kind p1 p2 eqs =
         eqs
     end
   | true, false ->
-    let id2, eqs, final_arg2, new_instances2 =
-      get_path_target eqs p2 eq_kind params
+    let id2, eqs, final_arg2, new_instances2, acc2 =
+      get_path_target env eqs p2 eq_kind params
     in
-    let eqs = apply_new_instances env new_instances2 (Constraints eqs) in
+    let eqs = Constraints eqs
+      |> apply_new_instances env new_instances2
+      |> handle_accumulated_equations env acc2
+    in
     merge_path_with_rigid env params eq_kind id2 final_arg2 p1 eqs
   | false, true ->
-    let id1, eqs, final_arg1, new_instances1 =
-      get_path_target eqs p1 eq_kind params
+    let id1, eqs, final_arg1, new_instances1, acc1 =
+      get_path_target env eqs p1 eq_kind params
     in
-    let eqs = apply_new_instances env new_instances1 (Constraints eqs) in
+    let eqs = Constraints eqs
+      |> apply_new_instances env new_instances1
+      |> handle_accumulated_equations env acc1
+    in
     merge_path_with_rigid env params eq_kind id1 final_arg1 p2 eqs
 and merge_path_with_rigid env params eq_kind id1 final_arg1 p2 eqs =
   match final_arg1 with
   | None ->
     let acc, eqs = update_path_name env p2 [] eqs id1 in
-    List.fold_left
-      (fun eqs -> function
-        | TypeEq (ty1, ty2) ->
-          add_type_type_eq env ~env_params:env [] ty1 ty2 eqs
-        | PathIdEq (eq_kind, id1, p2) ->
-          assert (not (Ident.rigid (Path.first p2)));
-          begin match eqs with
-          | HasContradiction -> HasContradiction
-          | Constraints eqs ->
-            let id2, eqs, final_arg2, new_instances2 =
-              get_path_target eqs p2 eq_kind []
-            in
-            let eqs = apply_new_instances env new_instances2 (Constraints eqs) in
-            match final_arg2 with
-            | None -> merge_path_ids env eqs id1 id2
-            | Some _ ->
-              (* Should not happen because we have no parameters *)
-              assert false
-          end
-        | PathEq (k, p1, p2) ->
-          merge_paths env ~env_params:env [] k p1 p2 eqs)
-      eqs acc
+    handle_accumulated_equations env acc eqs
   | Some (parg, ops) ->
     add_quantified_app env eq_kind params id1 parg ops (CE_PathR p2) eqs
 and add_quantified_app env eq_kind params id parg ops pp_right eqs =
@@ -1138,18 +1147,24 @@ and add_path_pair_instance env next_id path_pair eqs map =
   | Constraints eqs ->
     match path_pair.pp_right with
     | CE_PathR p ->
-      let id, eqs, final_arg, new_instances =
-        get_path_target_from_id eqs next_id ops path_pair.eq_kind params
+      let id, eqs, final_arg, new_instances, acc =
+        get_path_target_from_id env eqs next_id ops path_pair.eq_kind params
       in
-      let eqs = apply_new_instances env new_instances (Constraints eqs) in
+      let eqs = Constraints eqs
+        |> apply_new_instances env new_instances
+        |> handle_accumulated_equations env acc
+      in
       merge_path_with_rigid env params path_pair.eq_kind
         id final_arg (Path.subst_map map p) eqs
     | CE_PathF (id_r, None) ->
       begin
-        let id, eqs, final_arg, new_instances =
-          get_path_target_from_id eqs next_id ops path_pair.eq_kind params
+        let id, eqs, final_arg, new_instances, acc =
+          get_path_target_from_id env eqs next_id ops path_pair.eq_kind params
         in
-        let eqs = apply_new_instances env new_instances (Constraints eqs) in
+        let eqs = Constraints eqs
+          |> apply_new_instances env new_instances
+          |> handle_accumulated_equations env acc
+        in
         match final_arg with
         | None -> merge_path_ids env eqs id id_r
         | Some (parg, ops) ->
@@ -1159,14 +1174,18 @@ and add_path_pair_instance env next_id path_pair eqs map =
     | CE_PathF (id_r, Some (parg_r, ops_r)) ->
       begin
         let ops_r = map_ops map (Pop_apply parg_r :: ops_r) in
-        let id1, eqs, final_arg1, new_instances1 =
-          get_path_target_from_id eqs next_id ops path_pair.eq_kind params
+        let id1, eqs, final_arg1, new_instances1, acc1 =
+          get_path_target_from_id env eqs next_id ops path_pair.eq_kind params
         in
-        let id2, eqs, final_arg2, new_instances2 =
-          get_path_target_from_id eqs id_r ops_r path_pair.eq_kind params
+        let id2, eqs, final_arg2, new_instances2, acc2 =
+          get_path_target_from_id env eqs id_r ops_r path_pair.eq_kind params
         in
-        let eqs = apply_new_instances env new_instances1 (Constraints eqs) in
-        let eqs = apply_new_instances env new_instances2 eqs in
+        let eqs = Constraints eqs
+          |> apply_new_instances env new_instances1
+          |> apply_new_instances env new_instances2
+          |> handle_accumulated_equations env acc1
+          |> handle_accumulated_equations env acc2
+        in
         match final_arg1, final_arg2 with
         | None, None -> merge_path_ids env eqs id1 id2
         | _, _ ->
@@ -1186,7 +1205,10 @@ and add_path_pair_instance env next_id path_pair eqs map =
           in
           eqs
       end
-    | CE_Type _ -> assert false (* TODO *)
+    | CE_Type _ ->
+      (* Format.eprintf "Forgot eq\n%!"; *)
+      Constraints eqs
+      (*assert false (* TODO *)*)
 and apply_new_instances env new_instances eqs =
   match new_instances with
   | None -> eqs
@@ -1219,10 +1241,14 @@ and add_path_type_eq env ?env_params params p1 tyl1 ty2 eqs =
           (Btype.newgenty (Tconstr (p1, tyl1, ref Types.Mnil))) ty2
           (Constraints eqs)
       else
-        let id, eqs, final_arg, new_instances =
-          get_path_target eqs p1 (Type (List.length tyl1)) params
+        let id, eqs, final_arg, new_instances, acc =
+          get_path_target env eqs p1 (Type (List.length tyl1)) params
         in
-        match apply_new_instances env new_instances (Constraints eqs) with
+        let eqs = Constraints eqs
+          |> apply_new_instances env new_instances
+          |> handle_accumulated_equations env acc
+        in
+        match eqs with
         | HasContradiction -> HasContradiction
         | Constraints eqs ->
           match final_arg with
@@ -1301,6 +1327,47 @@ and add_type_type_eq env ~env_params params ty1 ty2 eqs =
     | Tobject _, _ | _, Tobject _ | Tvariant _, _ | _, Tvariant _
     | Tunivar _, _ | _, Tunivar _ ->
       HasContradiction
+
+let rec get_info id eqs =
+  let info = ModId.find id eqs.data in
+  match info.mi_desc with
+  | Alias id -> get_info id eqs
+  | _ -> info
+
+let get_def env eqs nb_args path =
+  match eqs with
+  | HasContradiction -> None
+  | Constraints eqs ->
+    let id, eqs, final_arg, new_instances, acc =
+      get_path_target env eqs path (Type nb_args) []
+    in
+    assert (final_arg = None);
+    let eqs = Constraints eqs
+      |> apply_new_instances env new_instances
+      |> handle_accumulated_equations env acc
+    in
+    match eqs with
+    | HasContradiction -> None
+    | Constraints eqs ->
+      let info = get_info id eqs in
+      if nb_args = 0 then
+        match info.mi_desc with
+        | BaseType (_, ([], t1) :: _) -> Some ([], t1)
+        | BaseType (_, []) ->
+            begin match info.mi_path with
+            | None -> None
+            | Some p ->
+              Some ([], Btype.newgenty (Tconstr (p, [], ref Types.Mnil)))
+            end
+        | _ ->
+          Format.eprintf "%d\n%a\n%!"
+            (id : ModId.t :> int)
+            (Format_doc.compat Pp.print_inner) eqs;
+          assert false
+      else None
+        (* match info.path with
+        | None ->
+        |  *)
 
 let is_empty eqs =
   Ident.Map.is_empty eqs.flex_heads

@@ -60,6 +60,8 @@ module SIntL = (_ : Show with type t = int list)
 
 module SIntLL : Show with type t = int list list = _
 
+module SIntLLL : Show with type t = int list list list = _
+
 [%%expect{|
 Line 1, characters 15-48:
 1 | module SIntL = (_ : Show with type t = int list)
@@ -75,6 +77,13 @@ Warning 76 [implicit-module-expression]: module expression left implict.
   Infered module expression: "SList(SList(SInt))"
 
 module SIntLL : sig type t = int list list val print : t -> unit end
+Line 5, characters 15-58:
+5 | module SIntLLL : Show with type t = int list list list = _
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 76 [implicit-module-expression]: module expression left implict.
+  Infered module expression: "SList(SList(SList(SInt)))"
+
+module SIntLLL : sig type t = int list list list val print : t -> unit end
 |}]
 
 (* No solution *)

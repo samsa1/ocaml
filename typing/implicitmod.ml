@@ -35,82 +35,91 @@ end
 module FuncOrder : sig
   type t
   val empty : t
-  val update_map : Env.t -> t -> string -> Types.module_type -> t option
+  val update_map : Env.t -> Constraints.t -> t -> string -> Types.module_type -> t option
+  val module_type : Env.t -> Constraints.t -> Types.module_type -> int option
 end = struct
-  type el =
-    | Depth of int
-    | UnifDepth of int
+  type el = int option
 
   type t = el Misc.Stdlib.String.Map.t
   let empty = Misc.Stdlib.String.Map.empty
 
-  let mini = Depth (-1)
+  let mini = Some (-1)
 
   let max x y =
     match x, y with
-    | UnifDepth xi, UnifDepth yi -> UnifDepth (Int.max xi yi)
-    | UnifDepth i, _ | _, UnifDepth i -> UnifDepth i
-    | Depth xi, Depth yi -> Depth (Int.max xi yi)
+    | Some xi, Some yi -> Some (Int.max xi yi)
+    | _, _ -> None
 
-    let lt x y =
+  let lt x y =
     match x, y with
-    | UnifDepth xi, UnifDepth yi | Depth xi, Depth yi -> xi < yi
-    | UnifDepth _, _ -> true
-    | _, UnifDepth _ -> false
+    | Some xi, Some yi -> xi < yi
+    | Some _, None -> true
+    | None, _ -> false
 
   let is_smaller map name v =
     match Misc.Stdlib.String.Map.find name map with
     | v' -> lt v v'
     | exception Not_found -> true
 
-  let rec type_expr env depth ty =
+  let rec type_expr env cstrs depth ty =
     let ty' = Ctype.expand_head env ty in
     match get_desc ty' with
-    | Tvar _ ->
-      if get_level ty' < Btype.generic_level then UnifDepth depth
-      else Depth depth
+    | Tvar _ -> Some depth
+    | Tconstr (path, tyl, _) ->
+      if Path.rigid path then
+        List.fold_left
+          (fun acc ty -> max acc (type_expr env cstrs (depth + 1) ty))
+          (Some depth) tyl
+      else
+        begin match Constraints.get_def env cstrs (List.length tyl) path with
+          | None -> None
+          | Some (args, ty) ->
+            assert (args = []);
+            type_expr env cstrs depth ty
+        end
     | _ ->
       Btype.fold_type_expr
-        (fun acc ty -> max acc (type_expr env (depth + 1) ty)) (Depth depth) ty'
+        (fun acc ty -> max acc (type_expr env cstrs (depth + 1) ty))
+        (Some depth) ty'
 
-  let type_declaration env td =
+  let type_declaration env cstrs td =
     match td.type_manifest with
     | None -> mini
-    | Some ty -> type_expr env 100 ty
+    | Some ty -> type_expr env cstrs 100 ty
 
-  let rec signature_item env item =
+  let rec signature_item env cstrs item =
     match item with
-    | Sig_value (_, vd, _) -> type_expr env 0 vd.val_type
-    | Sig_type (_, td, _, _) -> type_declaration env td
+    | Sig_value (_, vd, _) -> type_expr env cstrs 0 vd.val_type
+    | Sig_type (_, td, _, _) -> type_declaration env cstrs td
     | Sig_typext (_, _, _, _) -> mini
     | Sig_module (_, _, { md_type = mty }, _, _)
-    | Sig_modtype (_, { mtd_type = Some mty }, _) -> module_type env mty
+    | Sig_modtype (_, { mtd_type = Some mty }, _) -> module_type env cstrs mty
     | Sig_modtype (_, { mtd_type = None }, _) ->
       assert false (* TODO : Abstract module type *)
     | Sig_class (_, _cd, _, _) ->
       assert false (* TODO : class_declaration cd *)
     | Sig_class_type (_, _cd, _, _) ->
       assert false (* TODO : class_type_declaration cd *)
-  and signature env maxi = function
+  and signature env cstrs maxi = function
     | [] -> maxi
-    | item :: rest -> signature env (max maxi (signature_item env item)) rest
-  and module_type env mty =
+    | item :: rest -> signature env cstrs (max maxi (signature_item env cstrs item)) rest
+  and module_type env cstrs mty =
     match Env.scrape_alias env mty with
-    | Mty_signature s -> signature env mini s
-    | Mty_functor (Unit, mty2) -> module_type env mty2
+    | Mty_signature s -> signature env cstrs mini s
+    | Mty_functor (Unit, mty2) -> module_type env cstrs mty2
     | Mty_functor (Named (_, id, mty1), mty2) ->
-      let d_mty1 = module_type env mty1 in
+      let d_mty1 = module_type env cstrs mty1 in
       let env =
         match id with
         | None -> env
         | Some id -> Env.add_module ~noalias:true id Mp_present IILocal mty1 env
       in
-      max d_mty1 (module_type env mty2)
+      max d_mty1 (module_type env cstrs mty2)
     | Mty_ident _ -> assert false (* TODO : Abstract module type *)
     | Mty_alias _ -> assert false (* Should not happen *)
 
-  let update_map env m name mty =
-    let v = module_type env mty in
+  let update_map env cstrs m name mty =
+    let v = module_type env cstrs mty in
     if is_smaller m name v
     then Some (Misc.Stdlib.String.Map.add name v m)
     else None
@@ -316,8 +325,9 @@ let print_it_holes_info fmt node =
     | Working { current = Some {name; args_status = RecLimit _; _} } ->
       Format_doc.fprintf fmt
         "?%d could be filled with a new recursive call to %s @ \
-         with no termination guaranty.\n"
-          !nb name;
+         with no termination guaranty. Metric : \"%a\"\n"
+          !nb name
+          (Format_doc.pp_print_option Format_doc.pp_print_int) (FuncOrder.module_type problem.env ctxt_cstrts problem.signature);
       incr nb;
     | Working { current = Some { args_status = Node ([], _) }} ->
       Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
@@ -494,7 +504,7 @@ let rec refine_solution d ~loc trace ctxt_constraints {problem; desc} =
           end else begin
             let trace =
               match
-                FuncOrder.update_map problem.env trace name problem.signature
+                FuncOrder.update_map problem.env local_constraints trace name problem.signature
               with
               | Some trace -> trace
               | None -> assert false
@@ -537,7 +547,7 @@ let rec refine_solution d ~loc trace ctxt_constraints {problem; desc} =
             refine_solution d ~loc prev_trace ctxt_constraints {problem; desc}
           end else begin
             match
-              FuncOrder.update_map problem.env trace name problem.signature
+              FuncOrder.update_map problem.env local_constraints trace name problem.signature
             with
             | None ->
               Btype.backtrack snap;
@@ -621,13 +631,16 @@ and filter_identifiers d ~loc trace ctxt_constraints problem next =
               (Pident problem.id) path
               constraints
         in
-        if Constraints.(has_error env_result (merge env_result ctxt_constraints constraints))
+        let local_constraints =
+          Constraints.merge env_result ctxt_constraints constraints
+        in
+        if Constraints.has_error env_result local_constraints
         then begin
           Btype.backtrack snap;
           filter_identifiers d ~loc trace ctxt_constraints problem rest
         end else begin
           match
-            FuncOrder.update_map problem.env trace name problem.signature
+            FuncOrder.update_map problem.env local_constraints trace name problem.signature
           with
           | None ->
             Btype.backtrack snap;

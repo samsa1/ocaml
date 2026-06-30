@@ -31,6 +31,8 @@ val add_path_eq : Env.t -> path_eq_kind -> Path.t -> Path.t -> t -> t
 val add_type_eq : Env.t -> Types.type_expr -> Types.type_expr -> t -> t
 val merge : Env.t -> t -> t -> t
 
+val get_def : Env.t -> t -> int -> Path.t -> Types.(type_expr list * type_expr) option
+
 (* val generalize : Env.t -> Types.functor_parameter -> t -> t *)
 
 (* val iter : ('a -> t) -> t -> 'a list -> t
