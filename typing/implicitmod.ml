@@ -313,7 +313,7 @@ let print_it_holes_info fmt node =
       Misc.fatal_error "Invalid argument [Implicitmod.print_it_holes_info]"
     | Working { solutions = sol1 :: sol2 :: _; _ } ->
       Format_doc.fprintf fmt
-        "@[<1>@[<2>?%d awaited an argument of signature @ %a@] @ \
+        "@[<1>@[<2>?%d awaited an argument of the signature @ %a@] @ \
           It can be filled by either @ %a @ or @ %a.@]\n%a%a"
           !nb
           Printtyp.Doc.modtype problem.modtype
