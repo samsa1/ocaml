@@ -633,123 +633,35 @@ and approx_strengthened_modtypes ~direction ~aliasable env
       approx_modtypes ~direction env ~constraints subst mty1 mty2
 
 and approx_signatures ~direction env ~constraints subst sig1 sig2 =
-  (* Environment used to check inclusion of components *)
-  let new_env =
-    Env.add_signature sig1 (Env.in_signature true env) in
-  (* Build a table of the components of sig1, along with their positions.
-     The table is indexed by kind and name of component *)
-  let rec build_component_table tbl = function
-      [] -> tbl
-    | item :: rem ->
-        match item_visibility item with
-        | Hidden ->
-            (* do not pair private items. *)
-            build_component_table tbl rem
-        | Exported ->
-            let (id, _loc, name) = item_ident_name item in
-            build_component_table
-              (FieldMap.add name (id, item) tbl) rem
-  in
-  let comps1 =
-    build_component_table FieldMap.empty sig1
-  in
-  (* Pair each component of sig2 with a component of sig1,
-     identifying the names along the way.
-     Return a coercion list indicating, for all run-time components
-     of sig2, the position of the matching run-time components of sig1
-     and the coercion to be applied to it. *)
-  let rec pair_components subst paired = function
-      [] ->
-        approx_signature_components ~direction env new_env ~constraints subst
-            (List.rev paired)
-    | item2 :: rem ->
-        let (_id2, _loc, name2) = item_ident_name item2 in
-        let name2 =
-          match item2, name2 with
-            Sig_type (_, {type_manifest=None}, _, _), {name=s; kind=Field_type}
-            when Btype.is_row_name s ->
-              (* Do not report in case of failure,
-                 as the main type will generate an error *)
-              { kind=Field_type; name=String.sub s 0 (String.length s - 4) }
-          | _ -> name2
-        in
-        begin match FieldMap.find name2 comps1 with
-        | (id1, item1) ->
-          let new_subst = item_subst id1 item2 subst in
-          pair_components new_subst
-            ((item1, item2) :: paired) rem
-        | exception Not_found -> false
-        end in
-  (* Do the pairing and checking, and return the final coercion *)
-  pair_components subst [] sig2
-
-and approx_signature_components ~direction old_env env ~constraints
-    subst paired =
-  match paired with
+  match sig2 with
   | [] -> true
-  | (sigi1, sigi2) :: rem ->
-    match sigi1, sigi2 with
-    | Sig_value(_id1, _valdecl1, _), Sig_value(_id2, _valdecl2, _) ->
-      (* Can recover if ill-typed, so we can continue on *)
-      approx_signature_components ~direction old_env env ~constraints subst rem
-    | Sig_type(id1, tydec1, _, _), Sig_type(_id2, tydec2, _, _) ->
-      Core_inclusion.approx_type_declarations ~direction env ~constraints
-        subst id1 tydec1 tydec2
-    | Sig_module(_id1, _, _, _, _), Sig_module(_id2, _, _, _, _)
-      (* -> begin
-          let orig_shape =
-            Shape.(proj orig_shape (Item.module_ id1))
-          in
-          let item =
-            module_declarations ~core ~direction ~loc env subst id1
-              mty1 mty2 orig_shape
-          in
-          let item, shape_map =
-            match item with
-            | Ok (cc, cstrs, shape) ->
-                if shape != orig_shape then shape_modified := true;
-                let mod_shape = Shape.set_uid_if_none shape mty1.md_uid in
-                Ok (cc, cstrs), Shape.Map.add_module shape_map id1 mod_shape
-            | Error diff ->
-                Error (Error.Module_type diff),
-                (* We add the original shape to the map, even though
-                    there is a type error.
-                    It could still be useful for merlin. *)
-                Shape.Map.add_module shape_map id1 orig_shape
-          in
-          let present_at_runtime, item =
-            match pres1, pres2, mty1.md_type with
-            | Mp_present, Mp_present, _ -> true, item
-            | _, Mp_absent, _ -> false, item
-            | Mp_absent, Mp_present, Mty_alias p1 ->
-              true,
-              Result.map (fun (i, c) -> Tcoerce_alias (env, p1, i), c) item
-            | Mp_absent, Mp_present, _ -> assert false
-          in
-          let item = mark_error_as_unrecoverable item in
-          let paired_uids = (mty1.md_uid, mty2.md_uid) in
-          item, paired_uids, shape_map, present_at_runtime
-        end *)
-    | Sig_typext(_id1, _, _, _), Sig_typext(_id2, _, _, _)
-    | Sig_modtype(_id1, _, _), Sig_modtype(_id2, _, _)
-    | Sig_class(_id1, _, _, _), Sig_class(_id2, _, _, _)
-    | Sig_class_type(_id1, _, _, _), Sig_class_type(_id2, _, _, _) ->
-        true (* Cannot recover if incompatible *)
-    | _ ->
-        assert false
-
-(* and module_declarations ~loc env ~direction subst id1 md1 md2 orig_shape =
-  Builtin_attributes.check_alerts_inclusion
-    ~def:md1.md_loc
-    ~use:md2.md_loc
-    loc
-    md1.md_attributes md2.md_attributes
-    (Ident.name id1);
-  let p1 = Path.Pident id1 in
-  if Directionality.mark_as_used direction then
-    Env.mark_module_used md1.md_uid;
-  strengthened_modtypes ~direction ~loc ~aliasable:true env subst
-    md1.md_type p1 md2.md_type orig_shape *)
+  | Sig_value(_id2, _valdecl2, _) :: rem_sig2 ->
+      approx_signatures ~direction env ~constraints subst sig1 rem_sig2
+  | (Sig_module _ | Sig_typext _ | Sig_modtype _
+    | Sig_class _ | Sig_class_type _) :: _ ->
+      true (* Cannot recover if incompatible *)
+  | Sig_type (id2, tydec2, _, _) :: _ ->
+      let s = Ident.name id2 in
+      let name2 =
+        match tydec2 with
+          {type_manifest=None}
+          when Btype.is_row_name s ->
+            String.sub s 0 (String.length s - 4)
+        | _ -> s
+      in
+      let rec find_tydec1 sig1 =
+        match sig1 with
+        | [] -> false
+        | Sig_type (id1, tydec1, _, _) :: _
+          when String.equal (Ident.name id1) name2 ->
+            let env =
+              Env.add_signature sig1 (Env.in_signature true env) in
+            Core_inclusion.approx_type_declarations ~direction env ~constraints
+              subst id1 tydec1 tydec2
+        | _ :: rem_sig1 ->
+          find_tydec1 rem_sig1
+      in
+      find_tydec1 sig1
 
 let rec modtypes ~core ~direction ~loc env subst mty1 mty2 shape =
   match try_modtypes ~core ~direction ~loc env subst mty1 mty2 shape with
