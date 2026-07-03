@@ -775,10 +775,18 @@ let rec best_path_of_list = function
 let rec update_path_name env path acc eqs id =
   let info = ModId.find id eqs.data in
   let kind = kind_of_desc eqs.data info.mi_desc in
-  let path = normalize_path env kind path in
-  if not (Ident.rigid (Path.first path)) then
-    PathIdEq (kind, id, path) :: acc, eqs
-  else match info.mi_path with
+  match kind with
+  | Module | Type 0 ->
+    let path = normalize_path env kind path in
+    if not (Ident.rigid (Path.first path)) then
+      PathIdEq (kind, id, path) :: acc, eqs
+    else
+      update_path_name_inner env path acc eqs id info
+  | _ ->
+    (* We don't need path normalization here because it is handled later on. *)
+    update_path_name_inner env path acc eqs id info
+and update_path_name_inner env path acc eqs id info =
+  match info.mi_path with
   | None ->
     let eqs = { eqs with
         data = ModId.update id {info with mi_path = Some path} eqs.data
