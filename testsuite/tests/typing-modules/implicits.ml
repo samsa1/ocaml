@@ -1027,3 +1027,44 @@ Error: Inference of signature Sol
        with no termination guaranty.
 
 |}]
+
+module ParametrizedNotIdentity = struct
+  type ('a, 'b) either =
+    | A of 'a
+    | B of 'b
+
+  module type T = sig
+    type 'a t
+  end
+
+  module type T2 = sig
+    type t2
+  end
+
+  module type T3 = sig
+    type _ t3
+  end
+
+  implicit module Loop (X: T2) : T2 with type t2 = X.t2 = X
+
+  (* Not identity with an argument to force inference with constraints *)
+  implicit module F (X : T2) = struct
+    type 'a t3 = (X.t2, 'a) either
+  end
+
+  (* Adds a layer to force propagation with constraints and not subtyping. *)
+  implicit module Lift (X : T3) = struct
+    type 'c t = 'c X.t3
+  end
+
+  (* Fails because 'b F(_).t3 = (_, _) either != 'b *)
+  module _ : T with type 'b t = 'b = _
+end
+
+[%%expect{|
+Line 31, characters 11-38:
+31 |   module _ : T with type 'b t = 'b = _
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Inference of signature sig type 'b t = 'b end
+       failed as no solution was found.
+|}]

@@ -700,7 +700,7 @@ let check_coherence env loc dpath decl =
               if List.length args <> List.length decl.type_params
               then Some Includecore.Arity
               else begin
-                match Ctype.equal env false args decl.type_params with
+                match Ctype.equal env false args [] decl.type_params [] with
                 | exception Ctype.Equality err ->
                     Some (Includecore.Constraint err)
                 | constraints ->

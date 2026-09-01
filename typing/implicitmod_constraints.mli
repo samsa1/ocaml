@@ -40,11 +40,19 @@ val iter2 : ('a -> 'b -> t) -> t -> 'a list -> 'b list -> t *)
 
 val expand_head_rigid : (Env.t -> Types.type_expr -> Types.type_expr) ref
 
-type tmp
-val of_tmp : Env.t -> tmp -> t
-val is_empty : tmp -> bool
-val empty_tmp : tmp
-val merge_tmp : tmp -> tmp -> tmp
-val generalize : Env.t -> Types.functor_parameter -> tmp -> tmp
+type no_types = NoTyps
+type with_types = WithTyps
+type 'a constraints
+type tmp = with_types constraints
+val of_tmp : Env.t -> with_types constraints -> t
+val is_empty : 'a constraints -> bool
+val empty_tmp : 'a constraints
+val merge_tmp : 'a constraints -> 'a constraints -> 'a constraints
+val generalize : Env.t -> Types.functor_parameter -> 'a constraints -> 'a constraints
+val generalize_types :
+  Env.t -> Types.type_expr list ->
+  (Types.type_expr list * Btype.TypePairs.t) -> no_types constraints
+  -> with_types constraints
 val add_path_type_eq :
-  Env.t -> Path.t -> Types.type_expr list -> Types.type_expr -> tmp -> tmp
+  Env.t -> Path.t -> Types.type_expr list -> Types.type_expr ->
+  'a constraints -> 'a constraints

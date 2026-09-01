@@ -497,9 +497,7 @@ module Record_diffing = struct
       in
       Error (Atomicity  ord)
     else
-    let tl1 = params1 @ [ld1.ld_type] in
-    let tl2 = params2 @ [ld2.ld_type] in
-    match Ctype.equal env true tl1 tl2 with
+    match Ctype.equal env true params1 [ld1.ld_type] params2 [ld2.ld_type] with
     | exception Ctype.Equality err ->
         Error (Type err : label_mismatch)
     | constraints -> Ok constraints
@@ -654,7 +652,7 @@ module Variant_diffing = struct
           Error (Arity : constructor_mismatch)
         else begin
         (* Ctype.equal must be called on all arguments at once, cf. PR#7378 *)
-        match Ctype.equal env true (params1 @ arg1) (params2 @ arg2) with
+        match Ctype.equal env true params1 arg1 params2 arg2 with
         | exception Ctype.Equality err -> Error (Type err)
         | constraints -> Ok constraints
       end
@@ -669,7 +667,7 @@ module Variant_diffing = struct
   let compare_constructors ~loc env params1 params2 res1 res2 args1 args2 =
     match res1, res2 with
     | Some r1, Some r2 ->
-        begin match Ctype.equal env true [r1] [r2] with
+        begin match Ctype.equal env true [] [r1] [] [r2] with
         | exception Ctype.Equality err -> Error (Type err)
         | constraints ->
           Result.map (Implicitmod_constraints.merge_tmp constraints)
@@ -839,7 +837,7 @@ let private_variant env row1 params1 row2 params2 =
     let rec loop tl1 tl2 pairs =
       match pairs with
       | [] -> begin
-          match Ctype.equal env true tl1 tl2 with
+          match Ctype.equal env true params1 tl1 params2 tl2 with
           | exception Ctype.Equality err ->
               Some (Types err : private_variant_mismatch)
           | constraints ->
@@ -880,7 +878,7 @@ let private_variant env row1 params1 row2 params2 =
               Some (Missing (First, s) : private_variant_mismatch)
         end
     in
-    loop params1 params2 pairs
+    loop [] [] pairs
 
 let private_object env fields1 params1 fields2 params2 =
   let pairs, _miss1, miss2 = Ctype.associate_fields fields1 fields2 in
@@ -894,7 +892,7 @@ let private_object env fields1 params1 fields2 params2 =
     List.split (List.map (fun (_,_,t1,_,t2) -> t1, t2) pairs)
   in
   begin
-    match Ctype.equal env true (params1 @ tl1) (params2 @ tl2) with
+    match Ctype.equal env true params1 tl1 params2 tl2 with
     | exception Ctype.Equality err -> Some (Types err)
     | constraints ->
       assert (Implicitmod_constraints.is_empty constraints);
@@ -939,7 +937,7 @@ let type_manifest env ~constraints ty1 params1 ty2 params2 priv2 kind2 =
         if is_private_abbrev_2 then
           Ctype.equal_private env params1 ty1 params2 ty2
         else
-          Ctype.equal env ~constraints true (params1 @ [ty1]) (params2 @ [ty2])
+          Ctype.equal env ~constraints true params1 [ty1] params2 [ty2]
       with
       | exception Ctype.Equality err ->
           Error (Manifest err)
@@ -970,7 +968,9 @@ let type_declarations ?(equality = false) ~loc env ~constraints ~mark name
   let err = match (decl1.type_manifest, decl2.type_manifest) with
       (_, None) ->
         begin
-          match Ctype.equal env true decl1.type_params decl2.type_params with
+          match
+            Ctype.equal env true decl1.type_params [] decl2.type_params []
+          with
           | exception Ctype.Equality err -> Error (Constraint err)
           | constraints -> Ok constraints
         end
@@ -982,10 +982,16 @@ let type_declarations ?(equality = false) ~loc env ~constraints ~mark name
         let ty1 =
           Btype.newgenty (Tconstr(path, decl2.type_params, ref Mnil))
         in
-        match Ctype.equal env true decl1.type_params decl2.type_params with
+        match
+          Ctype.equal env true decl1.type_params [] decl2.type_params []
+        with
         | exception Ctype.Equality err -> Error (Constraint err)
         | constraints1 ->
-          match Ctype.equal env false [ty1] [ty2] with
+          match
+            Ctype.equal env false
+              decl2.type_params [ty1]
+              decl2.type_params [ty2]
+          with
           | exception Ctype.Equality err -> Error (Manifest err)
           | constraints2 ->
             Ok (Implicitmod_constraints.merge_tmp constraints1 constraints2)
@@ -1100,9 +1106,9 @@ let extension_constructors ~loc env ~mark id ext1 ext2 =
   let ty2 =
     Btype.newgenty (Tconstr(ext2.ext_type_path, ext2.ext_type_params, ref Mnil))
   in
-  let tl1 = ty1 :: ext1.ext_type_params in
-  let tl2 = ty2 :: ext2.ext_type_params in
-  match Ctype.equal env true tl1 tl2 with
+  match
+    Ctype.equal env true ext1.ext_type_params [ty1] ext2.ext_type_params [ty2]
+  with
   | exception Ctype.Equality err ->
       Error (Constructor_mismatch (id, ext1, ext2, Type err))
   | constraints1 ->

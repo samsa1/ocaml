@@ -471,7 +471,8 @@ val match_class_types:
     ?trace:bool -> Env.t -> class_type -> class_type -> class_match_failure list
         (* Check if the first class type is more general than the second. *)
 val equal: Env.t -> ?constraints:Implicitmod_constraints.t ->
-        bool -> type_expr list -> type_expr list -> Implicitmod_constraints.tmp
+        bool -> type_expr list -> type_expr list ->
+        type_expr list -> type_expr list -> Implicitmod_constraints.tmp
         (* [equal env [x1...xn] tau [y1...yn] sigma]
            checks whether the parameterized types
            [/\x1.../\xn.tau] and [/\y1.../\yn.sigma] are equivalent. *)
