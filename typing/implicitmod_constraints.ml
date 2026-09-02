@@ -1084,6 +1084,56 @@ and merge_ids' path env acc eqs id1 id2 =
     end
   | None, None -> assert false (* Should not happen *)
 
+let update env quant ty =
+  let keep = ref false in
+  let rec aux ty =
+    let ty = !expand_head_rigid env ty in
+    match Types.get_desc ty with
+    | Tvar _ ->
+      if List.exists (fun ty2 -> Types.eq_type ty ty2) quant.ty_forall
+      then begin
+        keep := true; ty
+      end else begin
+        match
+          List.find (fun (ty2, _) -> Types.eq_type ty ty2) quant.ty_exists
+        with
+        | _, None -> keep := true; ty
+        | _, Some ty -> aux ty
+        | exception Not_found -> ty
+      end
+    | Tfunctor (l, us, pack, ty2) ->
+      let pack_constraints =
+        List.map (fun (n, ty) -> (n, aux ty)) pack.pack_constraints in
+      let ty2 = aux ty2 in
+      Btype.newty3
+        ~level:(Types.get_level ty)
+        ~scope:(Types.get_scope ty)
+        (Tfunctor (l, us, {pack with pack_constraints}, ty2))
+    | desc ->
+      Btype.newty3
+        ~level:(Types.get_level ty)
+        ~scope:(Types.get_scope ty)
+        (Btype.copy_type_desc aux desc)
+  in
+  let ty = aux ty in
+  (!keep, ty)
+
+let build_constraint ~env_params eqs iid tyl ty =
+  match iid with
+  | None -> (None, tyl, ty)
+  | Some iid ->
+    let quantification = EqId.find iid eqs.quantifications in
+    let keep, ty = update env_params quantification ty in
+    let keep, tyl =
+      List.fold_left_map
+        (fun k ty ->
+          let k2, ty = update env_params quantification ty in
+          (k || k2, ty)
+        )
+        keep tyl
+    in
+    ((if keep then Some iid else None), tyl, ty)
+
 let rec merge_path_ids env eqs id1 id2 =
   let* eqs = eqs in
   let _, acc, top_level = merge_ids env [] (Some eqs.top_level) id1 id2 in
@@ -1362,10 +1412,11 @@ and add_path_type_eq env iid ?env_params params p1 tyl1 ty2 eqs =
           match info.mi_desc with
           | BaseType (n, cstrs) ->
             assert (info.mi_path = None); (* TODO *)
+            let new_cstrs = build_constraint ~env_params eqs iid tyl1 ty2 in
             Some { eqs with top_level = {eqs.top_level with
               data =
                 ModId.update id
-                  {info with mi_desc = BaseType (n, (iid, tyl1, ty2) :: cstrs) }
+                  {info with mi_desc = BaseType (n, new_cstrs :: cstrs) }
                   eqs.top_level.data
             }}
           | _ -> assert false (* Should not happen *)
@@ -1383,7 +1434,8 @@ and add_tvar_typ_eq env iid ~env_params params tvar ty eqs : t =
     match
       List.find (fun (ty2, _) -> Types.eq_type ty ty2) equation.ty_exists
     with
-    | exception Not_found -> assert false (* TODO *)
+    | exception Not_found ->
+      Some eqs (* TODO *)
     | (_, Some ty2) ->
       add_type_type_eq env (Some iid) ~env_params params ty ty2 (Some eqs)
     | (_, None) ->
@@ -1409,8 +1461,41 @@ and add_type_type_eq env iid ~env_params params ty1 ty2 eqs : t =
   | (Tvar _, Tvar _) ->
     if Types.eq_type ty1 ty2 then
       eqs
-    else
-      assert false (* TODO *)
+    else begin
+      match iid with
+      | None -> eqs
+      | Some iid ->
+        let* eqs' = eqs in
+        let equation = EqId.find iid eqs'.quantifications in
+        match
+          List.find (fun (ty2, _) -> Types.eq_type ty1 ty2) equation.ty_exists
+        with
+        | _, Some ty1 ->
+          add_type_type_eq env (Some iid) ~env_params params ty1 ty2 eqs
+        | _, None ->
+          if
+            List.exists (fun (ty1, _) -> Types.eq_type ty1 ty2)
+              equation.ty_exists
+            && Types.get_id ty2 < Types.get_id ty1
+          then
+            add_tvar_typ_eq env (Some iid) ~env_params params ty2 ty1 eqs
+          else
+            add_tvar_typ_eq env (Some iid) ~env_params params ty1 ty2 eqs
+        | exception Not_found ->
+          match
+            List.find (fun (ty1, _) -> Types.eq_type ty1 ty2) equation.ty_exists
+          with
+          | _, Some ty2 ->
+            add_type_type_eq env (Some iid) ~env_params params ty1 ty2 eqs
+          | _, None ->
+            add_tvar_typ_eq env (Some iid) ~env_params params ty2 ty1 eqs
+          | exception Not_found ->
+            if
+              List.exists (fun t -> Types.eq_type t ty1) equation.ty_forall
+              = List.exists (fun t -> Types.eq_type t ty2) equation.ty_forall
+            then eqs
+            else None
+    end
   | (Tvar _, _) ->
     if Option.is_some iid then
       add_tvar_typ_eq env iid ~env_params params ty1 ty2 eqs
