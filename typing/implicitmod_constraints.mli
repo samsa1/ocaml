@@ -49,6 +49,10 @@ val is_empty : 'a constraints -> bool
 val empty_tmp : 'a constraints
 val merge_tmp : 'a constraints -> 'a constraints -> 'a constraints
 val generalize : Env.t -> Types.functor_parameter -> 'a constraints -> 'a constraints
+val generalize_tfunctor :
+  Env.t -> Ident.Unscoped.t -> Types.module_type ->
+  Ident.Unscoped.t -> Types.module_type ->
+  no_types constraints -> no_types constraints
 val generalize_types :
   Env.t -> Types.type_expr list ->
   (Types.type_expr list * Btype.TypePairs.t) -> no_types constraints

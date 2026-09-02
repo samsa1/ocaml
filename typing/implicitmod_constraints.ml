@@ -25,8 +25,12 @@ type path_eq_kind =
   path : Path.t;
   (* first : Ident.t; *)
 } *)
+type module_param =
+  | Scoped of Ident.t * Types.module_type
+  | Unscoped of
+    Ident.Unscoped.t * Types.module_type * Ident.Unscoped.t * Types.module_type
 
-type params = (Ident.t * Types.module_type) list
+type params = module_param list
 
 (* let build_path_pair eq_kind pp_params ~rigid:pp_rigid ~flex:pp_flex =
   let rec filter_params = function
@@ -194,7 +198,10 @@ module Pp = struct
   let print_params fmt params =
     Format_doc.fprintf fmt "[%a]"
       (Format_doc.pp_print_list
-        (fun fmt (id, _) -> Format_doc.pp_print_string fmt (Ident.name id)))
+        (fun fmt -> function
+          | Scoped (id, _) -> Format_doc.pp_print_string fmt (Ident.name id)
+          | Unscoped (us, _, _, _) ->
+            Format_doc.pp_print_string fmt (Ident.Unscoped.name us)))
       params
 
   (* let print_path_pair fmt {eq_kind; pp_params; pp_rigid; pp_flex} =
@@ -338,6 +345,20 @@ let rec add_ops_to_path p = function
   | Pop_dot s :: ops -> add_ops_to_path (Path.Pdot (p, s)) ops
   | Pop_apply parg :: ops -> add_ops_to_path (Path.Papply (p, parg)) ops
   | Pop_extra_ty ety :: ops -> add_ops_to_path (Path.Pextra_ty (p, ety)) ops
+
+let rec build_env env = function
+  | [] -> env
+  | Scoped (id, mty) :: tl ->
+    let env = Env.add_module id Mp_present IILocal mty env in
+    build_env env tl
+  | Unscoped (us1, mty1, us2, mty2) :: tl ->
+    let env = env
+      |> Env.add_module (Ident.of_unscoped us1) Mp_present IILocal mty1
+      |> Env.add_module (Ident.of_unscoped us2) Mp_present IILocal mty2
+      |> Env.Unscoped.with_pairs
+        ((us1, us2) :: Env.Unscoped.get_pairs env) [@alert "-dangerous"]
+    in
+    build_env env tl
 
 let rec build_normalized_path prefix env eqs ops id =
   let info = ModId.find id eqs.data in
@@ -509,17 +530,28 @@ let map_ops pmap ops =
 
 let rec filter_params map = function
   | [] -> []
-  | (id, mty) :: tl ->
+  | Scoped (id, _) as param :: tl ->
     if Ident.Map.mem id map then
       filter_params map tl
-    else (id, mty) :: filter_params map tl (* TODO apply map on mty *)
+    else param :: filter_params map tl (* TODO apply map on mty *)
+  | Unscoped (us1, _, _, _) as param :: tl ->
+    if Ident.Map.mem (Ident.of_unscoped us1) map then
+      filter_params map tl
+    else param :: filter_params map tl (* TODO apply map on mty *)
 
 let rec compute_map params (from : Path.t) (target : Path.t) =
   match from, target with
   | Pident from_id, Pident target_id when Ident.same from_id target_id ->
     Some Ident.Map.empty
   | Pident from_id, _ ->
-    if List.exists (fun (id, _) -> Ident.same from_id id) params then
+    if List.exists
+        (function
+          | Scoped (id, _) -> Ident.same from_id id
+          | Unscoped (us1, _, us2, _) ->
+              Ident.same from_id (Ident.of_unscoped us1)
+              || Ident.same from_id (Ident.of_unscoped us2)
+        ) params
+      then
       Some (Ident.Map.singleton from_id target)
     else
       None
@@ -549,7 +581,12 @@ let compute_fresh_map params parg_from parg_target instances =
   | None -> None
   | Some map ->
     let new_instance =
-      List.map (fun (p, _) -> Ident.Map.find_opt p map) params
+      List.map
+        (function
+          | Unscoped (us, _, _, _) ->
+            Ident.Map.find_opt (Ident.of_unscoped us) map
+          | Scoped (p, _) -> Ident.Map.find_opt p map)
+        params
     in
     let eq_instances inst1 inst2 =
       List.for_all2 (Option.equal Path.same) inst1 inst2
@@ -633,7 +670,7 @@ let rec build_path_target ?path env data ops target_kind params =
     in
     mod_id, mod_id, data, None, acc' mod_id []
   | Pop_apply parg :: ops ->
-    if Path.exists_free (List.map fst params) parg then
+    if Path.exists_free params parg then
       let mod_id, data =
         ModId.add {
           mi_path = path;
@@ -697,7 +734,7 @@ let rec get_path_target env data mod_id ops target_kind params =
       id, data, final_arg, None, acc
     end
   | Pop_apply parg :: ops, App { static_apps; quantified_apps } ->
-    if Path.exists_free (List.map fst params) parg then
+    if Path.exists_free params parg then
       mod_id, data, Some (parg, ops), None, []
     else begin
       match Path.Map.find parg static_apps with
@@ -772,6 +809,14 @@ let get_path_target env eqs p target_kind params =
 
 let get_path_target_from_id env iid eqs mod_id ops target_kind params =
   assert (iid = None);
+  let params =
+    List.concat_map
+      (function
+        | Scoped (id, _) -> [id]
+        | Unscoped (us1, _, us2, _) ->
+          [Ident.of_unscoped us1; Ident.of_unscoped us2])
+      params
+  in
   let target_id, top_level, final_arg, maybe_new_instances, acc =
     get_path_target_from_id env eqs.top_level mod_id ops target_kind params
   in
@@ -779,6 +824,14 @@ let get_path_target_from_id env iid eqs mod_id ops target_kind params =
 
 let get_path_target env _iid eqs p target_kind params =
   (* assert (iid = None); (* Maybe not needed *) *)
+  let params =
+    List.concat_map
+      (function
+        | Scoped (id, _) -> [id]
+        | Unscoped (us1, _, us2, _) ->
+          [Ident.of_unscoped us1; Ident.of_unscoped us2])
+      params
+  in
   let id, top_level, final_arg, new_instances, acc =
     get_path_target env eqs.top_level p target_kind params
   in
@@ -1064,10 +1117,7 @@ and merge_paths env ?env_params params eq_kind p1 p2 eqs =
   let env_params =
     match env_params with
     | Some env_params -> env_params
-    | None ->
-      List.fold_left
-        (fun env (id, mty) -> Env.add_module id Mp_present IILocal mty env)
-        env params
+    | None -> build_env env params
   in
   let* eqs = eqs in
   merge_paths_normalized env ~env_params params eq_kind
@@ -1277,10 +1327,7 @@ and add_path_type_eq env iid ?env_params params p1 tyl1 ty2 eqs =
   let env_params =
     match env_params with
     | Some env_params -> env_params
-    | None ->
-      List.fold_left
-        (fun env (id, mty) -> Env.add_module id Mp_present IILocal mty env)
-        env full_params
+    | None -> build_env env full_params
   in
   match Types.get_desc ty2 with
   | Tconstr (p2, [], _) when tyl1 = [] ->
@@ -1681,7 +1728,7 @@ type no_types = NoTyps
 type with_types = WithTyps
 
 type 'a constraints =
-  | CAMod : Ident.t * Types.module_type * 'a constraints -> 'a constraints
+  | CAMod : module_param * 'a constraints -> 'a constraints
   | CAETyps :
     Types.type_expr list
     * (Types.type_expr * Types.type_expr option) list
@@ -1704,10 +1751,14 @@ let generalize _env param c =
   match param with
   | Types.Unit | Types.Named (_, None, _) -> c
   | Types.Named (_, Some id, mty) ->
-    CAMod (id, mty, c)
+    CAMod (Scoped (id, mty), c)
+
+let generalize_tfunctor _env us1 mty1 us2 mty2 c =
+  if c = CTrue then CTrue else
+  CAMod (Unscoped (us1, mty1, us2, mty2), c)
 
 let rec tmp1_to_tmp : tmp1 -> tmp = function
-    | CAMod (id, mty, c) -> CAMod (id, mty, tmp1_to_tmp c)
+    | CAMod (param, c) -> CAMod (param, tmp1_to_tmp c)
     | CAnd (c1, c2) -> CAnd (tmp1_to_tmp c1, tmp1_to_tmp c2)
     | CEq (p, tyl, ty) -> CEq (p, tyl, ty)
     | CTrue -> CTrue
@@ -1725,7 +1776,7 @@ let of_tmp env c =
     match c with
     | CTrue -> eqs
     | CAnd (c1, c2) -> aux ?iid params (aux ?iid params eqs c1) c2
-    | CAMod (id, mty, c) -> aux ?iid ((id, mty) :: params) eqs c
+    | CAMod (param, c) -> aux ?iid (param :: params) eqs c
     | CAETyps (ty_forall, ty_exists, c) ->
       begin match eqs with
       | Some eqs ->
@@ -1746,15 +1797,32 @@ let of_tmp env c =
         | Tconstr (p2, [], _) when tyl = [] ->
           let rec filter_params = function
             | [] -> []
-            | (id, _) as hd :: tl ->
-              match filter_params tl with
-              | [] ->
-                if Path.exists_free [id] p || Path.exists_free [id] p2
-                then
-                  [hd]
-                else
-                  []
-              | tl -> hd :: tl
+            | Scoped (id, _) as hd :: tl ->
+              begin
+                match filter_params tl with
+                | [] ->
+                  if Path.exists_free [id] p || Path.exists_free [id] p2
+                  then
+                    [hd]
+                  else
+                    []
+                | tl -> hd :: tl
+              end
+            | Unscoped (us1, _, us2, _) as hd :: tl ->
+              begin
+                match filter_params tl with
+                | [] ->
+                  let ids = [
+                    Ident.of_unscoped us1;
+                    Ident.of_unscoped us2;
+                  ] in
+                  if Path.exists_free ids p || Path.exists_free ids p2
+                  then
+                    [hd]
+                  else
+                    []
+                | tl -> hd :: tl
+              end
           in
           add_path_type_eq env iid (filter_params params) p tyl ty eqs
         | _ ->

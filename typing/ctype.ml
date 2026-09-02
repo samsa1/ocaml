@@ -4850,8 +4850,7 @@ let rec eqtype ctxt env t1 t2 =
                           {ctxt with constraints_in = Implicitmod_constraints.empty}
                           new_env t1 t2
                     in
-                    assert (Constraints.is_empty c);
-                    c)
+                    Constraints.generalize_tfunctor env id1 mty1 id2 mty2 c)
               in Constraints.merge_tmp c_a c_r
           | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _)) ->
               eq_labels Equality ~in_pattern_mode:false l1 l2;
