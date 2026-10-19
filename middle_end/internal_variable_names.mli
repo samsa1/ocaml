@@ -75,6 +75,7 @@ val read_mutable : t
 val remove_unused_arguments : t
 val no_imp_filter1 : t
 val no_imp_filter2 : t
+val no_imp_term_check : t
 val result : t
 val send_arg : t
 val sequence : t

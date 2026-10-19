@@ -118,10 +118,22 @@ end = struct
     | Mty_alias _ -> assert false (* Should not happen *)
 
   let update_map env cstrs m name mty =
-    let v = module_type env cstrs mty in
-    if is_smaller m name v
-    then Some (Misc.Stdlib.String.Map.add name v m)
-    else None
+    if !Clflags.no_imp_term_check > 0 then
+      let nb =
+        Option.value ~default:(Some !Clflags.no_imp_term_check)
+          (Misc.Stdlib.String.Map.find_opt name m)
+      in
+      match nb with
+      | None -> None
+      | Some nb ->
+        if nb > 0 then
+          Some (Misc.Stdlib.String.Map.add name (Some (nb - 1)) m)
+        else None
+    else
+      let v = module_type env cstrs mty in
+      if is_smaller m name v
+      then Some (Misc.Stdlib.String.Map.add name v m)
+      else None
 
   let update_map = Profile.record ~accumulate:true "update_map" update_map
 end

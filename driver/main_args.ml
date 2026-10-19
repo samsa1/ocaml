@@ -461,6 +461,10 @@ let mk_no_imp_filter2 f =
   "-no-imp-filter2", Arg.Unit f,
   " Disable filter2 for implicits"
 
+let mk_no_imp_term_check f =
+  "-no-imp-term-check", Arg.Int f,
+  " Disable termination checker for implicits (might create a divergence)"
+
 let mk_runtime_variant f =
   "-runtime-variant", Arg.String f,
   "<str>  Use the <str> variant of the run-time system"
@@ -856,6 +860,7 @@ module type Common_options = sig
   val _no_rectypes : unit -> unit
   val _no_imp_filter1 : unit -> unit
   val _no_imp_filter2 : unit -> unit
+  val _no_imp_term_check : int -> unit
   val _safer_matching : unit -> unit
   val _short_paths : unit -> unit
   val _strict_sequence : unit -> unit
@@ -1170,6 +1175,7 @@ struct
     mk_no_rectypes F._no_rectypes;
     mk_no_imp_filter1 F._no_imp_filter1;
     mk_no_imp_filter2 F._no_imp_filter2;
+    mk_no_imp_term_check F._no_imp_term_check;
     mk_runtime_variant F._runtime_variant;
     mk_with_runtime F._with_runtime;
     mk_without_runtime F._without_runtime;
@@ -1264,6 +1270,7 @@ struct
     mk_no_rectypes F._no_rectypes;
     mk_no_imp_filter1 F._no_imp_filter1;
     mk_no_imp_filter2 F._no_imp_filter2;
+    mk_no_imp_term_check F._no_imp_term_check;
     mk_safe_string;
     mk_safer_matching F._safer_matching;
     mk_short_paths F._short_paths;
@@ -1400,6 +1407,7 @@ struct
     mk_no_rectypes F._no_rectypes;
     mk_no_imp_filter1 F._no_imp_filter1;
     mk_no_imp_filter2 F._no_imp_filter2;
+    mk_no_imp_term_check F._no_imp_term_check;
     mk_remove_unused_arguments F._remove_unused_arguments;
     mk_rounds F._rounds;
     mk_runtime_variant F._runtime_variant;
@@ -1537,6 +1545,7 @@ module Make_opttop_options (F : Opttop_options) = struct
     mk_no_rectypes F._no_rectypes;
     mk_no_imp_filter1 F._no_imp_filter1;
     mk_no_imp_filter2 F._no_imp_filter2;
+    mk_no_imp_term_check F._no_imp_term_check;
     mk_remove_unused_arguments F._remove_unused_arguments;
     mk_S F._S;
     mk_safe_string;
@@ -1631,6 +1640,7 @@ struct
     mk_no_rectypes F._no_rectypes;
     mk_no_imp_filter1 F._no_imp_filter1;
     mk_no_imp_filter2 F._no_imp_filter2;
+    mk_no_imp_term_check F._no_imp_term_check;
     mk_safe_string;
     mk_short_paths F._short_paths;
     mk_strict_sequence F._strict_sequence;
@@ -1716,6 +1726,7 @@ module Default = struct
     let _no_rectypes = clear recursive_types
     let _no_imp_filter1 = set no_imp_filter1
     let _no_imp_filter2 = set no_imp_filter2
+    let _no_imp_term_check n = no_imp_term_check := n
     let _no_strict_formats = clear strict_formats
     let _no_strict_sequence = clear strict_sequence
     let _no_unboxed_types = clear unboxed_types

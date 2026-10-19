@@ -372,6 +372,9 @@ let read_one_param ppf position name v =
   | "no-imp-filter2" ->
     set "no-imp-filter2" [ no_imp_filter2 ] v
 
+  | "no-imp-term-check" ->
+    int_setter ppf "no-imp-term-check" no_imp_term_check v
+
   | "inlining-report" ->
       if !native_code then
         set "inlining-report" [ inlining_report ] v

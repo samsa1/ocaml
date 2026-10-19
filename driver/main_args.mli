@@ -41,6 +41,7 @@ module type Common_options = sig
   val _no_rectypes : unit -> unit
   val _no_imp_filter1 : unit -> unit
   val _no_imp_filter2 : unit -> unit
+  val _no_imp_term_check : int -> unit
   val _safer_matching : unit -> unit
   val _short_paths : unit -> unit
   val _strict_sequence : unit -> unit
