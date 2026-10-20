@@ -186,6 +186,7 @@ let rec prepare_args d env args =
       (EA_Unit :: args, env, subst)
   | Named (_, id, arg_ty) :: rest ->
       let args, env, subst = prepare_args d env rest in
+      let arg_ty = Subst.modtype Keep subst arg_ty in
       (* let arg_ty = open_module_type env arg_ty in *)
       let oid, env, subst = match id with
         | None ->
@@ -201,7 +202,7 @@ let rec prepare_args d env args =
           Env.add_module ~noalias:true id' Mp_present IILocal arg_ty env,
           Subst.add_module id (Pident id') subst
       in
-      (EA_Arg (oid, env, Subst.modtype Keep subst arg_ty) :: args, env, subst)
+      (EA_Arg (oid, env, arg_ty) :: args, env, subst)
 
 let extract_function search_depth env depth mty =
   let rec aux d args mty =
